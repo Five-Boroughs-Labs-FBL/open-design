@@ -11,6 +11,13 @@ export function isAmcEmbedSearch(search = ""): boolean {
   return params.get("amcEmbed") === "1" || params.get("embed") === "1";
 }
 
+export function isAmcEmbedActive(win: Window = window): boolean {
+  return (
+    win.document.documentElement.dataset.amcEmbed === "1" ||
+    isAmcEmbedSearch(win.location.search)
+  );
+}
+
 export function applyAmcEmbedFromLocation(win: Window = window): boolean {
   if (!isAmcEmbedSearch(win.location.search)) return false;
   win.document.documentElement.dataset.amcEmbed = "1";

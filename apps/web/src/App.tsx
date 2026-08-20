@@ -13,6 +13,8 @@ import {
 import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
+import { isAmcEmbedActive } from './amc-embed';
+import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
   stashOnboardingEntryForProject,
   type OnboardingEntry,
@@ -2301,11 +2303,19 @@ function AppInner() {
   // persists it to the daemon, which then races and clobbers the user's AMR
   // selection on the next launch. Gate on onboardingCompleted so this only
   // backfills an empty slot for returning users.
+  //
+  // AMC Design embed is the other exception: the studio is deep-linked into a
+  // project conversation with the top bar hidden, so the user cannot finish
+  // onboarding or pick a CLI. Auto-fill an authenticated local agent or the
+  // first available one so Send does not fail with "Pick a local agent first".
   useEffect(() => {
     if (!daemonConfigLoaded || agentsLoading) return;
-    if (config.onboardingCompleted !== true) return;
+    const amcEmbed = typeof window !== 'undefined' && isAmcEmbedActive(window);
+    if (config.onboardingCompleted !== true && !amcEmbed) return;
     if (config.agentId) return;
-    const firstAvailable = agents.find((a) => a.available);
+    const firstAvailable = amcEmbed
+      ? pickDefaultDaemonAgent(agents)
+      : agents.find((a) => a.available);
     if (!firstAvailable) return;
     setConfig((prev) => {
       if (prev.agentId) return prev;

@@ -182,6 +182,7 @@ describe('App first-run agent auto-select', () => {
 
   afterEach(() => {
     cleanup();
+    delete document.documentElement.dataset.amcEmbed;
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -246,6 +247,18 @@ describe('App first-run agent auto-select', () => {
 
     // Returning user with an empty agent slot: the fallback should still fill
     // it with the first available agent.
+    await waitFor(() => {
+      expect(screen.getByTestId('agent-id').textContent).toBe('claude');
+    });
+  });
+
+  it('auto-picks an agent in AMC embed even when onboarding is incomplete', async () => {
+    document.documentElement.dataset.amcEmbed = '1';
+    mockedLoadConfig.mockReturnValue(firstRunConfig());
+    mockedFetchDaemonConfig.mockResolvedValue({});
+
+    render(<App />);
+
     await waitFor(() => {
       expect(screen.getByTestId('agent-id').textContent).toBe('claude');
     });
