@@ -5375,7 +5375,9 @@ function AppInner() {
         className={`workspace-shell workspace-shell--${clientType}`}
         data-client-type={clientType}
         data-host-platform={hostPlatform}
+        data-amc-embed={typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? '1' : undefined}
       >
+        {typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? null : (
         <WorkspaceTabsBar
           route={route}
           // The ambient list may still be loading (or belong to a different
@@ -5395,12 +5397,13 @@ function AppInner() {
           onboardingCompleted={config.onboardingCompleted === true}
           identityScopeKey={workspaceTabsIdentityScopeKey}
         />
+        )}
         {/* Avatar + credits keep their home-view spot (the fixed top-right
             corner over the tabs chrome) while a project tab is open, even
             though EntryShell — the cluster's usual owner — is unmounted here.
             Home and the other entry views mount theirs through EntryNavRail;
             the routes are mutually exclusive, so exactly one is on screen. */}
-        {route.kind === 'project' ? (
+        {typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? null : route.kind === 'project' ? (
           <WorkspaceTopRightAccountCluster
             onOpenSettings={openSettings}
             onSignedOut={handleActiveCloudSignOut}
@@ -5440,7 +5443,7 @@ function AppInner() {
           {appMain}
         </div>
       </div>
-      {clientType === 'desktop' ? null : (
+      {typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? null : clientType === 'desktop' ? null : (
         <PetOverlay
           pet={config.pet?.enabled ? config.pet : undefined}
           taskCenter={petTaskCenter}

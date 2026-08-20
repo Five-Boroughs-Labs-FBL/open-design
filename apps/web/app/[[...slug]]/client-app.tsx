@@ -2,9 +2,14 @@
 
 import dynamic from 'next/dynamic';
 
+import { applyAmcEmbedFromLocation } from '../../src/amc-embed';
 import { installErrorHandlers } from '../../src/analytics/error-tracking';
 import { MatrixLoader } from '../../src/components/MatrixLoader';
 import { installWebObservability } from '../../src/observability/install';
+
+if (typeof window !== 'undefined') {
+  applyAmcEmbedFromLocation(window);
+}
 
 // Install browser exception handlers at module-load time, before any other
 // client code can throw. The hooks buffer events until AnalyticsProvider

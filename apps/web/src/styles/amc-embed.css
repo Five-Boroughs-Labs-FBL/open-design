@@ -1,0 +1,20 @@
+/* AMC Design iframe — hide Open Design product chrome, keep Studio. */
+html[data-amc-embed] .workspace-tabs-chrome,
+html[data-amc-embed] .workspace-account-cluster,
+html[data-amc-embed] .pet-overlay,
+html[data-amc-embed] .entry-nav-rail,
+html[data-amc-embed] .ws-tabs-shell,
+html[data-amc-embed] .MemoryToast,
+html[data-amc-embed] .update-dialog {
+  display: none !important;
+}
+
+html[data-amc-embed] .workspace-shell {
+  grid-template-rows: 0 minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+html[data-amc-embed] body {
+  overflow: hidden;
+}
