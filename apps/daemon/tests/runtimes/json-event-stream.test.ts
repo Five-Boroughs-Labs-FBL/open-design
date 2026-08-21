@@ -1923,6 +1923,78 @@ test('codex json stream does not downgrade non-reconnect errors that mention rec
   ]);
 });
 
+test('grok thought HTML keeps </artifact> as text_delta after a split </html>', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\"><html><body>"}\n' +
+    '{"type":"thought","data":"<h1>HUD</h1>"}\n' +
+    '{"type":"thought","data":"</body></html>"}\n' +
+    '{"type":"thought","data":"</artifact>"}\n' +
+    '{"type":"text","data":"Done"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['text_delta', 'text_delta', 'text_delta', 'text_delta', 'text_delta'],
+  );
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /<\/html><\/artifact>Done$/);
+});
+
+test('grok thought that only mentions <style> does not latch HTML mode', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"I should add a <style> block for the hero"}\n' +
+    '{"type":"thought","data":"then check the palette"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['thinking_delta', 'thinking_delta'],
+  );
+});
+
+test('grok thought HTML stays text_delta across tag-free chunks until </html>', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\"><html><body>"}\n' +
+    '{"type":"thought","data":".hero{color:red}"}\n' +
+    '{"type":"thought","data":"Visible HUD"}\n' +
+    '{"type":"thought","data":"</body></html></artifact>"}\n' +
+    '{"type":"thought","data":"next I will write DESIGN.md"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['text_delta', 'text_delta', 'text_delta', 'text_delta', 'thinking_delta'],
+  );
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /\.hero\{color:red\}/);
+  assert.match(html, /Visible HUD/);
+});
+
+test('grok thought HTML paints as text_delta so the canvas can stream', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"I will sketch the HUD"}\n' +
+    '{"type":"thought","data":"<!doctype html><html><body><h1>HUD</h1>"}\n' +
+    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\">"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['thinking_delta', 'text_delta', 'text_delta'],
+  );
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /<!doctype html>/i);
+  assert.match(html, /<artifact identifier="index"/);
+});
+
 test('grok streaming-json maps thought/text to deltas before the end event', () => {
   const { events, handler } = collectEvents('grok');
   handler.feed(

@@ -22,6 +22,9 @@ type ParserState = {
   suppressDuplicateArtifactText: boolean;
   artifactOpenCandidate: string;
   pendingArtifactText: string;
+  /** Once a Grok thought chunk looks like HTML, keep mapping thought → text_delta until the matching closer. */
+  grokThoughtHtmlOpen: boolean;
+  grokThoughtOpenedArtifact: boolean;
 };
 
 type Usage = {
@@ -921,6 +924,20 @@ function grokPayloadText(obj: JsonObject): string | null {
   return null;
 }
 
+/** Grok often dumps the HTML mock in `thought`. Paint that as visible text so the canvas streams. */
+function grokThoughtLooksLikeHtml(delta: string): boolean {
+  return /<artifact\b|<!doctype\s+html|<html[\s>]/i.test(delta);
+}
+
+function grokThoughtOpensArtifact(delta: string): boolean {
+  return /<artifact\b/i.test(delta);
+}
+
+function grokThoughtClosesHtmlMode(delta: string, openedArtifact: boolean): boolean {
+  if (openedArtifact) return /<\/artifact>/i.test(delta);
+  return /<\/html>/i.test(delta);
+}
+
 function grokUsageFrom(value: unknown): Usage | null {
   if (!isRecord(value)) return null;
   const usage: Usage = {};
@@ -949,7 +966,11 @@ function grokUsageFrom(value: unknown): Usage | null {
  * Maps into the same UI events Claude's stream handler emits so
  * `<artifact>` HTML paints via the web artifact parser before process exit.
  */
-export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): boolean {
+export function handleGrokEvent(
+  obj: unknown,
+  onEvent: StreamEventHandler,
+  state?: ParserState,
+): boolean {
   if (!isRecord(obj) || typeof obj.type !== 'string') return false;
   const type = obj.type;
 
@@ -963,7 +984,25 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
 
   if (type === 'thought' || type === 'thinking') {
     const delta = grokPayloadText(obj);
-    if (delta) onEvent({ type: 'thinking_delta', delta });
+    if (delta) {
+      const looksLikeHtml = grokThoughtLooksLikeHtml(delta);
+      const sticky = Boolean(state?.grokThoughtHtmlOpen);
+      const asText = looksLikeHtml || sticky;
+      if (state) {
+        if (looksLikeHtml && grokThoughtOpensArtifact(delta)) {
+          state.grokThoughtOpenedArtifact = true;
+        }
+        if (asText) state.grokThoughtHtmlOpen = true;
+        if (asText && grokThoughtClosesHtmlMode(delta, Boolean(state.grokThoughtOpenedArtifact))) {
+          state.grokThoughtHtmlOpen = false;
+          state.grokThoughtOpenedArtifact = false;
+        }
+      }
+      onEvent({
+        type: asText ? 'text_delta' : 'thinking_delta',
+        delta,
+      });
+    }
     return true;
   }
 
@@ -974,6 +1013,10 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
   }
 
   if (type === 'end') {
+    if (state) {
+      state.grokThoughtHtmlOpen = false;
+      state.grokThoughtOpenedArtifact = false;
+    }
     const sessionId = typeof obj.sessionId === 'string' && obj.sessionId
       ? obj.sessionId
       : typeof obj.session_id === 'string' && obj.session_id
@@ -1068,6 +1111,8 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     suppressDuplicateArtifactText: false,
     artifactOpenCandidate: '',
     pendingArtifactText: '',
+    grokThoughtHtmlOpen: false,
+    grokThoughtOpenedArtifact: false,
   };
 
   function handleLine(line: string): void {
@@ -1084,7 +1129,7 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
-    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent)) return;
+    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent, state)) return;
 
     onEvent({ type: 'raw', line });
   }
