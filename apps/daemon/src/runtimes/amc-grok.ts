@@ -87,10 +87,10 @@ export function materializeAmcGrokHome(
   if (!root || path.isAbsolute(root) === false) {
     throw new Error('amcGrok materialize requires an absolute dataDir');
   }
-  const seed = forwarding.authJson || forwarding.apiKey || forwarding.grokHome || 'amc';
+  const seed = forwarding.grokHome || forwarding.apiKey || forwarding.authJson || 'amc';
   const id = createHash('sha256').update(seed).digest('hex').slice(0, 16);
   const home = path.join(root, 'amc-grok-homes', id);
-  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   if (forwarding.authJson) {
     fs.writeFileSync(path.join(home, 'auth.json'), forwarding.authJson, { mode: 0o600 });
   }

@@ -115,6 +115,7 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=192
 ENV OD_BIND_HOST=0.0.0.0
 ENV OD_PORT=7456
+ENV OD_DATA_DIR=/app/.od
 
 EXPOSE 7456
 

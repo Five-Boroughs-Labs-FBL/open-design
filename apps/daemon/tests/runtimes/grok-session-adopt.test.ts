@@ -7,7 +7,11 @@ import {
   adoptGrokSession,
   grokSessionDirForTest,
 } from '../../src/runtimes/grok-session-adopt.ts';
-import { applyAmcGrokHome, parseAmcGrokBlock } from '../../src/runtimes/amc-grok.ts';
+import {
+  applyAmcGrokHome,
+  materializeAmcGrokHome,
+  parseAmcGrokBlock,
+} from '../../src/runtimes/amc-grok.ts';
 
 describe('adoptGrokSession', () => {
   it('copies a session dir from the planner cwd key to the OD project cwd key', () => {
@@ -76,6 +80,21 @@ describe('parseAmcGrokBlock', () => {
       apiKey: 'xai-from-amc',
     });
     expect(parsed?.apiKey).toBe('xai-from-amc');
+  });
+
+  it('materializes AMC auth onto an OD-local GROK_HOME under dataDir', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'od-data-'));
+    const out = materializeAmcGrokHome(dataDir, {
+      sessionId: '',
+      grokHome: '/app/data/missing-on-od',
+      sourceCwd: '/amc',
+      apiKey: 'xai-from-amc',
+      authJson: '{"refresh_token":"r"}',
+    });
+    expect(out.grokHome.startsWith(dataDir)).toBe(true);
+    const env = applyAmcGrokHome({ PATH: '/bin' }, out);
+    expect(env.GROK_HOME).toBe(out.grokHome);
+    expect(env.GROK_CODE_XAI_API_KEY).toBe('xai-from-amc');
   });
 
   it('applies GROK_HOME onto spawn env and ignores empty blocks', () => {

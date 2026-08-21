@@ -800,6 +800,7 @@ function withoutSensitiveRunInput(body: JsonRecord): JsonRecord {
   delete sanitized.byokProvider;
   delete sanitized.byokProfileId;
   delete sanitized.apiKey;
+  delete sanitized.amcGrok;
   delete sanitized.rechargeResumeCapability;
   // Workspace scope is a server-issued authorization fact, not a request option.
   delete sanitized.workspaceScope;
@@ -1216,6 +1217,17 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     const requestBody = toJsonRecord(req.body);
     let parsedAmcGrok = null;
+    if (requestBody.amcGrok != null) {
+      const apiToken = apiTokenFromEnv();
+      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
+        return sendApiError(
+          res,
+          403,
+          'FORBIDDEN',
+          'amcGrok requires the Open Design server API token',
+        );
+      }
+    }
     try {
       parsedAmcGrok = parseAmcGrokBlock(requestBody.amcGrok);
     } catch (err) {
@@ -1227,26 +1239,14 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       );
     }
     if (parsedAmcGrok) {
-      const apiToken = apiTokenFromEnv();
-      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
-        return sendApiError(
-          res,
-          403,
-          'FORBIDDEN',
-          'amcGrok requires the Open Design server API token',
-        );
-      }
       try {
-        parsedAmcGrok = materializeAmcGrokHome(
-          process.env.OD_DATA_DIR || process.env.HOME || '',
-          parsedAmcGrok,
-        );
+        parsedAmcGrok = materializeAmcGrokHome(RUNTIME_DATA_DIR, parsedAmcGrok);
       } catch (err) {
         return sendApiError(
           res,
-          400,
-          'BAD_REQUEST',
-          err instanceof Error ? err.message : 'invalid amcGrok',
+          500,
+          'UPSTREAM_UNAVAILABLE',
+          err instanceof Error ? err.message : 'amcGrok materialize failed',
         );
       }
     }

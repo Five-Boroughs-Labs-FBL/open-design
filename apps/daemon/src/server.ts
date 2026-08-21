@@ -12197,7 +12197,7 @@ export async function startServer({
         undefined,
         { resolvedBin: agentLaunch.selectedPath },
       ),
-      run.amcGrok,
+      def.id === 'grok-build' ? amcGrokForwarding : null,
     );
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentSpawnEnv);
