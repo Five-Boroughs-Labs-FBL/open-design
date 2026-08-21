@@ -30,7 +30,11 @@ import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
-import { parseAmcGrokBlock } from '../runtimes/amc-grok.js';
+import {
+  parseAmcGrokBlock,
+  materializeAmcGrokHome,
+  type AmcGrokForwarding,
+} from '../runtimes/amc-grok.js';
 import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
 import { agentCliEnvForAgent, readAppConfig } from '../app-config.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
@@ -370,6 +374,7 @@ interface ChatRun {
     missReason?: string | null;
     changedSections?: string[] | null;
   };
+  amcGrok?: AmcGrokForwarding | null;
 }
 
 interface RunCreateMeta extends JsonRecord {
@@ -1229,6 +1234,19 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           403,
           'FORBIDDEN',
           'amcGrok requires the Open Design server API token',
+        );
+      }
+      try {
+        parsedAmcGrok = materializeAmcGrokHome(
+          process.env.OD_DATA_DIR || process.env.HOME || '',
+          parsedAmcGrok,
+        );
+      } catch (err) {
+        return sendApiError(
+          res,
+          400,
+          'BAD_REQUEST',
+          err instanceof Error ? err.message : 'invalid amcGrok',
         );
       }
     }

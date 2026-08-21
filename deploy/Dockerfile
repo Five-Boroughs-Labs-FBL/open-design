@@ -80,9 +80,17 @@ COPY plugins/_official ./plugins/_official
 
 FROM ${RUNTIME_IMAGE}
 
-RUN apk add --no-cache tini poppler-utils bash git && \
+RUN apk add --no-cache tini poppler-utils bash git curl && \
     addgroup -S -g 1001 open-design && \
     adduser -S -D -H -u 1001 -G open-design open-design
+
+# Same Grok CLI AMC planner/builder uses (static-pie linux-x86_64).
+ARG GROK_VERSION=1.0.4
+RUN curl -fsSL -o /usr/local/bin/grok \
+      "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${GROK_VERSION}-linux-x86_64" && \
+    chmod 0755 /usr/local/bin/grok && \
+    /usr/local/bin/grok --version && \
+    apk del curl
 
 WORKDIR /app
 COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daemon

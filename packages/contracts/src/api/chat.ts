@@ -330,6 +330,14 @@ export interface ChatRunCreateRequest extends ChatRequest {
   /** Client pin id; daemon mints when omitted (API / omit-pin clients). */
   assistantMessageId?: string;
   clientRequestId: string;
+  /** AMC Design gate: same Grok login as AMC planner/builder. */
+  amcGrok?: {
+    sessionId: string;
+    grokHome: string;
+    sourceCwd?: string;
+    apiKey?: string;
+    authJson?: string;
+  };
 }
 
 /**
@@ -366,6 +374,8 @@ export interface McpRunCreateRequest {
     sessionId: string;
     grokHome: string;
     sourceCwd?: string;
+    apiKey?: string;
+    authJson?: string;
   };
 }
 

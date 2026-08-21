@@ -66,8 +66,16 @@ describe('parseAmcGrokBlock', () => {
       parseAmcGrokBlock({ sessionId: 'sess-1', grokHome: join(home, 'missing') }),
     ).toThrow(/grok_home_unreachable/);
     const loginOnly = parseAmcGrokBlock({ grokHome: home });
-    expect(loginOnly.sessionId).toBe('');
-    expect(loginOnly.grokHome).toBe(home);
+    expect(loginOnly?.sessionId).toBe('');
+    expect(loginOnly?.grokHome).toBe(home);
+  });
+
+  it('accepts an AMC API key when grokHome is not on this host', () => {
+    const parsed = parseAmcGrokBlock({
+      grokHome: '/app/data/cred-runtime/admin/.grok',
+      apiKey: 'xai-from-amc',
+    });
+    expect(parsed?.apiKey).toBe('xai-from-amc');
   });
 
   it('applies GROK_HOME onto spawn env and ignores empty blocks', () => {
