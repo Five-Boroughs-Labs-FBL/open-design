@@ -16,6 +16,8 @@ export function buildGrokHeadlessArgs(input: {
   const args = [
     '--prompt-file',
     promptFilePath,
+    '--output-format',
+    'streaming-json',
     '--no-plan',
     '--always-approve',
   ];
