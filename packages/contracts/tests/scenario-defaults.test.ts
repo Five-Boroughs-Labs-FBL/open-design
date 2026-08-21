@@ -48,6 +48,17 @@ describe('defaultScenarioPluginIdForKind', () => {
     expect(defaultScenarioPluginIdForProjectMetadata(undefined)).toBeNull();
   });
 
+  it('skips kind fallback when skipDefaultScenario is set', () => {
+    expect(defaultScenarioPluginIdForProjectMetadata({
+      kind: 'other',
+      skipDefaultScenario: true,
+    })).toBeNull();
+    expect(defaultScenarioPluginIdForProjectMetadata({
+      kind: 'prototype',
+      skipDefaultScenario: true,
+    })).toBeNull();
+  });
+
   it('exposes the hidden free-form Home fallback plugin separately from kind defaults', () => {
     expect(DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID).toBe('od-default');
     expect(DEFAULT_SCENARIO_PLUGIN_BY_KIND.other).toBe('od-new-generation');

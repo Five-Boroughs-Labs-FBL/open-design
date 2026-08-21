@@ -1,5 +1,5 @@
 import type { ExecFileOptions } from 'node:child_process';
-import type { AgentDiagnostic, ModelMetadata } from '@open-design/contracts';
+import type { AgentDiagnostic, ExecutionProfile, ModelMetadata } from '@open-design/contracts';
 
 export type { AgentDiagnostic } from '@open-design/contracts';
 
@@ -137,6 +137,8 @@ export type RuntimeAgentDef = {
     runtimeContext?: RuntimeContext,
   ) => string[];
   streamFormat: string;
+  /** When set, wins over `executionProfileFromStreamFormat(streamFormat)`. */
+  executionProfile?: ExecutionProfile;
   fallbackBins?: string[];
   versionProbeTimeoutMs?: number;
   versionPolicy?: RuntimeVersionPolicy;

@@ -1922,3 +1922,101 @@ test('codex json stream does not downgrade non-reconnect errors that mention rec
     },
   ]);
 });
+
+test('grok streaming-json maps thought/text to deltas before the end event', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"available_commands","tools":["Write"]}\n' +
+    '{"type":"thought","data":"plan"}\n' +
+    '{"type":"text","data":"<artifact identifier=\\"primary\\" type=\\"text/html\\" title=\\"HUD\\">"}\n' +
+    '{"type":"text","data":"<!doctype html><html><body><h1>HUD</h1>"}\n',
+  );
+  const typesBeforeEnd = events.map((event) => event.type);
+  assert.deepEqual(typesBeforeEnd, ['thinking_delta', 'text_delta', 'text_delta']);
+  assert.equal(events.some((event) => event.type === 'status'), false);
+  assert.equal(events.some((event) => event.type === 'raw'), false);
+
+  handler.feed(
+    '{"type":"text","data":"</body></html></artifact>"}\n' +
+    '{"type":"end","stopReason":"end_turn","sessionId":"grok-sess-1"}\n',
+  );
+  handler.flush();
+
+  const firstText = events.findIndex((event) => event.type === 'text_delta');
+  const completeAt = events.findIndex(
+    (event) => event.type === 'status' && event.label === 'complete',
+  );
+  assert.ok(firstText >= 0);
+  assert.ok(completeAt > firstText);
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /<artifact identifier="primary" type="text\/html"/);
+  assert.match(html, /<h1>HUD<\/h1>/);
+  assert.equal(
+    events.some((event) => event.type === 'status' && event.label === 'succeeded'),
+    false,
+  );
+});
+
+test('grok-build eventParser alias maps the same streaming-json payload', () => {
+  const { events, handler } = collectEvents('grok-build');
+  handler.feed('{"type":"text","data":"<p>hi</p>"}\n');
+  assert.deepEqual(events, [{ type: 'text_delta', delta: '<p>hi</p>' }]);
+});
+
+test('grok streaming-json ignores in-progress tool_call_update frames', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    JSON.stringify({
+      type: 'tool_call',
+      toolCallId: 'call-write-1',
+      toolName: 'Write',
+      rawInput: { path: 'index.html' },
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      status: 'in_progress',
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      rawOutput: 'wrote index.html',
+    }) + '\n',
+  );
+  assert.equal(events.filter((event) => event.type === 'tool_result').length, 1);
+  assert.equal(events.find((event) => event.type === 'tool_result')?.content, 'wrote index.html');
+});
+
+test('grok streaming-json maps tool_call / tool_call_update field names', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    JSON.stringify({
+      type: 'tool_call',
+      toolCallId: 'call-write-1',
+      toolName: 'Write',
+      rawInput: { path: 'index.html', contents: '<html></html>' },
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      rawOutput: 'wrote index.html',
+    }) + '\n',
+  );
+  assert.deepEqual(events, [
+    {
+      type: 'tool_use',
+      id: 'call-write-1',
+      name: 'Write',
+      input: { path: 'index.html', contents: '<html></html>' },
+    },
+    {
+      type: 'tool_result',
+      toolUseId: 'call-write-1',
+      content: 'wrote index.html',
+      isError: false,
+    },
+  ]);
+});

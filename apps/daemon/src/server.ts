@@ -17,7 +17,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import net from 'node:net';
-import { executionProfileFromStreamFormat, PLUGIN_SHARE_ACTION_PLUGIN_IDS } from '@open-design/contracts';
+import { PLUGIN_SHARE_ACTION_PLUGIN_IDS, resolveExecutionProfile } from '@open-design/contracts';
 import { isTodoWriteToolName, stopReasonIsTruncation, todoItemsFromTodoWriteInput } from '@open-design/contracts';
 import type {
   CollabCloudMemberDirectoryEntry,
@@ -8801,6 +8801,7 @@ export async function startServer({
     skillIds,
     designSystemId,
     streamFormat,
+    executionProfile,
     locale,
     sessionMode,
     appliedPluginSnapshotId,
@@ -9500,7 +9501,7 @@ export async function startServer({
       mediaExecution,
       byokMediaDefaults,
       streamFormat,
-      executionProfile: executionProfileFromStreamFormat(streamFormat),
+      executionProfile: resolveExecutionProfile(streamFormat, executionProfile),
       ...(pluginBlock ? { pluginBlock } : {}),
       ...(activeStageBlocks ? { activeStageBlocks } : {}),
       userInstructions,
@@ -10077,6 +10078,7 @@ export async function startServer({
         skillIds,
         designSystemId,
         streamFormat: def?.streamFormat ?? 'plain',
+        executionProfile: def?.executionProfile,
         locale,
         sessionMode: runSessionMode,
         mediaExecution: run?.mediaExecution,
@@ -10733,7 +10735,7 @@ export async function startServer({
     lifecycle.mark('prompt_build_end');
     lifecycle.mark('launch_preflight_start');
     // (model resolution + AMR concretization hoisted above the resume guard)
-    const executionProfile = executionProfileFromStreamFormat(def.streamFormat);
+    const executionProfile = resolveExecutionProfile(def.streamFormat, def.executionProfile);
     // Accumulates the agent's visible text this run so the close handler can
     // tell whether the turn ended on a clarifying question form. The
     // `od-plugin-authoring` plugin's turn-1 flow is to emit a
@@ -13940,6 +13942,42 @@ export async function startServer({
       const flushedTitleMarkerText =
         titleMarkerStripper.strip(flushedControlText) + titleMarkerStripper.flush();
       if (flushedTitleMarkerText) send('stdout', { chunk: flushedTitleMarkerText });
+      if (
+        status === 'succeeded' &&
+        (def.streamFormat ?? 'plain') !== 'plain' &&
+        executionProfile === 'text_artifact' &&
+        run.projectId &&
+        visibleAssistantText.trim()
+      ) {
+        const streamedArtifacts = extractPlainStreamArtifacts(visibleAssistantText);
+        if (streamedArtifacts.length > 0) {
+          try {
+            const project = getProject(db, run.projectId);
+            const persistedStreamedArtifacts = await persistPlainStreamArtifactList({
+              projectsRoot: PROJECTS_DIR,
+              projectId: run.projectId,
+              artifacts: streamedArtifacts,
+              metadata: project?.metadata,
+              writeProjectFile,
+            });
+            if (persistedStreamedArtifacts.length > 0) {
+              for (const artifact of persistedStreamedArtifacts) {
+                send('agent', {
+                  type: 'artifact',
+                  source: 'plain-stream',
+                  name: artifact.name,
+                  path: artifact.name,
+                  identifier: artifact.identifier,
+                  artifactType: artifact.artifactType,
+                });
+              }
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[grok-stream] failed to persist text_artifact HTML: ${message}`);
+          }
+        }
+      }
       if (
         status === 'succeeded' &&
         (def.streamFormat ?? 'plain') === 'plain' &&

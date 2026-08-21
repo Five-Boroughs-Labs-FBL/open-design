@@ -18,6 +18,10 @@ describe('shouldUrlLoadHtmlPreview', () => {
     expect(shouldUrlLoadHtmlPreview(base)).toBe(true);
   });
 
+  it('uses srcDoc while liveHtml is streaming so a missing file is not URL-loaded', () => {
+    expect(shouldUrlLoadHtmlPreview({ ...base, streamingLiveHtml: true })).toBe(false);
+  });
+
   it('falls back to srcDoc when the file is a deck (deck bridge required)', () => {
     expect(shouldUrlLoadHtmlPreview({ ...base, isDeck: true })).toBe(false);
   });

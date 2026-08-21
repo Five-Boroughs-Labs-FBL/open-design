@@ -192,3 +192,31 @@ describe('createArtifactParser', () => {
     expect(text).toContain('After the fence, more prose.');
   });
 });
+
+describe('grok streaming-json text_delta → live HTML preview', () => {
+  it('emits artifact:start and artifact:chunk before the document is closed', () => {
+    // Same deltas grok `--output-format streaming-json` maps to in
+    // apps/daemon json-event-stream handleGrokEvent. FileWorkspace passes
+    // the parsed html to FileViewer.liveHtml on artifact:chunk.
+    const parser = createArtifactParser();
+    const events: ArtifactEvent[] = [];
+    const grokTextDeltas = [
+      '<artifact identifier="primary" type="text/html" title="HUD">',
+      '<!doctype html><html><body>',
+      '<h1>HUD</h1>',
+    ];
+    for (const delta of grokTextDeltas) {
+      for (const event of parser.feed(delta)) events.push(event);
+    }
+    expect(events.find((event) => event.type === 'artifact:start')).toMatchObject({
+      identifier: 'primary',
+      artifactType: 'text/html',
+      title: 'HUD',
+    });
+    expect(events.some((event) => event.type === 'artifact:chunk')).toBe(true);
+    expect(events.some((event) => event.type === 'artifact:end')).toBe(false);
+
+    for (const event of parser.feed('</body></html></artifact>')) events.push(event);
+    expect(events.some((event) => event.type === 'artifact:end')).toBe(true);
+  });
+});

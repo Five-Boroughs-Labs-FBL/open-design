@@ -32,14 +32,13 @@ export function parseGrokBuildModels(stdout: string): RuntimeModelOption[] {
 // Headless mode uses `--prompt-file <PATH>` because recent Grok CLI builds
 // require `-p/--single` to receive the prompt as an argv value and no longer
 // read piped stdin. OD's composed prompts often exceed safe argv limits, so
-// the daemon stages the prompt in a temp file and passes that path here. The
-// CLI also exposes `--output-format streaming-json`, but
-// the streaming-json schema is xAI-specific and we do not yet have a
-// daemon-side parser for it. To ship the runtime now and let users at
-// least chat with grok inside OD, this defaults to `plain` streamFormat
-// (single-turn text reply, no tool_use streaming). Upgrading to a
-// `grok-stream-json` event parser is follow-up work once the format is
-// stable enough to lock in.
+// the daemon stages the prompt in a temp file and passes that path here.
+//
+// `--output-format streaming-json` is the grok CLI's ACP-style NDJSON
+// (`{type:"text"|"thought",data}` plus `end`/`usage`). The daemon maps that
+// into the same `text_delta` / `thinking_delta` events Claude uses so the
+// web artifact parser can paint HTML as it arrives, instead of waiting for
+// process exit (`plain` persist-on-success).
 export const grokBuildAgentDef = {
   id: 'grok-build',
   name: 'Grok Build',
@@ -91,7 +90,11 @@ export const grokBuildAgentDef = {
   promptViaFile: true,
   promptViaStdin: false,
   resumesSessionViaCli: true,
-  streamFormat: 'plain',
+  streamFormat: 'json-event-stream',
+  eventParser: 'grok',
+  // JSON streaming is a transport. Keep the Claude Design handoff: one
+  // `<artifact type="text/html">` block, not "write files, do not emit artifacts".
+  executionProfile: 'text_artifact',
   installUrl: 'https://x.ai/cli',
   docsUrl: 'https://x.ai/cli',
 } satisfies RuntimeAgentDef;

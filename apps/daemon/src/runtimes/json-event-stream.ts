@@ -915,6 +915,142 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
   return false;
 }
 
+function grokPayloadText(obj: JsonObject): string | null {
+  if (typeof obj.data === 'string') return obj.data;
+  if (typeof obj.text === 'string') return obj.text;
+  return null;
+}
+
+function grokUsageFrom(value: unknown): Usage | null {
+  if (!isRecord(value)) return null;
+  const usage: Usage = {};
+  if (typeof value.input_tokens === 'number') usage.input_tokens = value.input_tokens;
+  if (typeof value.output_tokens === 'number') usage.output_tokens = value.output_tokens;
+  if (typeof value.reasoning_tokens === 'number') usage.thought_tokens = value.reasoning_tokens;
+  if (typeof value.thought_tokens === 'number') usage.thought_tokens = value.thought_tokens;
+  if (typeof value.cache_read_input_tokens === 'number') {
+    usage.cached_read_tokens = value.cache_read_input_tokens;
+  }
+  if (typeof value.cached_read_tokens === 'number') {
+    usage.cached_read_tokens = value.cached_read_tokens;
+  }
+  if (typeof value.cache_creation_input_tokens === 'number') {
+    usage.cached_write_tokens = value.cache_creation_input_tokens;
+  }
+  return Object.keys(usage).length > 0 ? usage : null;
+}
+
+/**
+ * Grok CLI `--output-format streaming-json` (1.0.4 / 1.0.5):
+ *   {type:"thought"|"text", data:"..."}
+ *   {type:"usage", usage:{...}}
+ *   {type:"end", sessionId, stopReason, usage}
+ *   {type:"available_commands", tools:[...]}  — ignore
+ * Maps into the same UI events Claude's stream handler emits so
+ * `<artifact>` HTML paints via the web artifact parser before process exit.
+ */
+export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): boolean {
+  if (!isRecord(obj) || typeof obj.type !== 'string') return false;
+  const type = obj.type;
+
+  if (type === 'available_commands') return true;
+
+  if (type === 'text') {
+    const delta = grokPayloadText(obj);
+    if (delta) onEvent({ type: 'text_delta', delta });
+    return true;
+  }
+
+  if (type === 'thought' || type === 'thinking') {
+    const delta = grokPayloadText(obj);
+    if (delta) onEvent({ type: 'thinking_delta', delta });
+    return true;
+  }
+
+  if (type === 'usage') {
+    const usage = grokUsageFrom(obj.usage);
+    if (usage) onEvent({ type: 'usage', usage });
+    return true;
+  }
+
+  if (type === 'end') {
+    const sessionId = typeof obj.sessionId === 'string' && obj.sessionId
+      ? obj.sessionId
+      : typeof obj.session_id === 'string' && obj.session_id
+        ? obj.session_id
+        : null;
+    onEvent({ type: 'status', label: 'complete', sessionId });
+    const usage = grokUsageFrom(obj.usage);
+    if (usage) onEvent({ type: 'usage', usage });
+    return true;
+  }
+
+  if (type === 'error') {
+    const message = extractErrorMessage(obj, 'Grok stream error');
+    onEvent({ type: 'error', message });
+    return true;
+  }
+
+  if (type === 'tool_use' || type === 'tool_call') {
+    const id = typeof obj.toolCallId === 'string'
+      ? obj.toolCallId
+      : typeof obj.id === 'string'
+        ? obj.id
+        : typeof obj.callID === 'string'
+          ? obj.callID
+          : typeof obj.toolUseId === 'string'
+            ? obj.toolUseId
+            : '';
+    const name = typeof obj.toolName === 'string'
+      ? obj.toolName
+      : typeof obj.name === 'string'
+        ? obj.name
+        : typeof obj.tool === 'string'
+          ? obj.tool
+          : 'tool';
+    const input = isRecord(obj.rawInput)
+      ? obj.rawInput
+      : isRecord(obj.input)
+        ? obj.input
+        : obj.arguments ?? {};
+    onEvent({
+      type: 'tool_use',
+      id,
+      name,
+      input,
+    });
+    return true;
+  }
+
+  if (type === 'tool_call_update' || type === 'tool_result') {
+    const isError = obj.is_error === true || obj.isError === true;
+    const hasOutput = obj.rawOutput != null
+      || obj.content != null
+      || obj.output != null
+      || obj.data != null;
+    if (type === 'tool_call_update' && !hasOutput && !isError) return true;
+    const toolUseId = typeof obj.toolCallId === 'string'
+      ? obj.toolCallId
+      : typeof obj.tool_use_id === 'string'
+        ? obj.tool_use_id
+        : typeof obj.toolUseId === 'string'
+          ? obj.toolUseId
+          : typeof obj.id === 'string'
+            ? obj.id
+            : '';
+    onEvent({
+      type: 'tool_result',
+      toolUseId,
+      content: stringifyContent(obj.rawOutput ?? obj.content ?? obj.output ?? obj.data ?? ''),
+      isError,
+    });
+    return true;
+  }
+
+  // Unknown grok JSON must not dump into chat as a raw line.
+  return true;
+}
+
 export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEventHandler) {
   let buffer = '';
   const state: ParserState = {
@@ -948,6 +1084,7 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
+    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent)) return;
 
     onEvent({ type: 'raw', line });
   }

@@ -868,9 +868,15 @@ test('grok-build uses --prompt-file and never embeds the prompt in argv or stdin
 
   assert.equal(grokBuild.promptViaFile, true);
   assert.equal(grokBuild.promptViaStdin, false);
+  assert.equal(grokBuild.streamFormat, 'json-event-stream');
+  assert.equal(grokBuild.eventParser, 'grok');
+  assert.equal(grokBuild.executionProfile, 'text_artifact');
+  assert.notEqual(grokBuild.streamFormat, 'plain');
   assert.deepEqual(args, [
     '--prompt-file',
     promptFilePath,
+    '--output-format',
+    'streaming-json',
     '--no-plan',
     '--always-approve',
     '--model',
@@ -887,7 +893,12 @@ test('grok-build disables plan mode and auto-approves headless tool calls (issue
   const promptFilePath = '/tmp/od-grok-prompt/prompt.md';
   const args = grokBuild.buildArgs('', [], [], { model: 'grok-build' }, { promptFilePath });
 
-  assert.deepEqual(args.slice(2, 4), ['--no-plan', '--always-approve']);
+  assert.deepEqual(args.slice(2, 6), [
+    '--output-format',
+    'streaming-json',
+    '--no-plan',
+    '--always-approve',
+  ]);
 });
 
 test('grok-build omits effort for default/build models but keeps it for reasoning models', () => {
@@ -902,6 +913,8 @@ test('grok-build omits effort for default/build models but keeps it for reasonin
   assert.deepEqual(reasoningArgs, [
     '--prompt-file',
     promptFilePath,
+    '--output-format',
+    'streaming-json',
     '--no-plan',
     '--always-approve',
     '--model',
