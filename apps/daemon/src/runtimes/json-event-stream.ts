@@ -976,7 +976,9 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
   if (type === 'end') {
     const sessionId = typeof obj.sessionId === 'string' && obj.sessionId
       ? obj.sessionId
-      : null;
+      : typeof obj.session_id === 'string' && obj.session_id
+        ? obj.session_id
+        : null;
     onEvent({ type: 'status', label: 'complete', sessionId });
     const usage = grokUsageFrom(obj.usage);
     if (usage) onEvent({ type: 'usage', usage });
@@ -990,39 +992,50 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
   }
 
   if (type === 'tool_use' || type === 'tool_call') {
-    const id = typeof obj.id === 'string'
-      ? obj.id
-      : typeof obj.callID === 'string'
-        ? obj.callID
-        : typeof obj.toolUseId === 'string'
-          ? obj.toolUseId
-          : '';
-    const name = typeof obj.name === 'string'
-      ? obj.name
-      : typeof obj.tool === 'string'
-        ? obj.tool
-        : 'tool';
+    const id = typeof obj.toolCallId === 'string'
+      ? obj.toolCallId
+      : typeof obj.id === 'string'
+        ? obj.id
+        : typeof obj.callID === 'string'
+          ? obj.callID
+          : typeof obj.toolUseId === 'string'
+            ? obj.toolUseId
+            : '';
+    const name = typeof obj.toolName === 'string'
+      ? obj.toolName
+      : typeof obj.name === 'string'
+        ? obj.name
+        : typeof obj.tool === 'string'
+          ? obj.tool
+          : 'tool';
+    const input = isRecord(obj.rawInput)
+      ? obj.rawInput
+      : isRecord(obj.input)
+        ? obj.input
+        : obj.arguments ?? {};
     onEvent({
       type: 'tool_use',
       id,
       name,
-      input: isRecord(obj.input) ? obj.input : obj.arguments ?? {},
+      input,
     });
     return true;
   }
 
-  if (type === 'tool_result') {
-    const toolUseId = typeof obj.tool_use_id === 'string'
-      ? obj.tool_use_id
-      : typeof obj.toolUseId === 'string'
-        ? obj.toolUseId
-        : typeof obj.id === 'string'
-          ? obj.id
-          : '';
+  if (type === 'tool_call_update' || type === 'tool_result') {
+    const toolUseId = typeof obj.toolCallId === 'string'
+      ? obj.toolCallId
+      : typeof obj.tool_use_id === 'string'
+        ? obj.tool_use_id
+        : typeof obj.toolUseId === 'string'
+          ? obj.toolUseId
+          : typeof obj.id === 'string'
+            ? obj.id
+            : '';
     onEvent({
       type: 'tool_result',
       toolUseId,
-      content: stringifyContent(obj.content ?? obj.output ?? obj.data ?? ''),
+      content: stringifyContent(obj.rawOutput ?? obj.content ?? obj.output ?? obj.data ?? ''),
       isError: obj.is_error === true || obj.isError === true,
     });
     return true;

@@ -198,6 +198,11 @@ export interface ProjectMetadata {
   // Batch/API-created projects can opt out of the initial discovery form so
   // the first agent turn builds immediately from the submitted brief.
   skipDiscoveryBrief?: boolean;
+  // Opt out of kind→bundled-scenario fallback (`od-new-generation` for
+  // `other`, `example-web-prototype` for `prototype`, …). AMC I'll-design-it
+  // sets this so Grok emits one HTML `<artifact>` instead of running the
+  // discovery → plan → generate → critique plugin.
+  skipDefaultScenario?: boolean;
   // Set when the user submits an unmodified curated example prompt from the
   // gallery. Skips discovery AND requests full-quality direct generation,
   // treating the curated title/brief as the complete creative brief. Honored
@@ -352,6 +357,8 @@ export interface CreateProjectRequest {
   customInstructions?: string;
   /** Persisted to metadata.skipDiscoveryBrief for automated project runs. */
   skipDiscoveryBrief?: boolean;
+  /** Skip kind→bundled-scenario plugin fallback on create. */
+  skipDefaultScenario?: boolean;
 }
 
 export interface UpdateProjectRequest {

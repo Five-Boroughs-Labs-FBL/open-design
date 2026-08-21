@@ -84,8 +84,9 @@ export function defaultScenarioPluginIdForKind(
 }
 
 export function defaultScenarioPluginIdForProjectMetadata(
-  metadata: Pick<ProjectMetadata, 'kind' | 'intent'> | null | undefined,
+  metadata: Pick<ProjectMetadata, 'kind' | 'intent' | 'skipDefaultScenario'> | null | undefined,
 ): DefaultScenarioPluginId | null {
+  if (metadata?.skipDefaultScenario === true) return null;
   if (metadata?.intent === 'live-artifact') return 'example-live-artifact';
   if (metadata?.intent === 'web-clone') return 'example-web-clone';
   return defaultScenarioPluginIdForKind(metadata?.kind);

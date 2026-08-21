@@ -870,6 +870,7 @@ test('grok-build uses --prompt-file and never embeds the prompt in argv or stdin
   assert.equal(grokBuild.promptViaStdin, false);
   assert.equal(grokBuild.streamFormat, 'json-event-stream');
   assert.equal(grokBuild.eventParser, 'grok');
+  assert.equal(grokBuild.executionProfile, 'text_artifact');
   assert.notEqual(grokBuild.streamFormat, 'plain');
   assert.deepEqual(args, [
     '--prompt-file',

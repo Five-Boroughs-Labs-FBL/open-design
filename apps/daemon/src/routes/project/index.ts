@@ -3488,7 +3488,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         context: localProjectWorkspaceAttribution(req),
       };
       learnAssertedWorkspaceType(createWorkspace.context);
-      const { id, name, projectLocationId, skillId, designSystemId, pendingPrompt, metadata, customInstructions, skipDiscoveryBrief } =
+      const { id, name, projectLocationId, skillId, designSystemId, pendingPrompt, metadata, customInstructions, skipDiscoveryBrief, skipDefaultScenario } =
         req.body || {};
       if (typeof id !== 'string' || !isSafeId(id)) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'invalid project id');
@@ -3546,6 +3546,9 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       }
       if (skipDiscoveryBrief !== undefined && typeof skipDiscoveryBrief !== 'boolean') {
         return sendApiError(res, 400, 'BAD_REQUEST', 'skipDiscoveryBrief must be a boolean');
+      }
+      if (skipDefaultScenario !== undefined && typeof skipDefaultScenario !== 'boolean') {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'skipDefaultScenario must be a boolean');
       }
       const creationWorkspaceScope = {
         workspaceId: createWorkspace.context?.workspaceId ?? null,
@@ -3668,6 +3671,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
               ...(skipDiscoveryBrief === true || webCloneUrlSkipsDiscovery
                 ? { skipDiscoveryBrief: true }
                 : {}),
+              ...(skipDefaultScenario === true ? { skipDefaultScenario: true } : {}),
               ...(externalProjectDir
                 ? {
                     baseDir: externalProjectDir,
@@ -3682,9 +3686,10 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
                   })()
                 : {}),
             }
-          : skipDiscoveryBrief === true
+          : skipDiscoveryBrief === true || skipDefaultScenario === true
             ? {
-                skipDiscoveryBrief: true,
+                ...(skipDiscoveryBrief === true ? { skipDiscoveryBrief: true } : {}),
+                ...(skipDefaultScenario === true ? { skipDefaultScenario: true } : {}),
                 ...(hasLocalCatalogScopes ? { localCatalogScopes } : {}),
                 ...(externalProjectDir
                   ? {
@@ -3718,7 +3723,11 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
             && req.body.appliedPluginSnapshotId.trim().length > 0;
       let resolveBody =
         explicitPlugin ? (req.body as Record<string, unknown>) : null;
-      if (!resolveBody && initialSessionMode === 'design') {
+      if (
+        !resolveBody
+        && initialSessionMode === 'design'
+        && req.body?.skipDefaultScenario !== true
+      ) {
         const fallbackPluginId = defaultScenarioPluginIdForProjectMetadata(
           projectMetadata && typeof projectMetadata.kind === 'string'
             ? projectMetadata as Parameters<

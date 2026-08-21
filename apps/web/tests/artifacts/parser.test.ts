@@ -196,9 +196,8 @@ describe('createArtifactParser', () => {
 describe('grok streaming-json text_delta → live HTML preview', () => {
   it('emits artifact:start and artifact:chunk before the document is closed', () => {
     // Same deltas grok `--output-format streaming-json` maps to in
-    // apps/daemon json-event-stream handleGrokEvent. The preview iframe
-    // updates on artifact:chunk; it must not wait for </artifact> or
-    // process exit (run succeeded).
+    // apps/daemon json-event-stream handleGrokEvent. FileWorkspace passes
+    // the parsed html to FileViewer.liveHtml on artifact:chunk.
     const parser = createArtifactParser();
     const events: ArtifactEvent[] = [];
     const grokTextDeltas = [

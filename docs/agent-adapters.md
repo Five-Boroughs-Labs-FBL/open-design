@@ -139,13 +139,15 @@ definitions currently group by transport as follows:
 | Stream format | Runtime ids |
 |---|---|
 | `claude-stream-json` | `claude`, `amp`, `codebuddy` |
-| `json-event-stream` | `codex`, `cursor-agent`, `opencode`, `mimo`, `byok-opencode` |
+| `json-event-stream` | `codex`, `cursor-agent`, `opencode`, `mimo`, `byok-opencode`, `grok-build` |
 | `copilot-stream-json` | `copilot` |
 | `qoder-stream-json` | `qoder` |
 | `acp-json-rpc` | `amr` (Vela), `devin`, `hermes`, `kimi`, `kiro`, `kilo`, `reasonix`, `trae-cli`, `vibe` |
 | `pi-rpc` | `pi` |
 | `dsh-profile-jsonl` | `deepseek-harness` |
-| `plain` | `aider`, `antigravity`, `atomcode`, `deepseek`, `grok-build`, `qwen` |
+| `plain` | `aider`, `antigravity`, `atomcode`, `deepseek`, `qwen` |
+
+`grok-build` uses `--output-format streaming-json` (`{type:"text"|"thought",data}` plus `end`/`usage`). Transport is `json-event-stream` / `eventParser: 'grok'`; execution profile stays `text_artifact` so the model still emits one `<artifact type="text/html">` block that the studio paints live.
 
 `byok-opencode` is the API-backed OpenCode-compatible profile rather than an
 additional local executable. User-defined local profiles may extend the base

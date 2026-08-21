@@ -721,12 +721,13 @@ function toScenarioProjectIntent(value: unknown): ContractProjectMetadata['inten
 
 function toScenarioProjectMetadata(
   metadata: ProjectMetadata,
-): Pick<ContractProjectMetadata, 'kind' | 'intent'> | null {
+): Pick<ContractProjectMetadata, 'kind' | 'intent' | 'skipDefaultScenario'> | null {
   if (!metadata || typeof metadata.kind !== 'string') return null;
   const intent = toScenarioProjectIntent(metadata.intent);
   return {
     kind: metadata.kind as ContractProjectMetadata['kind'],
     ...(intent ? { intent } : {}),
+    ...(metadata.skipDefaultScenario === true ? { skipDefaultScenario: true } : {}),
   };
 }
 
@@ -1338,7 +1339,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         const hasPin =
           typeof projectRow?.appliedPluginSnapshotId === 'string'
           && projectRow.appliedPluginSnapshotId.length > 0;
-        if (!hasPin) {
+        if (!hasPin && requestBody.skipDefaultScenario !== true) {
           const fallbackPluginId = defaultScenarioPluginIdForProjectMetadata(
             toScenarioProjectMetadata(projectRow?.metadata),
           );

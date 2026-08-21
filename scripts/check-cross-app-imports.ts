@@ -49,12 +49,6 @@ const crossAppImportAllowlist: CrossAppImportAllowlistEntry[] = [
     reason:
       "apps/packaged is the thin packaged Electron entry that wraps the desktop shell through its declared ./main package export",
   },
-  {
-    pathPattern: /^apps\/daemon\/tests\/runtimes\/grok-stream\.node\.test\.ts$/,
-    specifierPattern: /^\.\.\/\.\.\/\.\.\/web\/src\/artifacts\/parser\.ts$/,
-    reason:
-      "Grok live-HTML test feeds the shipped grok mapper into the web artifact parser so preview chunks fire before run-succeeded",
-  },
 ];
 
 function appDirectoryForRepositoryPath(repositoryPath: string): string | null {

@@ -92,6 +92,9 @@ export const grokBuildAgentDef = {
   resumesSessionViaCli: true,
   streamFormat: 'json-event-stream',
   eventParser: 'grok',
+  // JSON streaming is a transport. Keep the Claude Design handoff: one
+  // `<artifact type="text/html">` block, not "write files, do not emit artifacts".
+  executionProfile: 'text_artifact',
   installUrl: 'https://x.ai/cli',
   docsUrl: 'https://x.ai/cli',
 } satisfies RuntimeAgentDef;

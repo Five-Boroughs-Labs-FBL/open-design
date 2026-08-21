@@ -102,6 +102,7 @@ import {
   type ProjectFile,
   type ProjectFolder,
 } from '../types';
+import { resolveStreamingHtmlPreviewFile } from './streaming-html-preview';
 import {
   resolveLocalizedText,
   type ChatSessionMode,
@@ -441,6 +442,7 @@ function shouldKeepCurrentSketchState(
 
 export const DESIGN_FILES_TAB = '__design_files__';
 export const DESIGN_SYSTEM_TAB = '__design_system__';
+export { STREAMING_HTML_PREVIEW_NAME } from './streaming-html-preview';
 
 // Module-level default so a caller that omits `previewComments` doesn't mint
 // a fresh [] every render — that identity feeds the memoized FileViewer.
@@ -1356,6 +1358,7 @@ export function FileWorkspace({
   onActiveContextChange,
   onWorkspaceContextsChange,
   messages = [],
+  artifactHtml = null,
   conversationId,
   fileActionsBefore,
   headerActions,
@@ -1632,6 +1635,10 @@ export function FileWorkspace({
   const visibleFiles = useMemo(
     () => files.filter((file) => !isLiveArtifactImplementationPath(file.name)),
     [files],
+  );
+  const streamingPreviewFile = useMemo(
+    () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles),
+    [artifactHtml, visibleFiles],
   );
 
   // Known-file set for the side chat's file-link routing — same shape
@@ -2047,6 +2054,21 @@ export function FileWorkspace({
     openFile(name, { forcePersist: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
+
+  const streamingPreviewOpenedForProjectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (streamingPreviewOpenedForProjectRef.current !== projectId) {
+      streamingPreviewOpenedForProjectRef.current = null;
+    }
+    if (!streamingPreviewFile) {
+      streamingPreviewOpenedForProjectRef.current = null;
+      return;
+    }
+    if (streamingPreviewOpenedForProjectRef.current === projectId) return;
+    streamingPreviewOpenedForProjectRef.current = projectId;
+    openFile(streamingPreviewFile.name, { forcePersist: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, streamingPreviewFile?.name, artifactHtml == null]);
 
   useEffect(() => {
     if (!browserOpenRequest) return;
@@ -3010,7 +3032,8 @@ export function FileWorkspace({
       || activeTab === DESIGN_SYSTEM_TAB
       || isBrowserTabId(activeTab)
     ) return null;
-    const onDisk = visibleFiles.find((f) => f.name === activeTab);
+    const onDisk = visibleFiles.find((f) => f.name === activeTab)
+      ?? (streamingPreviewFile?.name === activeTab ? streamingPreviewFile : null);
     if (onDisk) return onDisk;
     const activeSketch = sketches[activeTab];
     if (isSketchName(activeTab) && activeSketch && !activeSketch.persisted) {
@@ -3025,7 +3048,7 @@ export function FileWorkspace({
       };
     }
     return null;
-  }, [activeTab, visibleFiles, sketches]);
+  }, [activeTab, visibleFiles, sketches, streamingPreviewFile]);
   const activeViewerFile =
     activeFile && !(activeFile.kind === 'sketch' && isSketchName(activeFile.name))
       ? activeFile
@@ -3039,6 +3062,9 @@ export function FileWorkspace({
     htmlViewerFileSnapshotsRef.current = { projectId, files: new Map() };
   }
   const htmlViewerFileSnapshots = htmlViewerFileSnapshotsRef.current.files;
+  if (streamingPreviewFile) {
+    htmlViewerFileSnapshots.set(streamingPreviewFile.name, streamingPreviewFile);
+  }
   for (const candidate of visibleFiles) {
     if (candidate.kind !== 'html') continue;
     // Hidden viewers keep the last file revision they actually rendered.
@@ -3228,13 +3254,19 @@ export function FileWorkspace({
     }
   }, [committedHtmlFileNames, effectiveFilesGeneration, filesGeneration, iframeKeepAlivePool, onRefreshFiles, pendingDeletedManualEditRevision, persistedTabs, projectId, protectedHtmlViewerFileNames, settleManualEdit]);
   const mountedHtmlViewerFiles = useMemo(() => {
+    const streamingName = streamingPreviewFile?.name;
     const candidates = activeHtmlViewerFile
         ? [
             activeHtmlViewerFile.name,
             ...protectedHtmlViewerFileNames,
             ...liveHtmlViewerFileNames.filter((name) => name !== activeHtmlViewerFile.name),
+            ...(streamingName && streamingName !== activeHtmlViewerFile.name ? [streamingName] : []),
           ]
-        : [...protectedHtmlViewerFileNames, ...liveHtmlViewerFileNames];
+        : [
+            ...protectedHtmlViewerFileNames,
+            ...liveHtmlViewerFileNames,
+            ...(streamingName ? [streamingName] : []),
+          ];
     // Manual Edit is exited (and pending edits flushed) before activation can
     // leave a tab. Protected viewers are prioritized but never bypass the hard
     // cap, so a regression cannot create an unbounded iframe population.
@@ -3242,11 +3274,21 @@ export function FileWorkspace({
     // LRU order is eviction metadata, not DOM order. Reordering an iframe's
     // connected ancestor makes Chromium navigate the frame again, so render
     // retained viewers in the stable persisted-tab order while switching.
-    return persistedTabs
-      .filter((name) => retainedNames.has(name))
+    const orderedNames = [
+      ...persistedTabs.filter((name) => retainedNames.has(name)),
+      ...[...retainedNames].filter((name) => !persistedTabs.includes(name)),
+    ];
+    return orderedNames
       .map((name) => htmlViewerFileSnapshots.get(name))
       .filter((file): file is ProjectFile => file != null);
-  }, [activeHtmlViewerFile, liveHtmlViewerFileNames, persistedTabs, protectedHtmlViewerFileNames, visibleFiles]);
+  }, [
+    activeHtmlViewerFile,
+    liveHtmlViewerFileNames,
+    persistedTabs,
+    protectedHtmlViewerFileNames,
+    streamingPreviewFile,
+    visibleFiles,
+  ]);
   const mountedHtmlViewerNames = mountedHtmlViewerFiles.map((file) => file.name);
   const previousMountedHtmlViewersRef = useRef({ projectId, names: new Set<string>() });
   useEffect(() => {
@@ -3386,6 +3428,11 @@ export function FileWorkspace({
       onManualEditExitHandlerChange={handleManualEditExitHandlerChange}
       manualEditEntryAllowed={
         protectedHtmlViewerFileNames.size === 0 || protectedHtmlViewerFileNames.has(file.name)
+      }
+      liveHtml={
+        artifactHtml != null && file.name === streamingPreviewFile?.name
+          ? artifactHtml
+          : undefined
       }
     />
   );

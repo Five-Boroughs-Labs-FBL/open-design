@@ -1965,3 +1965,34 @@ test('grok-build eventParser alias maps the same streaming-json payload', () => 
   handler.feed('{"type":"text","data":"<p>hi</p>"}\n');
   assert.deepEqual(events, [{ type: 'text_delta', delta: '<p>hi</p>' }]);
 });
+
+test('grok streaming-json maps tool_call / tool_call_update field names', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    JSON.stringify({
+      type: 'tool_call',
+      toolCallId: 'call-write-1',
+      toolName: 'Write',
+      rawInput: { path: 'index.html', contents: '<html></html>' },
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      rawOutput: 'wrote index.html',
+    }) + '\n',
+  );
+  assert.deepEqual(events, [
+    {
+      type: 'tool_use',
+      id: 'call-write-1',
+      name: 'Write',
+      input: { path: 'index.html', contents: '<html></html>' },
+    },
+    {
+      type: 'tool_result',
+      toolUseId: 'call-write-1',
+      content: 'wrote index.html',
+      isError: false,
+    },
+  ]);
+});

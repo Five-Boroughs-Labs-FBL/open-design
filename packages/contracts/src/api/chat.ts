@@ -362,6 +362,8 @@ export interface McpRunCreateRequest {
   agentId?: string;
   skillId?: string;
   pluginId?: string;
+  /** Skip kind→bundled-scenario plugin fallback for this run. */
+  skipDefaultScenario?: boolean;
   model?: string;
   serviceTier?: string;
   pluginInputs?: Record<string, unknown>;
