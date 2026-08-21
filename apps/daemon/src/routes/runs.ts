@@ -721,7 +721,7 @@ function toScenarioProjectIntent(value: unknown): ContractProjectMetadata['inten
 
 function toScenarioProjectMetadata(
   metadata: ProjectMetadata,
-): Pick<ContractProjectMetadata, 'kind' | 'intent' | 'skipDefaultScenario'> | null {
+): Parameters<typeof defaultScenarioPluginIdForProjectMetadata>[0] | null {
   if (!metadata || typeof metadata.kind !== 'string') return null;
   const intent = toScenarioProjectIntent(metadata.intent);
   return {
