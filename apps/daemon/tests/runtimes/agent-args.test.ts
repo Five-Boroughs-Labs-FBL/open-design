@@ -918,6 +918,24 @@ test('grok-build requires a daemon-provided prompt file path', () => {
   );
 });
 
+test('grok-build resumes an AMC session id via --resume and still uses --prompt-file', () => {
+  const promptFilePath = '/tmp/od-grok-prompt/prompt.md';
+  const args = grokBuild.buildArgs(
+    'make the HUD warmer',
+    [],
+    [],
+    { model: 'grok-4.3' },
+    { promptFilePath, resumeSessionId: 'session-from-amc' },
+  );
+  assert.equal(grokBuild.resumesSessionViaCli, true);
+  assert.ok(args.includes('--resume'));
+  assert.equal(args[args.indexOf('--resume') + 1], 'session-from-amc');
+  assert.equal(args[0], '--prompt-file');
+  assert.equal(args.includes('-p'), false);
+  const fresh = grokBuild.buildArgs('', [], [], { model: 'grok-4.3' }, { promptFilePath });
+  assert.equal(fresh.includes('--resume'), false);
+});
+
 test('claude flags promptViaStdin and never embeds the prompt in argv', () => {
   // Long composed prompts (system prompt + design system + skill body +
   // user message) routinely exceed Linux MAX_ARG_STRLEN (~128 KB) and the

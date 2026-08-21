@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeModelOption } from '../types.js';
 import type { RuntimeAgentDef } from '../types.js';
+import { buildGrokHeadlessArgs } from '../grok-args.js';
 
 const GROK_MODEL_ID_RE = /^\*?\s*-?\s*(grok-[a-z0-9][a-z0-9._-]*)(?:\s+\(default\))?\s*$/i;
 
@@ -15,11 +16,6 @@ export function parseGrokBuildModels(stdout: string): RuntimeModelOption[] {
     out.push({ id, label: id });
   }
   return out;
-}
-
-function grokModelSupportsReasoningEffort(model: string | null | undefined): boolean {
-  if (!model || model === DEFAULT_MODEL_OPTION.id || model === 'grok-build') return false;
-  return /reasoning/i.test(model);
 }
 
 // xAI's first-party CLI agent — https://x.ai/cli — distributed as the
@@ -78,22 +74,12 @@ export const grokBuildAgentDef = {
   // need plan mode disabled and tool calls auto-approved: otherwise a write
   // request is permission-cancelled while the CLI still exits successfully.
   buildArgs: (_prompt, _imagePaths, _extra = [], options = {}, runtimeContext = {}) => {
-    if (!runtimeContext.promptFilePath) {
-      throw new Error('grok-build requires runtimeContext.promptFilePath');
-    }
-    const args = [
-      '--prompt-file',
-      runtimeContext.promptFilePath,
-      '--no-plan',
-      '--always-approve',
-    ];
-    if (options.model && options.model !== DEFAULT_MODEL_OPTION.id) {
-      args.push('--model', options.model);
-    }
-    if (options.reasoning && grokModelSupportsReasoningEffort(options.model)) {
-      args.push('--effort', options.reasoning);
-    }
-    return args;
+    return buildGrokHeadlessArgs({
+      promptFilePath: runtimeContext.promptFilePath || '',
+      resumeSessionId: runtimeContext.resumeSessionId,
+      model: options.model,
+      reasoning: options.reasoning,
+    });
   },
   reasoningOptions: [
     { id: 'low', label: 'low' },
@@ -104,6 +90,7 @@ export const grokBuildAgentDef = {
   ],
   promptViaFile: true,
   promptViaStdin: false,
+  resumesSessionViaCli: true,
   streamFormat: 'plain',
   installUrl: 'https://x.ai/cli',
   docsUrl: 'https://x.ai/cli',

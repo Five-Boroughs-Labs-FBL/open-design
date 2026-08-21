@@ -448,6 +448,8 @@ import { renderDesignSystemPreview } from './design-systems/preview.js';
 import { renderDesignSystemShowcase } from './design-systems/showcase.js';
 import { createChatRunService } from './runtimes/runs.js';
 import { runtimeResumesSessionById } from './runtimes/types.js';
+import { adoptGrokSession } from './runtimes/grok-session-adopt.js';
+import { applyAmcGrokHome } from './runtimes/amc-grok.js';
 import {
   createRunLifecycleTracer,
   runLifecycleMarkersForStreamEvent,
@@ -10453,6 +10455,69 @@ export async function startServer({
       pendingNativeSessionContinue != null &&
       runtimeResumesSessionById(def) &&
       pendingNativeSessionContinue.sessionId.length > 0;
+    if (
+      def.id === 'grok-build' &&
+      (!run.amcGrok || !run.amcGrok.grokHome) &&
+      run.projectId
+    ) {
+      try {
+        const seeded = getProject(db, run.projectId);
+        const home = seeded && seeded.metadata && seeded.metadata.amcGrokHome;
+        if (typeof home === 'string' && home.trim()) {
+          run.amcGrok = {
+            sessionId: (run.amcGrok && run.amcGrok.sessionId) || '',
+            grokHome: home.trim(),
+            sourceCwd: (run.amcGrok && run.amcGrok.sourceCwd) || '',
+          };
+        }
+      } catch {
+        // Follow-up runs still attempt daemon GROK_HOME if metadata is missing.
+      }
+    }
+    const amcGrokForwarding =
+      def.id === 'grok-build' && run.amcGrok && typeof run.amcGrok.grokHome === 'string'
+        ? run.amcGrok
+        : null;
+    if (amcGrokForwarding && amcGrokForwarding.sessionId) {
+      try {
+        adoptGrokSession({
+          grokHome: String(amcGrokForwarding.grokHome || ''),
+          sessionId: String(amcGrokForwarding.sessionId),
+          sourceCwd: amcGrokForwarding.sourceCwd || null,
+          targetCwd: effectiveCwd,
+        });
+        if (run.conversationId && amcGrokForwarding.sessionId) {
+          upsertAgentSession(db, {
+            conversationId: run.conversationId,
+            agentId: def.id,
+            sessionId: String(amcGrokForwarding.sessionId),
+            model: safeModel ?? null,
+            cwd: effectiveCwd,
+            lastMessageId: run.assistantMessageId ?? null,
+          });
+        }
+        if (run.projectId && amcGrokForwarding.grokHome) {
+          try {
+            const current = getProject(db, run.projectId);
+            updateProject(db, run.projectId, {
+              metadata: {
+                ...((current && current.metadata) || {}),
+                amcGrokHome: String(amcGrokForwarding.grokHome),
+              },
+            });
+          } catch {
+            // Spawn still receives GROK_HOME on this run.
+          }
+        }
+      } catch (err) {
+        run.errorCode = 'GROK_RESUME_FAILED';
+        run.error = String(err && err.message ? err.message : err);
+        return finishRun('failed', 1, null);
+      }
+    }
+    const forceAmcGrokResume =
+      Boolean(amcGrokForwarding && amcGrokForwarding.sessionId) &&
+      runtimeResumesSessionById(def);
     const agentResumeCtx = forceInternalResume
       ? {
           ...resolvedAgentResumeCtx,
@@ -10465,6 +10530,14 @@ export async function startServer({
             pendingNativeSessionContinue.stablePromptSections ?? null,
           invalidationReason: null,
         }
+      : forceAmcGrokResume
+        ? {
+            ...resolvedAgentResumeCtx,
+            storedSessionId: String(amcGrokForwarding.sessionId),
+            resumeSessionId: String(amcGrokForwarding.sessionId),
+            isResuming: true,
+            invalidationReason: null,
+          }
       : resolvedAgentResumeCtx;
     const publishNativeSessionRecoveryMetadata = () => {
       if (!run.nativeSessionRecovery) return;
@@ -12105,16 +12178,19 @@ export async function startServer({
         }
       : {};
     const configuredAgentSpawnEnv = createDaemonDataDirConfiguredAgentEnv(configuredAgentEnv);
-    const agentSpawnEnv = spawnEnvForAgent(
-      def.id,
-      {
-        ...createAgentRuntimeEnv(process.env, daemonUrl, toolTokenGrant),
-        ...(def.env || {}),
-        ...browserUseRuntimeEnv,
-      },
-      configuredAgentSpawnEnv,
-      undefined,
-      { resolvedBin: agentLaunch.selectedPath },
+    const agentSpawnEnv = applyAmcGrokHome(
+      spawnEnvForAgent(
+        def.id,
+        {
+          ...createAgentRuntimeEnv(process.env, daemonUrl, toolTokenGrant),
+          ...(def.env || {}),
+          ...browserUseRuntimeEnv,
+        },
+        configuredAgentSpawnEnv,
+        undefined,
+        { resolvedBin: agentLaunch.selectedPath },
+      ),
+      run.amcGrok,
     );
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentSpawnEnv);
