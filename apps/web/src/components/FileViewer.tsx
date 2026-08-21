@@ -9966,6 +9966,7 @@ function HtmlViewer({
     needsFocusGuard: needsFocusGuard && !needsPowered,
     needsRedirectGuard: needsRedirectGuard && !needsPowered,
     projectRootAssetRefs: projectRootAssetRefs || scopedRelativeAssetRefs,
+    streamingLiveHtml: liveHtml !== undefined,
   };
   const useUrlLoadPreview = shouldUrlLoadHtmlPreview(urlLoadDecision) && !manualEditRequiresSrcDoc;
   const setSrcDocPreviewIframe = useCallback((frame: HTMLIFrameElement | null) => {

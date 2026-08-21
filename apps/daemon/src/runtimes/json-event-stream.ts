@@ -1023,6 +1023,12 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
   }
 
   if (type === 'tool_call_update' || type === 'tool_result') {
+    const isError = obj.is_error === true || obj.isError === true;
+    const hasOutput = obj.rawOutput != null
+      || obj.content != null
+      || obj.output != null
+      || obj.data != null;
+    if (type === 'tool_call_update' && !hasOutput && !isError) return true;
     const toolUseId = typeof obj.toolCallId === 'string'
       ? obj.toolCallId
       : typeof obj.tool_use_id === 'string'
@@ -1036,7 +1042,7 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
       type: 'tool_result',
       toolUseId,
       content: stringifyContent(obj.rawOutput ?? obj.content ?? obj.output ?? obj.data ?? ''),
-      isError: obj.is_error === true || obj.isError === true,
+      isError,
     });
     return true;
   }

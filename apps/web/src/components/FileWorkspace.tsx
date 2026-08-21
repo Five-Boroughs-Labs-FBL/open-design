@@ -1640,6 +1640,10 @@ export function FileWorkspace({
     () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles),
     [artifactHtml, visibleFiles],
   );
+  const streamingPreviewIsSynthetic = Boolean(
+    streamingPreviewFile
+    && !visibleFiles.some((file) => file.name === streamingPreviewFile.name),
+  );
 
   // Known-file set for the side chat's file-link routing — same shape
   // ProjectView feeds its primary ChatPane.
@@ -2064,11 +2068,12 @@ export function FileWorkspace({
       streamingPreviewOpenedForProjectRef.current = null;
       return;
     }
+    if (!streamingPreviewIsSynthetic) return;
     if (streamingPreviewOpenedForProjectRef.current === projectId) return;
     streamingPreviewOpenedForProjectRef.current = projectId;
     openFile(streamingPreviewFile.name, { forcePersist: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, streamingPreviewFile?.name, artifactHtml == null]);
+  }, [projectId, streamingPreviewFile?.name, streamingPreviewIsSynthetic, artifactHtml == null]);
 
   useEffect(() => {
     if (!browserOpenRequest) return;
@@ -3062,7 +3067,7 @@ export function FileWorkspace({
     htmlViewerFileSnapshotsRef.current = { projectId, files: new Map() };
   }
   const htmlViewerFileSnapshots = htmlViewerFileSnapshotsRef.current.files;
-  if (streamingPreviewFile) {
+  if (streamingPreviewFile && streamingPreviewIsSynthetic) {
     htmlViewerFileSnapshots.set(streamingPreviewFile.name, streamingPreviewFile);
   }
   for (const candidate of visibleFiles) {
@@ -3430,7 +3435,7 @@ export function FileWorkspace({
         protectedHtmlViewerFileNames.size === 0 || protectedHtmlViewerFileNames.has(file.name)
       }
       liveHtml={
-        artifactHtml != null && file.name === streamingPreviewFile?.name
+        streaming && artifactHtml != null && file.name === streamingPreviewFile?.name
           ? artifactHtml
           : undefined
       }

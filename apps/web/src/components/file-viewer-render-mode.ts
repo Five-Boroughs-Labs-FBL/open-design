@@ -72,6 +72,11 @@ export interface UrlLoadDecision {
    * buildSrcdoc) is present to detect and break the loop.
    */
   needsRedirectGuard?: boolean;
+  /**
+   * Agent is streaming HTML into `liveHtml`. There is often no on-disk file
+   * yet, so URL-load would 404. Force srcDoc so the iframe paints chunks.
+   */
+  streamingLiveHtml?: boolean;
 }
 
 /**
@@ -93,6 +98,7 @@ export function hasTweaksTemplate(source: string | null | undefined): boolean {
  */
 export function shouldUrlLoadHtmlPreview(d: UrlLoadDecision): boolean {
   if (d.mode !== 'preview') return false;
+  if (d.streamingLiveHtml) return false;
   if (d.isDeck) return false;
   if (d.commentMode && !(d.urlCommentBridge || d.urlModeBridge)) return false;
   // Inspect needs the selection bridge injected via buildSrcdoc; a raw

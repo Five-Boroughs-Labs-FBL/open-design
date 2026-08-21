@@ -13944,6 +13944,42 @@ export async function startServer({
       if (flushedTitleMarkerText) send('stdout', { chunk: flushedTitleMarkerText });
       if (
         status === 'succeeded' &&
+        (def.streamFormat ?? 'plain') !== 'plain' &&
+        executionProfile === 'text_artifact' &&
+        run.projectId &&
+        visibleAssistantText.trim()
+      ) {
+        const streamedArtifacts = extractPlainStreamArtifacts(visibleAssistantText);
+        if (streamedArtifacts.length > 0) {
+          try {
+            const project = getProject(db, run.projectId);
+            const persistedStreamedArtifacts = await persistPlainStreamArtifactList({
+              projectsRoot: PROJECTS_DIR,
+              projectId: run.projectId,
+              artifacts: streamedArtifacts,
+              metadata: project?.metadata,
+              writeProjectFile,
+            });
+            if (persistedStreamedArtifacts.length > 0) {
+              for (const artifact of persistedStreamedArtifacts) {
+                send('agent', {
+                  type: 'artifact',
+                  source: 'plain-stream',
+                  name: artifact.name,
+                  path: artifact.name,
+                  identifier: artifact.identifier,
+                  artifactType: artifact.artifactType,
+                });
+              }
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[grok-stream] failed to persist text_artifact HTML: ${message}`);
+          }
+        }
+      }
+      if (
+        status === 'succeeded' &&
         (def.streamFormat ?? 'plain') === 'plain' &&
         run.projectId
       ) {

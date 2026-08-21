@@ -1966,6 +1966,30 @@ test('grok-build eventParser alias maps the same streaming-json payload', () => 
   assert.deepEqual(events, [{ type: 'text_delta', delta: '<p>hi</p>' }]);
 });
 
+test('grok streaming-json ignores in-progress tool_call_update frames', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    JSON.stringify({
+      type: 'tool_call',
+      toolCallId: 'call-write-1',
+      toolName: 'Write',
+      rawInput: { path: 'index.html' },
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      status: 'in_progress',
+    }) + '\n' +
+    JSON.stringify({
+      type: 'tool_call_update',
+      toolCallId: 'call-write-1',
+      rawOutput: 'wrote index.html',
+    }) + '\n',
+  );
+  assert.equal(events.filter((event) => event.type === 'tool_result').length, 1);
+  assert.equal(events.find((event) => event.type === 'tool_result')?.content, 'wrote index.html');
+});
+
 test('grok streaming-json maps tool_call / tool_call_update field names', () => {
   const { events, handler } = collectEvents('grok');
   handler.feed(
