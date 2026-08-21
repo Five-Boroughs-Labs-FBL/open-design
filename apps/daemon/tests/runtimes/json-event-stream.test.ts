@@ -1923,6 +1923,27 @@ test('codex json stream does not downgrade non-reconnect errors that mention rec
   ]);
 });
 
+test('grok thought HTML stays text_delta across tag-free chunks until </html>', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\"><html><body>"}\n' +
+    '{"type":"thought","data":".hero{color:red}"}\n' +
+    '{"type":"thought","data":"Visible HUD"}\n' +
+    '{"type":"thought","data":"</body></html></artifact>"}\n' +
+    '{"type":"thought","data":"next I will write DESIGN.md"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['text_delta', 'text_delta', 'text_delta', 'text_delta', 'thinking_delta'],
+  );
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /\.hero\{color:red\}/);
+  assert.match(html, /Visible HUD/);
+});
+
 test('grok thought HTML paints as text_delta so the canvas can stream', () => {
   const { events, handler } = collectEvents('grok');
   handler.feed(

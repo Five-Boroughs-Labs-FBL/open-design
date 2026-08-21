@@ -22,6 +22,8 @@ type ParserState = {
   suppressDuplicateArtifactText: boolean;
   artifactOpenCandidate: string;
   pendingArtifactText: string;
+  /** Once a Grok thought chunk looks like HTML, keep mapping thought → text_delta until </html> or </artifact>. */
+  grokThoughtHtmlOpen: boolean;
 };
 
 type Usage = {
@@ -954,7 +956,11 @@ function grokUsageFrom(value: unknown): Usage | null {
  * Maps into the same UI events Claude's stream handler emits so
  * `<artifact>` HTML paints via the web artifact parser before process exit.
  */
-export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): boolean {
+export function handleGrokEvent(
+  obj: unknown,
+  onEvent: StreamEventHandler,
+  state?: ParserState,
+): boolean {
   if (!isRecord(obj) || typeof obj.type !== 'string') return false;
   const type = obj.type;
 
@@ -969,8 +975,17 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
   if (type === 'thought' || type === 'thinking') {
     const delta = grokPayloadText(obj);
     if (delta) {
+      const looksLikeHtml = grokThoughtLooksLikeHtml(delta);
+      const sticky = Boolean(state?.grokThoughtHtmlOpen);
+      const asText = looksLikeHtml || sticky;
+      if (state) {
+        if (asText) state.grokThoughtHtmlOpen = true;
+        if (asText && /<\/artifact>|<\/html>/i.test(delta)) {
+          state.grokThoughtHtmlOpen = false;
+        }
+      }
       onEvent({
-        type: grokThoughtLooksLikeHtml(delta) ? 'text_delta' : 'thinking_delta',
+        type: asText ? 'text_delta' : 'thinking_delta',
         delta,
       });
     }
@@ -1078,6 +1093,7 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     suppressDuplicateArtifactText: false,
     artifactOpenCandidate: '',
     pendingArtifactText: '',
+    grokThoughtHtmlOpen: false,
   };
 
   function handleLine(line: string): void {
@@ -1094,7 +1110,7 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
-    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent)) return;
+    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent, state)) return;
 
     onEvent({ type: 'raw', line });
   }
