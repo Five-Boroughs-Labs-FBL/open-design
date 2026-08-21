@@ -62,11 +62,18 @@ export function liveHtmlStreamTransportKey(identity: string): string {
   return `${identity}\0live-html-stream`;
 }
 
+export function shouldCloseLiveHtmlStream(state: {
+  hasLiveHtml: boolean;
+  runStreaming: boolean;
+  alreadyClosed: boolean;
+}): boolean {
+  return state.hasLiveHtml && !state.runStreaming && !state.alreadyClosed;
+}
+
 /**
  * Preview transport identity. During a liveHtml stream this MUST ignore
- * size/mtime refresh keys — the synthetic empty-canvas file's `size` is
- * `artifactHtml.length` and would otherwise mint a new generation (and blob
- * URL) on every token, which reloads the iframe.
+ * size/mtime refresh keys — growing file size would otherwise mint a new
+ * generation (and blob URL) on every token, which reloads the iframe.
  */
 export function buildSrcDocTransportIdentity(parts: {
   streamingLiveHtml: boolean;

@@ -34,11 +34,21 @@ describe('resolveStreamingHtmlPreviewFile', () => {
     expect(resolveStreamingHtmlPreviewFile('<h1>HUD</h1> and a much longer body', [])?.size).toBe(0);
   });
 
-  it('reuses the first existing HTML file instead of minting a second tab', () => {
+  it('pins index.html even when another HTML file already exists', () => {
     const cover = file('cover.html');
-    expect(resolveStreamingHtmlPreviewFile('<p>next</p>', [
+    const preview = resolveStreamingHtmlPreviewFile('<p>next</p>', [
       file('notes.md', 'text'),
       cover,
-    ])).toBe(cover);
+    ]);
+    expect(preview?.name).toBe(STREAMING_HTML_PREVIEW_NAME);
+    expect(preview).not.toBe(cover);
+  });
+
+  it('reuses the on-disk index.html tab instead of minting a second one', () => {
+    const index = file('index.html');
+    expect(resolveStreamingHtmlPreviewFile('<p>next</p>', [
+      file('notes.md', 'text'),
+      index,
+    ])).toBe(index);
   });
 });

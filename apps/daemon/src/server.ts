@@ -222,8 +222,10 @@ import {
   buildOpenCodeByokProviderConfig,
   BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
 } from './runtimes/byok-opencode.js';
+import { createLiveHtmlCanvasWriter } from './runtimes/live-html-canvas.js';
 import {
   extractPlainStreamArtifacts,
+  persistLiveHtmlCanvas,
   persistPlainStreamArtifactList,
   plainStdoutFromRunEvents,
 } from './runtimes/plain-stream.js';
@@ -10767,6 +10769,8 @@ export async function startServer({
     // by the artifact finalizer (see the emit handler below). 8 MiB comfortably
     // covers realistic artifact-bearing runs while bounding per-run memory.
     const PLAIN_ARTIFACT_STDOUT_CAP = 8 * 1024 * 1024;
+    let liveHtmlCanvas = null;
+    let liveHtmlCanvasChild = null;
     const send = (event, data) => {
       const lifecycleMarkers = runLifecycleMarkersForStreamEvent(event, data);
       if (lifecycleMarkers.firstModelEventType) {
@@ -10804,6 +10808,7 @@ export async function startServer({
         typeof data.delta === 'string'
       ) {
         visibleAssistantText += data.delta;
+        liveHtmlCanvas?.note(visibleAssistantText);
       }
       // Accumulate the visible reply for the memory extractor from whichever
       // channel this agent family uses: `agent` text_delta (structured streams)
@@ -10842,6 +10847,39 @@ export async function startServer({
       persistRunEventToAssistantMessage(db, run, event, data);
       design.runs.emit(run, event, data);
     };
+    if (
+      executionProfile === 'text_artifact' &&
+      (def.streamFormat ?? 'plain') !== 'plain' &&
+      typeof projectId === 'string' &&
+      projectId
+    ) {
+      let liveHtmlCanvasAnnounced = false;
+      liveHtmlCanvas = createLiveHtmlCanvasWriter({
+        persist: async (artifact, canvasStatus) => {
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
+          const project = getProject(db, projectId);
+          const persisted = await persistLiveHtmlCanvas({
+            projectsRoot: PROJECTS_DIR,
+            projectId,
+            artifact,
+            status: canvasStatus,
+            metadata: project?.metadata,
+            writeProjectFile,
+          });
+          if (!liveHtmlCanvasAnnounced) {
+            liveHtmlCanvasAnnounced = true;
+            send('agent', {
+              type: 'artifact',
+              source: 'live-html-canvas',
+              name: persisted.name,
+              path: persisted.name,
+              identifier: artifact.identifier,
+              artifactType: artifact.artifactType,
+            });
+          }
+        },
+      });
+    }
     const retryAnalyticsBase = (decision, failure, errorCode) => {
       const runProjectKind = resolveRunProjectKindForAnalytics({
         hintProjectKind: null,
@@ -12365,6 +12403,7 @@ export async function startServer({
       });
       lifecycle.mark('process_spawned');
       run.child = child;
+      liveHtmlCanvasChild = child;
       run.childPid = typeof child.pid === 'number' ? child.pid : null;
       run.processGroupId =
         process.platform !== 'win32' && typeof child.pid === 'number'
@@ -13947,7 +13986,8 @@ export async function startServer({
         (def.streamFormat ?? 'plain') !== 'plain' &&
         executionProfile === 'text_artifact' &&
         run.projectId &&
-        visibleAssistantText.trim()
+        visibleAssistantText.trim() &&
+        !liveHtmlCanvas?.wrote
       ) {
         const streamedArtifacts = extractPlainStreamArtifacts(visibleAssistantText);
         if (streamedArtifacts.length > 0) {
@@ -14159,6 +14199,19 @@ export async function startServer({
           fs.promises.unlink(agentLogFilePath).catch(() => {});
         }
         cleanupPromptFile();
+        if (liveHtmlCanvas && run.child === child) {
+          const writer = liveHtmlCanvas;
+          liveHtmlCanvas = null;
+          const terminal = run.status === 'succeeded' ? 'complete' : 'streaming';
+          try {
+            await writer.flush(terminal);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[live-html-canvas] persist failed: ${message}`);
+          }
+        } else {
+          liveHtmlCanvas = null;
+        }
       }
     });
     if (writePromptToChildStdin && child.stdin) {

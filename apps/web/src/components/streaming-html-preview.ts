@@ -8,14 +8,14 @@ export function resolveStreamingHtmlPreviewFile(
   files: readonly ProjectFile[],
 ): ProjectFile | null {
   if (artifactHtml == null) return null;
-  const existing = files.find((file) => file.kind === 'html');
-  if (existing) return existing;
+  const pinned = files.find((file) => file.name === STREAMING_HTML_PREVIEW_NAME);
+  if (pinned) return pinned;
   return {
     name: STREAMING_HTML_PREVIEW_NAME,
     path: STREAMING_HTML_PREVIEW_NAME,
     type: 'file',
-    // Do not track artifactHtml.length. FileViewer keys srcDoc transport by
-    // file size; a growing size remounts the iframe on every token.
+    // Frozen size: FileViewer keys srcDoc transport by file size; growing
+    // length would remount the iframe on every token.
     size: 0,
     mtime: 0,
     kind: 'html',

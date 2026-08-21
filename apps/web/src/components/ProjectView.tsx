@@ -299,6 +299,7 @@ import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
 import {
   DESIGN_SYSTEM_TAB,
   FileWorkspace,
+  STREAMING_HTML_PREVIEW_NAME,
   type BrowserOpenRequest,
   type FileRefreshResult,
 } from './FileWorkspace';
@@ -12483,7 +12484,17 @@ export async function findSameTurnHtmlWriteForRecoveredArtifact({
   // computeProducedFiles() reports that earlier artifact as "produced this
   // turn" and we'd bind the echo to the wrong, unrelated file.
   const exact = candidates.find((_file, i) => normalized[i] === recovered);
-  return exact ?? null;
+  if (exact) return exact;
+  // Grok live canvas writes growing drafts to index.html. Bind the echo to
+  // that same-turn file when one document is a prefix of the other.
+  const liveIndex = candidates.findIndex((file) => file.name === STREAMING_HTML_PREVIEW_NAME);
+  if (liveIndex >= 0) {
+    const disk = normalized[liveIndex];
+    if (disk && (recovered.startsWith(disk) || disk.startsWith(recovered))) {
+      return candidates[liveIndex] ?? null;
+    }
+  }
+  return null;
 }
 
 function isHtmlProjectFile(file: ProjectFile): boolean {

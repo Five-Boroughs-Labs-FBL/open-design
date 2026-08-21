@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { ProjectFile } from '@open-design/contracts';
 import { createProjectArtifactFile } from '../artifacts/create.js';
 import {
@@ -30,6 +31,9 @@ interface RunEventLike {
 }
 
 type SupportedArtifactExtension = '.html' | '.css' | '.svg' | '.md';
+
+/** AMC / Grok live canvas. One name, overwrite in place — never unique-suffix. */
+export const LIVE_HTML_CANVAS_NAME = 'index.html';
 
 type WriteProjectFile = Parameters<typeof createProjectArtifactFile>[0]['writeProjectFile'];
 
@@ -123,6 +127,111 @@ export function extractPlainStreamArtifacts(stdout: string): PlainStreamArtifact
   }
 
   return artifacts;
+}
+
+/**
+ * HTML `<artifact>` whose `</artifact>` has not arrived yet.
+ * Closed extractors skip this; the live canvas still needs the open body.
+ */
+export function extractOpenPlainStreamArtifact(stdout: string): PlainStreamArtifact | null {
+  if (!stdout.includes(OPEN_TAG)) return null;
+  const skipRanges = computeMarkdownSkipRanges(stdout);
+  const openStart = findNextArtifactOpen(stdout, 0, skipRanges);
+  if (openStart === -1) return null;
+  const openEnd = findOpenTagEnd(stdout, openStart + OPEN_TAG.length);
+  if (openEnd === -1) return null;
+  const closeStart = stdout.indexOf(CLOSE_TAG, openEnd);
+  const content = closeStart === -1
+    ? stdout.slice(openEnd)
+    : stdout.slice(openEnd, closeStart);
+  const attrText = stdout.slice(openStart + OPEN_TAG.length, openEnd - 1);
+  const attrs = parseAttrs(attrText);
+  const artifactType = normalizeArtifactType(attrs.type, content);
+  const extension = artifactType ? TYPE_TO_EXTENSION.get(artifactType) : undefined;
+  if (!artifactType || extension !== '.html') return null;
+  return {
+    identifier: attrs.identifier ?? '',
+    artifactType,
+    title: attrs.title ?? '',
+    content,
+    extension,
+    fileName: LIVE_HTML_CANVAS_NAME,
+  };
+}
+
+function extractBareHtmlDocument(stdout: string): string | null {
+  const doctype = stdout.search(/<!doctype\s+html/i);
+  const htmlTag = stdout.search(/<html[\s>]/i);
+  const starts = [doctype, htmlTag].filter((idx) => idx >= 0);
+  if (starts.length === 0) return null;
+  const start = Math.min(...starts);
+  let content = stdout.slice(start);
+  const wrapper = content.search(/<artifact\b/i);
+  if (wrapper > 0) content = content.slice(0, wrapper);
+  const closeArtifact = content.indexOf(CLOSE_TAG);
+  if (closeArtifact >= 0) content = content.slice(0, closeArtifact);
+  return content || null;
+}
+
+/** Prefer a closed HTML artifact; otherwise the in-flight open body. Always named index.html. */
+export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifact | null {
+  const tagged = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html')
+    ?? extractOpenPlainStreamArtifact(stdout);
+  const taggedHtml = tagged && looksLikeHtmlDocument(tagged.content) ? tagged.content : '';
+  const bare = extractBareHtmlDocument(stdout);
+  const bareHtml = bare && /<!doctype\s+html|<html[\s>]/i.test(bare) ? bare : '';
+  const content = bareHtml.length > taggedHtml.length
+    ? bareHtml
+    : taggedHtml || tagged?.content || '';
+  if (!content) return tagged;
+  return {
+    identifier: tagged?.identifier ?? '',
+    artifactType: tagged?.artifactType || 'text/html',
+    title: tagged?.title ?? '',
+    content,
+    extension: '.html',
+    fileName: LIVE_HTML_CANVAS_NAME,
+  };
+}
+
+type OverwriteWriteProjectFile = (
+  projectsRoot: string,
+  projectId: string,
+  name: string,
+  body: Buffer,
+  options: { overwrite: boolean; artifactManifest: unknown; skipArtifactGuards?: boolean },
+  metadata?: unknown,
+) => Promise<unknown>;
+
+export async function persistLiveHtmlCanvas(options: {
+  projectsRoot: string;
+  projectId: string;
+  artifact: PlainStreamArtifact;
+  status: 'streaming' | 'complete';
+  metadata?: unknown;
+  writeProjectFile?: OverwriteWriteProjectFile;
+}): Promise<PersistedPlainStreamArtifact> {
+  const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
+  const name = LIVE_HTML_CANVAS_NAME;
+  const file = await writeProjectFile(
+    options.projectsRoot,
+    options.projectId,
+    name,
+    Buffer.from(options.artifact.content, 'utf8'),
+    {
+      overwrite: true,
+      artifactManifest: artifactManifestFor(options.artifact, name, options.status),
+      skipArtifactGuards: options.status === 'streaming',
+    },
+    options.metadata,
+  );
+  return {
+    identifier: options.artifact.identifier,
+    artifactType: options.artifact.artifactType,
+    title: options.artifact.title,
+    name,
+    file,
+  };
 }
 
 export async function persistPlainStreamArtifacts(options: {
@@ -418,7 +527,11 @@ function reserveUniqueArtifactFileName(
   throw new Error(`could not allocate artifact filename for ${desiredName}`);
 }
 
-function artifactManifestFor(artifact: PlainStreamArtifact, entry: string): JsonRecord {
+function artifactManifestFor(
+  artifact: PlainStreamArtifact,
+  entry: string,
+  status: 'streaming' | 'complete' = 'complete',
+): JsonRecord {
   const title = artifact.title || artifact.identifier || entry;
   const metadata = {
     identifier: artifact.identifier,
@@ -432,7 +545,7 @@ function artifactManifestFor(artifact: PlainStreamArtifact, entry: string): Json
       title,
       entry,
       renderer: 'html',
-      status: 'complete',
+      status,
       exports: ['html', 'pdf', 'zip'],
       primary: true,
       metadata,

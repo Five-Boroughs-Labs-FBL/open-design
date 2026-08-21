@@ -2068,12 +2068,11 @@ export function FileWorkspace({
       streamingPreviewOpenedForProjectRef.current = null;
       return;
     }
-    if (!streamingPreviewIsSynthetic) return;
     if (streamingPreviewOpenedForProjectRef.current === projectId) return;
     streamingPreviewOpenedForProjectRef.current = projectId;
     openFile(streamingPreviewFile.name, { forcePersist: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, streamingPreviewFile?.name, streamingPreviewIsSynthetic, artifactHtml == null]);
+  }, [projectId, streamingPreviewFile?.name, artifactHtml == null]);
 
   useEffect(() => {
     if (!browserOpenRequest) return;
@@ -3435,7 +3434,7 @@ export function FileWorkspace({
         protectedHtmlViewerFileNames.size === 0 || protectedHtmlViewerFileNames.has(file.name)
       }
       liveHtml={
-        streaming && artifactHtml != null && file.name === streamingPreviewFile?.name
+        artifactHtml != null && file.name === streamingPreviewFile?.name
           ? artifactHtml
           : undefined
       }

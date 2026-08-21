@@ -1090,8 +1090,9 @@ export function handleGrokEvent(
     return true;
   }
 
-  // Unknown grok JSON must not dump into chat as a raw line.
-  return true;
+  // Unknown types fall through so the JSONL handler emits `raw` instead of
+  // swallowing a schema drift as a successful no-op.
+  return false;
 }
 
 export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEventHandler) {
