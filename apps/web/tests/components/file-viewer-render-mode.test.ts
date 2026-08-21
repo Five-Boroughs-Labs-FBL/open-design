@@ -8,6 +8,7 @@ import {
   htmlNeedsRedirectGuard,
   htmlNeedsSandboxShim,
   parseForceInline,
+  shouldSkipFileChangedLiveReload,
   shouldUrlLoadHtmlPreview,
 } from '../../src/components/file-viewer-render-mode';
 
@@ -20,6 +21,11 @@ describe('shouldUrlLoadHtmlPreview', () => {
 
   it('uses srcDoc while liveHtml is streaming so a missing file is not URL-loaded', () => {
     expect(shouldUrlLoadHtmlPreview({ ...base, streamingLiveHtml: true })).toBe(false);
+  });
+
+  it('skips file-changed URL reloads while liveHtml owns the canvas', () => {
+    expect(shouldSkipFileChangedLiveReload(true)).toBe(true);
+    expect(shouldSkipFileChangedLiveReload(false)).toBe(false);
   });
 
   it('falls back to srcDoc when the file is a deck (deck bridge required)', () => {

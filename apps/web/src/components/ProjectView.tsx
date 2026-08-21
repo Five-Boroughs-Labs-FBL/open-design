@@ -299,6 +299,7 @@ import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
 import {
   DESIGN_SYSTEM_TAB,
   FileWorkspace,
+  STREAMING_HTML_PREVIEW_NAME,
   type BrowserOpenRequest,
   type FileRefreshResult,
 } from './FileWorkspace';
@@ -3679,22 +3680,28 @@ export function ProjectView({
       const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
       const existing = new Set(currentProjectFiles.map((f) => f.name));
       let fileName = `${baseName}${ext}`;
+      const liveCanvasExists = ext === '.html' && existing.has(STREAMING_HTML_PREVIEW_NAME);
       // A non-empty identifier is stable artifact identity: when its canonical
       // filename already exists, update that file in place. Title- and
       // fallback-derived names still suffix collisions so new artifacts cannot
-      // silently replace unrelated project files.
+      // silently replace unrelated project files. The Grok/AMC live canvas is
+      // always index.html — overwrite that instead of minting hud.html.
       const updatesExplicitlyIdentifiedFile =
         Boolean(art.identifier?.trim()) && existing.has(fileName);
-      let collisionFileName = fileName;
-      let n = 2;
-      while (
-        existing.has(collisionFileName) &&
-        savedArtifactRef.current !== collisionFileName
-      ) {
-        collisionFileName = `${baseName}-${n}${ext}`;
-        n += 1;
+      if (liveCanvasExists) {
+        fileName = STREAMING_HTML_PREVIEW_NAME;
+      } else {
+        let collisionFileName = fileName;
+        let n = 2;
+        while (
+          existing.has(collisionFileName) &&
+          savedArtifactRef.current !== collisionFileName
+        ) {
+          collisionFileName = `${baseName}-${n}${ext}`;
+          n += 1;
+        }
+        if (!updatesExplicitlyIdentifiedFile) fileName = collisionFileName;
       }
-      if (!updatesExplicitlyIdentifiedFile) fileName = collisionFileName;
       if (ext === '.html') {
         const pointerProjectFiles = filterProjectFilesByMinMtime(
           currentProjectFiles,
@@ -3702,7 +3709,7 @@ export function ProjectView({
         );
         const pointerTarget = resolveHtmlPointerArtifactTarget({
           content: artifactToPersist.html,
-          candidateFileName: collisionFileName,
+          candidateFileName: fileName,
           projectFiles: pointerProjectFiles,
         });
         if (pointerTarget) {

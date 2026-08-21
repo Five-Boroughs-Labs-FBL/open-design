@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
+  LIVE_HTML_CANVAS_NAME,
+  extractLiveHtmlCanvasArtifact,
+  extractOpenPlainStreamArtifact,
   extractPlainStreamArtifacts,
+  persistLiveHtmlCanvas,
   persistPlainStreamArtifacts,
   plainStdoutFromRunEvents,
 } from '../../src/runtimes/plain-stream.js';
@@ -227,5 +231,84 @@ describe('plain stream artifact extraction', () => {
     expect(artifacts).toHaveLength(1);
     expect(artifacts[0]?.fileName).toBe('real.html');
     expect(artifacts[0]?.content).toBe('<!doctype html><html><body>Real</body></html>');
+  });
+
+  it('skips unclosed HTML artifacts in the closed extractor', () => {
+    expect(extractPlainStreamArtifacts(
+      '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD',
+    )).toEqual([]);
+  });
+
+  it('extracts an open HTML artifact for the live canvas', () => {
+    const open = extractOpenPlainStreamArtifact(
+      '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD',
+    );
+    expect(open).toMatchObject({
+      identifier: 'hud',
+      fileName: LIVE_HTML_CANVAS_NAME,
+      content: '<!doctype html><html><body><h1>HUD',
+    });
+    const live = extractLiveHtmlCanvasArtifact(
+      '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD</h1></body></html></artifact>',
+    );
+    expect(live?.fileName).toBe(LIVE_HTML_CANVAS_NAME);
+    expect(live?.content).toContain('<h1>HUD</h1>');
+  });
+
+  it('overwrites index.html in place instead of unique-naming', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-canvas-'));
+    try {
+      const first = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="hud" type="text/html"><!doctype html><html><body>A',
+      );
+      expect(first).toBeTruthy();
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: first!,
+        status: 'streaming',
+        writeProjectFile: writeProjectFile as any,
+      });
+      const second = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="hud" type="text/html"><!doctype html><html><body>AB</body></html></artifact>',
+      );
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: second!,
+        status: 'complete',
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe(LIVE_HTML_CANVAS_NAME);
+      const files = await listFiles(projectsRoot, 'project-1');
+      expect(files.filter((file) => file.name.endsWith('.html')).map((file) => file.name))
+        .toEqual([LIVE_HTML_CANVAS_NAME]);
+      const body = await readFile(path.join(projectsRoot, 'project-1', LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toContain('AB');
+      expect(files[0]?.artifactManifest).toMatchObject({ status: 'complete', entry: LIVE_HTML_CANVAS_NAME });
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('writes streaming drafts that still contain publication placeholders', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-placeholder-'));
+    try {
+      const draft = extractLiveHtmlCanvasArtifact(
+        '<artifact type="text/html"><!doctype html><html><body>Name to confirm',
+      );
+      expect(draft).toBeTruthy();
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: draft!,
+        status: 'streaming',
+        writeProjectFile: writeProjectFile as any,
+      });
+      const body = await readFile(path.join(projectsRoot, 'project-1', LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toContain('Name to confirm');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
   });
 });

@@ -185,6 +185,7 @@ import {
   buildSrcDocTransportIdentity,
   canPostSrcDocStream,
   liveHtmlStreamTransportKey,
+  shouldCloseLiveHtmlStream,
   srcDocStreamShouldReset,
 } from '../runtime/srcdoc-stream';
 import { DeckThumbnailRail, type DeckThumbnailViewport } from './DeckThumbnailRail';
@@ -208,6 +209,7 @@ import {
   htmlNeedsRedirectGuard,
   htmlNeedsSandboxShim,
   parseForceInline,
+  shouldSkipFileChangedLiveReload,
   shouldUrlLoadHtmlPreview,
   type UrlLoadDecision,
 } from './file-viewer-render-mode';
@@ -8436,6 +8438,7 @@ function HtmlViewer({
   const liveHtmlStreamWrittenRef = useRef('');
   const liveHtmlRef = useRef(liveHtml);
   liveHtmlRef.current = liveHtml;
+  const liveHtmlStreamClosedRef = useRef(false);
   // Latched by the srcDoc onLoad handler when a load completes in a hidden
   // browser tab; consumed (one-shot) by the visibilitychange recovery effect.
   // See srcDocLoadRequiresFreshParseOnReturnToVisible.
@@ -10250,6 +10253,7 @@ function HtmlViewer({
     // when the mode closes (interactivePreviewModeActive flips) and applies
     // the now-current URL in one pass.
     if (interactivePreviewModeActive) return;
+    if (shouldSkipFileChangedLiveReload(streamingLiveHtmlActive)) return;
     // Skip a refresh this viewer caused itself (screenshot-to-chat's own
     // upload landing in the project folder) — see suppressLiveReloadUntilRef
     // above. Reloading the live preview for a file-changed echo of our own
@@ -10299,6 +10303,7 @@ function HtmlViewer({
     transportPreviewMeasurementDocumentEpoch,
     usePoweredPreview,
     workspaceActive,
+    streamingLiveHtmlActive,
   ]);
 
   useEffect(() => {
@@ -11293,6 +11298,45 @@ function HtmlViewer({
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [streamingLiveHtmlActive, srcDocTransportGeneration]);
+  useEffect(() => {
+    if (streamingLiveHtmlActive && streaming) {
+      liveHtmlStreamClosedRef.current = false;
+    }
+  }, [streamingLiveHtmlActive, streaming]);
+  useEffect(() => {
+    if (
+      !shouldCloseLiveHtmlStream({
+        hasLiveHtml: streamingLiveHtmlActive,
+        runStreaming: Boolean(streaming),
+        alreadyClosed: liveHtmlStreamClosedRef.current,
+      })
+    ) {
+      return;
+    }
+    const html = liveHtmlRef.current ?? '';
+    if (!canPostSrcDocStream({
+      html,
+      useUrlLoadPreview,
+      useLazySrcDocTransport,
+      shellReady: srcDocShellReady,
+    })) return;
+    const win = srcDocPreviewIframeRef.current?.contentWindow;
+    if (!win) return;
+    liveHtmlStreamClosedRef.current = true;
+    win.postMessage({
+      type: SRCDOC_STREAM_MESSAGE_TYPE,
+      html,
+      generation: srcDocTransportGeneration,
+      done: true,
+    }, '*');
+  }, [
+    streamingLiveHtmlActive,
+    streaming,
+    useUrlLoadPreview,
+    useLazySrcDocTransport,
+    srcDocShellReady,
+    srcDocTransportGeneration,
+  ]);
   useEffect(() => {
     if (useUrlLoadPreview) {
       activatedSrcDocTransportHtmlRef.current = null;

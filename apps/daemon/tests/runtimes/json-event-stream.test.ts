@@ -2038,6 +2038,13 @@ test('grok-build eventParser alias maps the same streaming-json payload', () => 
   assert.deepEqual(events, [{ type: 'text_delta', delta: '<p>hi</p>' }]);
 });
 
+test('grok unknown JSON types emit raw instead of being swallowed', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed('{"type":"session_update","sessionId":"sess-1"}\n');
+  assert.equal(events.some((event) => event.type === 'raw'), true);
+  assert.equal(events.some((event) => event.type === 'text_delta'), false);
+});
+
 test('grok streaming-json ignores in-progress tool_call_update frames', () => {
   const { events, handler } = collectEvents('grok');
   handler.feed(

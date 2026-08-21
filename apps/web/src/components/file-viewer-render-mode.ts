@@ -96,6 +96,11 @@ export function hasTweaksTemplate(source: string | null | undefined): boolean {
  * srcDoc inline path. Pure function — caller is responsible for the
  * non-HTML / source-mode early returns.
  */
+/** file-changed URL reloads remount the parked iframe; skip while liveHtml owns the canvas. */
+export function shouldSkipFileChangedLiveReload(streamingLiveHtml: boolean): boolean {
+  return streamingLiveHtml;
+}
+
 export function shouldUrlLoadHtmlPreview(d: UrlLoadDecision): boolean {
   if (d.mode !== 'preview') return false;
   if (d.streamingLiveHtml) return false;

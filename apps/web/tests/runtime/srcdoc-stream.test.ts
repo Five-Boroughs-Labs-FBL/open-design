@@ -11,6 +11,7 @@ import {
   injectLiveHtmlStreamBridge,
   liveHtmlStreamTransportKey,
   planSrcDocStreamWrite,
+  shouldCloseLiveHtmlStream,
   srcDocStreamShouldReset,
 } from '../../src/runtime/srcdoc-stream';
 
@@ -165,6 +166,26 @@ describe('canPostSrcDocStream', () => {
     expect(canPostSrcDocStream({ ...base, useUrlLoadPreview: true })).toBe(false);
     expect(canPostSrcDocStream({ ...base, useLazySrcDocTransport: false })).toBe(false);
     expect(canPostSrcDocStream({ ...base, html: '' })).toBe(false);
+  });
+});
+
+describe('shouldCloseLiveHtmlStream', () => {
+  it('closes once when liveHtml remains after the run stops', () => {
+    expect(shouldCloseLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: true,
+      alreadyClosed: false,
+    })).toBe(false);
+    expect(shouldCloseLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: false,
+      alreadyClosed: false,
+    })).toBe(true);
+    expect(shouldCloseLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: false,
+      alreadyClosed: true,
+    })).toBe(false);
   });
 });
 
