@@ -182,6 +182,7 @@ import {
 import {
   SRCDOC_STREAM_MESSAGE_TYPE,
   SRCDOC_STREAM_READY_TYPE,
+  buildSrcDocTransportIdentity,
   canPostSrcDocStream,
   liveHtmlStreamTransportKey,
   srcDocStreamShouldReset,
@@ -10337,14 +10338,15 @@ function HtmlViewer({
 
   const srcDocBaseHref = effectiveScopedSrcDocPreviewBase
     ?? projectRawUrl(projectId, baseDirFor(file.name), workspaceContext);
-  const srcDocTransportIdentity = [
-    srcDocPreviewBaseIdentity,
+  const srcDocTransportIdentity = buildSrcDocTransportIdentity({
+    streamingLiveHtml: streamingLiveHtmlActive,
+    previewBaseIdentity: srcDocPreviewBaseIdentity,
     sourceSnapshotRefreshKey,
     reloadKey,
-    transportPreviewMeasurementDocumentEpoch,
-    effectiveDeck ? 'deck' : 'html',
-    srcDocBaseHref,
-  ].join('\0');
+    measurementEpoch: transportPreviewMeasurementDocumentEpoch,
+    kind: effectiveDeck ? 'deck' : 'html',
+    baseHref: srcDocBaseHref,
+  });
   const candidateSrcDocTransport = useMemo(
     () => {
       if (streamingLiveHtmlActive) {

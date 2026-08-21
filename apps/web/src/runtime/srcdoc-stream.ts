@@ -62,6 +62,31 @@ export function liveHtmlStreamTransportKey(identity: string): string {
   return `${identity}\0live-html-stream`;
 }
 
+/**
+ * Preview transport identity. During a liveHtml stream this MUST ignore
+ * size/mtime refresh keys — the synthetic empty-canvas file's `size` is
+ * `artifactHtml.length` and would otherwise mint a new generation (and blob
+ * URL) on every token, which reloads the iframe.
+ */
+export function buildSrcDocTransportIdentity(parts: {
+  streamingLiveHtml: boolean;
+  previewBaseIdentity: string;
+  sourceSnapshotRefreshKey: string;
+  reloadKey: number;
+  measurementEpoch: string;
+  kind: 'deck' | 'html';
+  baseHref: string;
+}): string {
+  return [
+    parts.previewBaseIdentity,
+    parts.streamingLiveHtml ? 'live-html-stream' : parts.sourceSnapshotRefreshKey,
+    parts.streamingLiveHtml ? 0 : parts.reloadKey,
+    parts.streamingLiveHtml ? 'stream' : parts.measurementEpoch,
+    parts.kind,
+    parts.baseHref,
+  ].join('\0');
+}
+
 /** New artifact (or unrelated HTML) should remount the lazy shell. */
 export function srcDocStreamShouldReset(previous: string, next: string): boolean {
   if (!previous) return false;

@@ -14,7 +14,9 @@ export function resolveStreamingHtmlPreviewFile(
     name: STREAMING_HTML_PREVIEW_NAME,
     path: STREAMING_HTML_PREVIEW_NAME,
     type: 'file',
-    size: artifactHtml.length,
+    // Do not track artifactHtml.length. FileViewer keys srcDoc transport by
+    // file size; a growing size remounts the iframe on every token.
+    size: 0,
     mtime: 0,
     kind: 'html',
     mime: 'text/html',

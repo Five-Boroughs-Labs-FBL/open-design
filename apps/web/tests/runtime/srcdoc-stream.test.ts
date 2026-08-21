@@ -6,6 +6,7 @@ import { buildLazySrcdocTransport } from '../../src/runtime/srcdoc';
 import {
   SRCDOC_STREAM_MESSAGE_TYPE,
   SRCDOC_STREAM_READY_TYPE,
+  buildSrcDocTransportIdentity,
   canPostSrcDocStream,
   injectLiveHtmlStreamBridge,
   liveHtmlStreamTransportKey,
@@ -170,6 +171,33 @@ describe('canPostSrcDocStream', () => {
 describe('srcDocStreamShouldReset / liveHtmlStreamTransportKey', () => {
   it('pins one cache key for the whole live stream', () => {
     expect(liveHtmlStreamTransportKey('file-a')).toBe('file-a\0live-html-stream');
+  });
+
+  it('does not change transport identity when live HTML length (file size) grows', () => {
+    const base = {
+      streamingLiveHtml: true,
+      previewBaseIdentity: 'proj\0index.html',
+      reloadKey: 0,
+      measurementEpoch: 'epoch-1',
+      kind: 'html' as const,
+      baseHref: 'https://example.test/',
+    };
+    expect(buildSrcDocTransportIdentity({
+      ...base,
+      sourceSnapshotRefreshKey: '0:12:0',
+    })).toBe(buildSrcDocTransportIdentity({
+      ...base,
+      sourceSnapshotRefreshKey: '0:4800:0',
+    }));
+    expect(buildSrcDocTransportIdentity({
+      ...base,
+      streamingLiveHtml: false,
+      sourceSnapshotRefreshKey: '0:12:0',
+    })).not.toBe(buildSrcDocTransportIdentity({
+      ...base,
+      streamingLiveHtml: false,
+      sourceSnapshotRefreshKey: '0:4800:0',
+    }));
   });
 
   it('remounts only when HTML is a different document, not when it grows', () => {
