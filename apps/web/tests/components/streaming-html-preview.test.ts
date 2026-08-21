@@ -30,7 +30,8 @@ describe('resolveStreamingHtmlPreviewFile', () => {
       kind: 'html',
       mime: 'text/html',
     });
-    expect(preview?.size).toBe('<h1>HUD</h1>'.length);
+    expect(preview?.size).toBe(0);
+    expect(resolveStreamingHtmlPreviewFile('<h1>HUD</h1> and a much longer body', [])?.size).toBe(0);
   });
 
   it('reuses the first existing HTML file instead of minting a second tab', () => {
