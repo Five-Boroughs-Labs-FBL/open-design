@@ -361,6 +361,12 @@ export interface McpRunCreateRequest {
   toolBundle?: RunScopedToolBundle;
   resume?: boolean;
   analyticsHints?: ChatAnalyticsHints;
+  /** AMC Design gate: resume this Grok CLI session under AMC's GROK_HOME. */
+  amcGrok?: {
+    sessionId: string;
+    grokHome: string;
+    sourceCwd?: string;
+  };
 }
 
 export const CHAT_RUN_STATUSES = [

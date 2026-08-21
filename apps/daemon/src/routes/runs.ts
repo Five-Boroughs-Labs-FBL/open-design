@@ -30,6 +30,8 @@ import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
+import { parseAmcGrokBlock } from '../runtimes/amc-grok.js';
+import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
 import { agentCliEnvForAgent, readAppConfig } from '../app-config.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
 import {
@@ -1208,6 +1210,28 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       return sendApiError(res, 503, 'UPSTREAM_UNAVAILABLE', 'daemon is shutting down');
     }
     const requestBody = toJsonRecord(req.body);
+    let parsedAmcGrok = null;
+    try {
+      parsedAmcGrok = parseAmcGrokBlock(requestBody.amcGrok);
+    } catch (err) {
+      return sendApiError(
+        res,
+        400,
+        'BAD_REQUEST',
+        err instanceof Error ? err.message : 'invalid amcGrok',
+      );
+    }
+    if (parsedAmcGrok) {
+      const apiToken = apiTokenFromEnv();
+      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
+        return sendApiError(
+          res,
+          403,
+          'FORBIDDEN',
+          'amcGrok requires the Open Design server API token',
+        );
+      }
+    }
     const requestAnalyticsContext = readAnalyticsContext(req);
     const mediaExecution = parseMediaExecutionPolicyInput(requestBody.mediaExecution);
     if (!mediaExecution.ok) {
@@ -1759,6 +1783,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       );
     }
     const run = creation.run;
+    if (parsedAmcGrok) {
+      run.amcGrok = parsedAmcGrok;
+    }
     const analyticsAttributionMismatch =
       creation.kind === 'reused'
       && externalPluginAttributionMismatch(
