@@ -10770,6 +10770,7 @@ export async function startServer({
     // covers realistic artifact-bearing runs while bounding per-run memory.
     const PLAIN_ARTIFACT_STDOUT_CAP = 8 * 1024 * 1024;
     let liveHtmlCanvas = null;
+    let liveHtmlCanvasChild = null;
     const send = (event, data) => {
       const lifecycleMarkers = runLifecycleMarkersForStreamEvent(event, data);
       if (lifecycleMarkers.firstModelEventType) {
@@ -10855,6 +10856,7 @@ export async function startServer({
       let liveHtmlCanvasAnnounced = false;
       liveHtmlCanvas = createLiveHtmlCanvasWriter({
         persist: async (artifact, canvasStatus) => {
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
           const project = getProject(db, projectId);
           const persisted = await persistLiveHtmlCanvas({
             projectsRoot: PROJECTS_DIR,
@@ -12401,6 +12403,7 @@ export async function startServer({
       });
       lifecycle.mark('process_spawned');
       run.child = child;
+      liveHtmlCanvasChild = child;
       run.childPid = typeof child.pid === 'number' ? child.pid : null;
       run.processGroupId =
         process.platform !== 'win32' && typeof child.pid === 'number'
@@ -13978,14 +13981,6 @@ export async function startServer({
       const flushedTitleMarkerText =
         titleMarkerStripper.strip(flushedControlText) + titleMarkerStripper.flush();
       if (flushedTitleMarkerText) send('stdout', { chunk: flushedTitleMarkerText });
-      if (liveHtmlCanvas) {
-        try {
-          await liveHtmlCanvas.flush(status === 'succeeded' ? 'complete' : 'streaming');
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          console.warn(`[live-html-canvas] persist failed: ${message}`);
-        }
-      }
       if (
         status === 'succeeded' &&
         (def.streamFormat ?? 'plain') !== 'plain' &&
@@ -14204,6 +14199,19 @@ export async function startServer({
           fs.promises.unlink(agentLogFilePath).catch(() => {});
         }
         cleanupPromptFile();
+        if (liveHtmlCanvas && run.child === child) {
+          const writer = liveHtmlCanvas;
+          liveHtmlCanvas = null;
+          const terminal = run.status === 'succeeded' ? 'complete' : 'streaming';
+          try {
+            await writer.flush(terminal);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[live-html-canvas] persist failed: ${message}`);
+          }
+        } else {
+          liveHtmlCanvas = null;
+        }
       }
     });
     if (writePromptToChildStdin && child.stdin) {

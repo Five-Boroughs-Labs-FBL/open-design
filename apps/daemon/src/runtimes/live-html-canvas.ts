@@ -16,6 +16,7 @@ export function createLiveHtmlCanvasWriter(options: {
   let lastStreamingContent = '';
   let lastStatus: LiveHtmlCanvasStatus | null = null;
   let wrote = false;
+  let sealed = false;
   let chain = Promise.resolve();
   let persistError: unknown = null;
 
@@ -54,10 +55,12 @@ export function createLiveHtmlCanvasWriter(options: {
       return wrote;
     },
     note(text: string) {
+      if (sealed) return;
       const artifact = extractLiveHtmlCanvasArtifact(text);
       if (!artifact) return;
       pending = artifact;
       if (!wrote) {
+        wrote = true;
         enqueue('streaming');
         return;
       }
@@ -68,12 +71,14 @@ export function createLiveHtmlCanvasWriter(options: {
       }, delayMs);
     },
     async flush(status: LiveHtmlCanvasStatus) {
+      if (sealed) return;
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
       enqueue(status);
       await chain;
+      if (status === 'complete') sealed = true;
       if (persistError) {
         const err = persistError;
         persistError = null;

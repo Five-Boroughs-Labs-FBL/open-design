@@ -239,6 +239,16 @@ describe('plain stream artifact extraction', () => {
     )).toEqual([]);
   });
 
+  it('keeps thought HTML that arrives before the <artifact> wrapper', () => {
+    const live = extractLiveHtmlCanvasArtifact([
+      '<!doctype html><html><body><h1>HUD</h1></body></html>',
+      '<artifact identifier="index" type="text/html">',
+    ].join(''));
+    expect(live?.fileName).toBe(LIVE_HTML_CANVAS_NAME);
+    expect(live?.content).toContain('<h1>HUD</h1>');
+    expect(live?.content).not.toContain('<artifact');
+  });
+
   it('extracts an open HTML artifact for the live canvas', () => {
     const open = extractOpenPlainStreamArtifact(
       '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD',

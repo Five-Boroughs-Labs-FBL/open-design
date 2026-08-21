@@ -3680,28 +3680,22 @@ export function ProjectView({
       const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
       const existing = new Set(currentProjectFiles.map((f) => f.name));
       let fileName = `${baseName}${ext}`;
-      const liveCanvasExists = ext === '.html' && existing.has(STREAMING_HTML_PREVIEW_NAME);
       // A non-empty identifier is stable artifact identity: when its canonical
       // filename already exists, update that file in place. Title- and
       // fallback-derived names still suffix collisions so new artifacts cannot
-      // silently replace unrelated project files. The Grok/AMC live canvas is
-      // always index.html — overwrite that instead of minting hud.html.
+      // silently replace unrelated project files.
       const updatesExplicitlyIdentifiedFile =
         Boolean(art.identifier?.trim()) && existing.has(fileName);
-      if (liveCanvasExists) {
-        fileName = STREAMING_HTML_PREVIEW_NAME;
-      } else {
-        let collisionFileName = fileName;
-        let n = 2;
-        while (
-          existing.has(collisionFileName) &&
-          savedArtifactRef.current !== collisionFileName
-        ) {
-          collisionFileName = `${baseName}-${n}${ext}`;
-          n += 1;
-        }
-        if (!updatesExplicitlyIdentifiedFile) fileName = collisionFileName;
+      let collisionFileName = fileName;
+      let n = 2;
+      while (
+        existing.has(collisionFileName) &&
+        savedArtifactRef.current !== collisionFileName
+      ) {
+        collisionFileName = `${baseName}-${n}${ext}`;
+        n += 1;
       }
+      if (!updatesExplicitlyIdentifiedFile) fileName = collisionFileName;
       if (ext === '.html') {
         const pointerProjectFiles = filterProjectFilesByMinMtime(
           currentProjectFiles,
@@ -3709,7 +3703,7 @@ export function ProjectView({
         );
         const pointerTarget = resolveHtmlPointerArtifactTarget({
           content: artifactToPersist.html,
-          candidateFileName: fileName,
+          candidateFileName: collisionFileName,
           projectFiles: pointerProjectFiles,
         });
         if (pointerTarget) {
@@ -12490,7 +12484,17 @@ export async function findSameTurnHtmlWriteForRecoveredArtifact({
   // computeProducedFiles() reports that earlier artifact as "produced this
   // turn" and we'd bind the echo to the wrong, unrelated file.
   const exact = candidates.find((_file, i) => normalized[i] === recovered);
-  return exact ?? null;
+  if (exact) return exact;
+  // Grok live canvas writes growing drafts to index.html. Bind the echo to
+  // that same-turn file when one document is a prefix of the other.
+  const liveIndex = candidates.findIndex((file) => file.name === STREAMING_HTML_PREVIEW_NAME);
+  if (liveIndex >= 0) {
+    const disk = normalized[liveIndex];
+    if (disk && (recovered.startsWith(disk) || disk.startsWith(recovered))) {
+      return candidates[liveIndex] ?? null;
+    }
+  }
+  return null;
 }
 
 function isHtmlProjectFile(file: ProjectFile): boolean {

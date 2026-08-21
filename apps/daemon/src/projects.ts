@@ -837,7 +837,7 @@ export async function writeProjectFile(
   projectId,
   name,
   body,
-  { overwrite = true, artifactManifest = null } = {},
+  { overwrite = true, artifactManifest = null, skipArtifactGuards = false } = {},
   metadata?,
 ) {
   assertVisibleForImportedProject(name, metadata);
@@ -868,10 +868,9 @@ export async function writeProjectFile(
       // every artifact that flows through writeProjectFile, regardless of
       // which agent/atom produced the body. Throws
       // ArtifactPublicationBlockedError which the route layer maps to 422.
-      // Streaming live-canvas drafts are incomplete on purpose. Run
-      // publication/stub guards only when the file is promoted to complete.
-      const isStreamingDraft = validatedManifest.status === 'streaming';
-      if (!isStreamingDraft && isPublicationGuardedArtifactKind(validatedManifest.kind)) {
+      // Live-canvas drafts pass skipArtifactGuards from persistLiveHtmlCanvas.
+      // Do not key this off manifest.status — that field is client-writable.
+      if (!skipArtifactGuards && isPublicationGuardedArtifactKind(validatedManifest.kind)) {
         assertArtifactPublicationAllowed(body);
       }
       const identifier = typeof validatedManifest.metadata?.identifier === 'string'
@@ -881,7 +880,7 @@ export async function writeProjectFile(
       // Other kinds (markdown, svg, code-snippet) can legitimately be small
       // and are skipped.
       if (
-        !isStreamingDraft &&
+        !skipArtifactGuards &&
         identifier.length > 0 &&
         STUB_GUARDED_MANIFEST_KINDS.has(validatedManifest.kind)
       ) {

@@ -159,13 +159,39 @@ export function extractOpenPlainStreamArtifact(stdout: string): PlainStreamArtif
   };
 }
 
+function extractBareHtmlDocument(stdout: string): string | null {
+  const doctype = stdout.search(/<!doctype\s+html/i);
+  const htmlTag = stdout.search(/<html[\s>]/i);
+  const starts = [doctype, htmlTag].filter((idx) => idx >= 0);
+  if (starts.length === 0) return null;
+  const start = Math.min(...starts);
+  let content = stdout.slice(start);
+  const wrapper = content.search(/<artifact\b/i);
+  if (wrapper > 0) content = content.slice(0, wrapper);
+  const closeArtifact = content.indexOf(CLOSE_TAG);
+  if (closeArtifact >= 0) content = content.slice(0, closeArtifact);
+  return content || null;
+}
+
 /** Prefer a closed HTML artifact; otherwise the in-flight open body. Always named index.html. */
 export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifact | null {
-  const closed = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html');
-  if (closed) {
-    return { ...closed, fileName: LIVE_HTML_CANVAS_NAME };
-  }
-  return extractOpenPlainStreamArtifact(stdout);
+  const tagged = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html')
+    ?? extractOpenPlainStreamArtifact(stdout);
+  const taggedHtml = tagged && looksLikeHtmlDocument(tagged.content) ? tagged.content : '';
+  const bare = extractBareHtmlDocument(stdout);
+  const bareHtml = bare && /<!doctype\s+html|<html[\s>]/i.test(bare) ? bare : '';
+  const content = bareHtml.length > taggedHtml.length
+    ? bareHtml
+    : taggedHtml || tagged?.content || '';
+  if (!content) return tagged;
+  return {
+    identifier: tagged?.identifier ?? '',
+    artifactType: tagged?.artifactType || 'text/html',
+    title: tagged?.title ?? '',
+    content,
+    extension: '.html',
+    fileName: LIVE_HTML_CANVAS_NAME,
+  };
 }
 
 type OverwriteWriteProjectFile = (
@@ -173,7 +199,7 @@ type OverwriteWriteProjectFile = (
   projectId: string,
   name: string,
   body: Buffer,
-  options: { overwrite: boolean; artifactManifest: unknown },
+  options: { overwrite: boolean; artifactManifest: unknown; skipArtifactGuards?: boolean },
   metadata?: unknown,
 ) => Promise<unknown>;
 
@@ -195,6 +221,7 @@ export async function persistLiveHtmlCanvas(options: {
     {
       overwrite: true,
       artifactManifest: artifactManifestFor(options.artifact, name, options.status),
+      skipArtifactGuards: options.status === 'streaming',
     },
     options.metadata,
   );

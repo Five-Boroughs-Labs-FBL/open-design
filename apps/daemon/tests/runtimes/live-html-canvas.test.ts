@@ -15,6 +15,7 @@ describe('createLiveHtmlCanvasWriter', () => {
     });
 
     writer.note('<artifact type="text/html"><!doctype html><html><body>A');
+    writer.note('<artifact type="text/html"><!doctype html><html><body>AA');
     await Promise.resolve();
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({
@@ -52,5 +53,21 @@ describe('createLiveHtmlCanvasWriter', () => {
     await vi.advanceTimersByTimeAsync(300);
     expect(writes.filter((entry) => entry.startsWith('streaming:'))).toHaveLength(2);
     vi.useRealTimers();
+  });
+
+  it('ignores later drafts after a complete flush', async () => {
+    const writes: string[] = [];
+    const writer = createLiveHtmlCanvasWriter({
+      persist: async (artifact, status) => {
+        writes.push(`${status}:${artifact.content.length}`);
+      },
+    });
+    writer.note('<artifact type="text/html"><!doctype html><html>A');
+    await writer.flush('complete');
+    const afterComplete = writes.length;
+    writer.note('<artifact type="text/html"><!doctype html><html>AB');
+    await writer.flush('streaming');
+    expect(writes.at(-1)?.startsWith('complete:')).toBe(true);
+    expect(writes.length).toBe(afterComplete);
   });
 });
