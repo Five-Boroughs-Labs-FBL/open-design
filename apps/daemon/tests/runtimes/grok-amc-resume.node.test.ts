@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -9,7 +9,11 @@ import {
   adoptGrokSession,
   grokSessionDirForTest,
 } from '../../src/runtimes/grok-session-adopt.ts';
-import { applyAmcGrokHome, parseAmcGrokBlock } from '../../src/runtimes/amc-grok.ts';
+import {
+  applyAmcGrokHome,
+  materializeAmcGrokHome,
+  parseAmcGrokBlock,
+} from '../../src/runtimes/amc-grok.ts';
 
 test('buildGrokHeadlessArgs resumes an AMC session id via --resume and still uses --prompt-file', () => {
   const promptFilePath = '/tmp/od-grok-prompt/prompt.md';
@@ -82,6 +86,33 @@ test('parseAmcGrokBlock requires an existing grokHome directory', () => {
   );
   const loginOnly = parseAmcGrokBlock({ grokHome: home });
   assert.equal(loginOnly.sessionId, '');
+});
+
+test('parseAmcGrokBlock accepts AMC API key when grokHome is on another host', () => {
+  const parsed = parseAmcGrokBlock({
+    sessionId: '',
+    grokHome: '/app/data/cred-runtime/admin/.grok',
+    apiKey: 'xai-from-amc',
+  });
+  assert.equal(parsed && parsed.apiKey, 'xai-from-amc');
+  assert.equal(parsed && parsed.grokHome, '/app/data/cred-runtime/admin/.grok');
+});
+
+test('materializeAmcGrokHome writes AMC auth onto an OD-local GROK_HOME', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'od-data-'));
+  const out = materializeAmcGrokHome(dataDir, {
+    sessionId: '',
+    grokHome: '/app/data/missing-on-od',
+    sourceCwd: '/amc',
+    apiKey: 'xai-from-amc',
+    authJson: '{"refresh_token":"r"}',
+  });
+  assert.equal(out.grokHome.startsWith(dataDir), true);
+  assert.equal(readFileSync(join(out.grokHome, 'auth.json'), 'utf8'), '{"refresh_token":"r"}');
+  const env = applyAmcGrokHome({ PATH: '/bin' }, out);
+  assert.equal(env.GROK_HOME, out.grokHome);
+  assert.equal(env.GROK_CODE_XAI_API_KEY, 'xai-from-amc');
+  assert.equal(env.XAI_API_KEY, 'xai-from-amc');
 });
 
 test('applyAmcGrokHome sets GROK_HOME on spawn env', () => {

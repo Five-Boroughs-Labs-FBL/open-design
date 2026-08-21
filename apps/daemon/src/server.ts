@@ -10496,23 +10496,30 @@ export async function startServer({
             lastMessageId: run.assistantMessageId ?? null,
           });
         }
-        if (run.projectId && amcGrokForwarding.grokHome) {
-          try {
-            const current = getProject(db, run.projectId);
-            updateProject(db, run.projectId, {
-              metadata: {
-                ...((current && current.metadata) || {}),
-                amcGrokHome: String(amcGrokForwarding.grokHome),
-              },
-            });
-          } catch {
-            // Spawn still receives GROK_HOME on this run.
-          }
-        }
       } catch (err) {
-        run.errorCode = 'GROK_RESUME_FAILED';
-        run.error = String(err && err.message ? err.message : err);
-        return finishRun('failed', 1, null);
+        const message = String(err && (err as Error).message ? (err as Error).message : err);
+        if (message.includes('session_transcript_missing')) {
+          // AMC planner cwd is on a different host. Same Grok login still
+          // works; start a fresh CLI session instead of failing the studio.
+          amcGrokForwarding.sessionId = '';
+        } else {
+          run.errorCode = 'GROK_RESUME_FAILED';
+          run.error = message;
+          return finishRun('failed', 1, null);
+        }
+      }
+    }
+    if (amcGrokForwarding && amcGrokForwarding.grokHome && run.projectId) {
+      try {
+        const current = getProject(db, run.projectId);
+        updateProject(db, run.projectId, {
+          metadata: {
+            ...((current && current.metadata) || {}),
+            amcGrokHome: String(amcGrokForwarding.grokHome),
+          },
+        });
+      } catch {
+        // Spawn still receives GROK_HOME on this run.
       }
     }
     const forceAmcGrokResume =
@@ -12190,7 +12197,7 @@ export async function startServer({
         undefined,
         { resolvedBin: agentLaunch.selectedPath },
       ),
-      run.amcGrok,
+      def.id === 'grok-build' ? amcGrokForwarding : null,
     );
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentSpawnEnv);

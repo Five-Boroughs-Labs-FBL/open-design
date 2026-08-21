@@ -76,9 +76,9 @@ export const grokBuildAgentDef = {
   buildArgs: (_prompt, _imagePaths, _extra = [], options = {}, runtimeContext = {}) => {
     return buildGrokHeadlessArgs({
       promptFilePath: runtimeContext.promptFilePath || '',
-      resumeSessionId: runtimeContext.resumeSessionId,
-      model: options.model,
-      reasoning: options.reasoning,
+      resumeSessionId: runtimeContext.resumeSessionId ?? null,
+      model: options.model ?? null,
+      reasoning: options.reasoning ?? null,
     });
   },
   reasoningOptions: [

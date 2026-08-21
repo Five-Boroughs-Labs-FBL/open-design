@@ -30,7 +30,11 @@ import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
-import { parseAmcGrokBlock } from '../runtimes/amc-grok.js';
+import {
+  parseAmcGrokBlock,
+  materializeAmcGrokHome,
+  type AmcGrokForwarding,
+} from '../runtimes/amc-grok.js';
 import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
 import { agentCliEnvForAgent, readAppConfig } from '../app-config.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
@@ -370,6 +374,7 @@ interface ChatRun {
     missReason?: string | null;
     changedSections?: string[] | null;
   };
+  amcGrok?: AmcGrokForwarding | null;
 }
 
 interface RunCreateMeta extends JsonRecord {
@@ -795,6 +800,7 @@ function withoutSensitiveRunInput(body: JsonRecord): JsonRecord {
   delete sanitized.byokProvider;
   delete sanitized.byokProfileId;
   delete sanitized.apiKey;
+  delete sanitized.amcGrok;
   delete sanitized.rechargeResumeCapability;
   // Workspace scope is a server-issued authorization fact, not a request option.
   delete sanitized.workspaceScope;
@@ -1211,6 +1217,17 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     const requestBody = toJsonRecord(req.body);
     let parsedAmcGrok = null;
+    if (requestBody.amcGrok != null) {
+      const apiToken = apiTokenFromEnv();
+      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
+        return sendApiError(
+          res,
+          403,
+          'FORBIDDEN',
+          'amcGrok requires the Open Design server API token',
+        );
+      }
+    }
     try {
       parsedAmcGrok = parseAmcGrokBlock(requestBody.amcGrok);
     } catch (err) {
@@ -1222,13 +1239,14 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       );
     }
     if (parsedAmcGrok) {
-      const apiToken = apiTokenFromEnv();
-      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
+      try {
+        parsedAmcGrok = materializeAmcGrokHome(RUNTIME_DATA_DIR, parsedAmcGrok);
+      } catch (err) {
         return sendApiError(
           res,
-          403,
-          'FORBIDDEN',
-          'amcGrok requires the Open Design server API token',
+          500,
+          'UPSTREAM_UNAVAILABLE',
+          err instanceof Error ? err.message : 'amcGrok materialize failed',
         );
       }
     }
