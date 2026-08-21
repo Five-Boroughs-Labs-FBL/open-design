@@ -179,6 +179,13 @@ import {
   htmlHasAuthoredBase,
   PREVIEW_REDIRECT_LOOP_MESSAGE,
 } from '../runtime/srcdoc';
+import {
+  SRCDOC_STREAM_MESSAGE_TYPE,
+  SRCDOC_STREAM_READY_TYPE,
+  canPostSrcDocStream,
+  liveHtmlStreamTransportKey,
+  srcDocStreamShouldReset,
+} from '../runtime/srcdoc-stream';
 import { DeckThumbnailRail, type DeckThumbnailViewport } from './DeckThumbnailRail';
 import { parseDeckThumbnails } from '../runtime/deck-thumbnail-parser';
 import {
@@ -8425,6 +8432,9 @@ function HtmlViewer({
   const previewFileIdentityRef = useRef(`${projectId}\u0000${file.name}`);
   previewFileIdentityRef.current = `${projectId}\u0000${file.name}`;
   const activatedSrcDocTransportHtmlRef = useRef<string | null>(null);
+  const liveHtmlStreamWrittenRef = useRef('');
+  const liveHtmlRef = useRef(liveHtml);
+  liveHtmlRef.current = liveHtml;
   // Latched by the srcDoc onLoad handler when a load completes in a hidden
   // browser tab; consumed (one-shot) by the visibilitychange recovery effect.
   // See srcDocLoadRequiresFreshParseOnReturnToVisible.
@@ -9952,6 +9962,7 @@ function HtmlViewer({
     return s != null && htmlNeedsPoweredPreview(s);
   }, [routingHtmlSource, serverPoweredPreviewRequired]);
   const [urlSelectionBridgeReady, setUrlSelectionBridgeReady] = useState(false);
+  const streamingLiveHtmlActive = liveHtml !== undefined;
   const urlLoadDecision: UrlLoadDecision = {
     mode,
     isDeck: effectiveDeck,
@@ -9966,7 +9977,7 @@ function HtmlViewer({
     needsFocusGuard: needsFocusGuard && !needsPowered,
     needsRedirectGuard: needsRedirectGuard && !needsPowered,
     projectRootAssetRefs: projectRootAssetRefs || scopedRelativeAssetRefs,
-    streamingLiveHtml: liveHtml !== undefined,
+    streamingLiveHtml: streamingLiveHtmlActive,
   };
   const useUrlLoadPreview = shouldUrlLoadHtmlPreview(urlLoadDecision) && !manualEditRequiresSrcDoc;
   const setSrcDocPreviewIframe = useCallback((frame: HTMLIFrameElement | null) => {
@@ -10336,6 +10347,21 @@ function HtmlViewer({
   ].join('\0');
   const candidateSrcDocTransport = useMemo(
     () => {
+      if (streamingLiveHtmlActive) {
+        const streamKey = liveHtmlStreamTransportKey(srcDocTransportIdentity);
+        const cachedStream = htmlPreviewSrcDocTransportState.get(streamKey);
+        if (cachedStream) {
+          cacheSrcDocTransport(streamKey, cachedStream);
+          return cachedStream;
+        }
+        const streamEntry: SrcDocTransportCacheEntry = {
+          sourceFingerprint: 'live-html-stream',
+          generation: nextPreviewTransportGeneration(),
+          srcDoc: '',
+        };
+        cacheSrcDocTransport(streamKey, streamEntry);
+        return streamEntry;
+      }
       const sourceFingerprint = previewSource === null
         ? null
         : previewSourceFingerprint(previewSource);
@@ -10385,7 +10411,8 @@ function HtmlViewer({
       return entry;
     },
     [
-      previewSource,
+      streamingLiveHtmlActive,
+      streamingLiveHtmlActive ? null : previewSource,
       effectiveDeck,
       srcDocTransportIdentity,
       previewStateKey,
@@ -11030,7 +11057,8 @@ function HtmlViewer({
   // re-entering a mode is an instant visibility swap rather than a re-mount +
   // re-load. Direct-mount path (no #2361/#2791 postMessage race).
   const useLazySrcDocTransport =
-    srcDocRecoveryGeneration === srcDocTransportGeneration
+    streamingLiveHtmlActive
+    || srcDocRecoveryGeneration === srcDocTransportGeneration
     || (!manualEditRequiresSrcDoc && !captureModeActive && useUrlLoadPreview && !srcDocMaterialized);
   // Park on a static "loop detected" document once the guard reports a runaway
   // redirect. A self-redirecting artifact is forced onto the srcDoc iframe by
@@ -11195,6 +11223,74 @@ function HtmlViewer({
     const generation = srcDocTransportGeneration;
     probeSrcDocTransport(generation, !useUrlLoadPreview && Boolean(srcDoc));
   }
+  useEffect(() => {
+    if (!streamingLiveHtmlActive) {
+      liveHtmlStreamWrittenRef.current = '';
+      return;
+    }
+    const next = liveHtml ?? '';
+    const previous = liveHtmlStreamWrittenRef.current;
+    if (srcDocStreamShouldReset(previous, next)) {
+      liveHtmlStreamWrittenRef.current = next;
+      activatedSrcDocTransportHtmlRef.current = null;
+      setSrcDocShellReady(false);
+      setSrcDocTransportResetKey((key) => key + 1);
+      return;
+    }
+    liveHtmlStreamWrittenRef.current = next;
+  }, [streamingLiveHtmlActive, liveHtml]);
+  useEffect(() => {
+    if (!streamingLiveHtmlActive) return;
+    const html = liveHtml ?? '';
+    if (!canPostSrcDocStream({
+      html,
+      useUrlLoadPreview,
+      useLazySrcDocTransport,
+      shellReady: srcDocShellReady,
+    })) return;
+    const generation = srcDocTransportGeneration;
+    const win = srcDocPreviewIframeRef.current?.contentWindow;
+    if (!win) return;
+    const raf = window.requestAnimationFrame(() => {
+      const latest = liveHtmlRef.current;
+      if (!latest) return;
+      win.postMessage({
+        type: SRCDOC_STREAM_MESSAGE_TYPE,
+        html: latest,
+        generation,
+        done: false,
+      }, '*');
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [
+    streamingLiveHtmlActive,
+    liveHtml,
+    useUrlLoadPreview,
+    useLazySrcDocTransport,
+    srcDocShellReady,
+    srcDocTransportGeneration,
+  ]);
+  useEffect(() => {
+    if (!streamingLiveHtmlActive) return;
+    const generation = srcDocTransportGeneration;
+    function onMessage(ev: MessageEvent) {
+      const data = ev.data as { type?: string; generation?: string } | null;
+      if (!data || data.type !== SRCDOC_STREAM_READY_TYPE) return;
+      if (data.generation !== generation) return;
+      const win = srcDocPreviewIframeRef.current?.contentWindow;
+      if (!win || ev.source !== win) return;
+      const latest = liveHtmlRef.current;
+      if (!latest) return;
+      win.postMessage({
+        type: SRCDOC_STREAM_MESSAGE_TYPE,
+        html: latest,
+        generation,
+        done: false,
+      }, '*');
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [streamingLiveHtmlActive, srcDocTransportGeneration]);
   useEffect(() => {
     if (useUrlLoadPreview) {
       activatedSrcDocTransportHtmlRef.current = null;

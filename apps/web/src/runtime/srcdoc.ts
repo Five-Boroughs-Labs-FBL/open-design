@@ -14,6 +14,7 @@
  *   { type: 'od:slide-state', active: number, count: number }
  * after every navigation so the host can render its own counter / dots.
  */
+import { buildLiveHtmlStreamShellScript } from './srcdoc-stream';
 import {
   DECK_EXPLICIT_SLIDE_SELECTOR,
   DECK_LEGACY_SCREEN_LABEL_RE_SOURCE,
@@ -473,10 +474,13 @@ export function buildSrcdoc(
 /**
  * Build the lazy transport shell.
  *
- * The shell does two things:
+ * The shell does three things:
  *   1. Register a listener for `od:srcdoc-transport-activate` that replaces
- *      its own document with the real artifact HTML.
- *   2. Post `od:srcdoc-transport-ready` to the parent as soon as the listener
+ *      its own document with the real artifact HTML (full rewrite + close).
+ *   2. Register `od:srcdoc-transport-stream` for live HTML: open+write the
+ *      first snapshot without close, then the injected bridge appends deltas
+ *      so the canvas does not reload on every token.
+ *   3. Post `od:srcdoc-transport-ready` to the parent as soon as the listener
  *      is installed. This `ready` signal is the only reliable way for the
  *      host to know the listener is live; without it, the host risks posting
  *      `activate` before the iframe's script has executed (e.g. right after a
@@ -489,20 +493,7 @@ export function buildLazySrcdocTransport(): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script data-od-lazy-srcdoc-transport>(function(){
-      window.addEventListener('message', function(ev){
-        var data = ev && ev.data;
-        if (!data || data.type !== 'od:srcdoc-transport-activate' || typeof data.html !== 'string' || typeof data.generation !== 'string' || !data.generation) return;
-        document.open();
-        document.write(data.html);
-        document.close();
-      });
-      try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: 'od:srcdoc-transport-ready' }, '*');
-        }
-      } catch (_) { /* sandboxed parent — host falls back to onLoad */ }
-    })();</script>
+    <script data-od-lazy-srcdoc-transport>${buildLiveHtmlStreamShellScript()}</script>
   </head>
   <body></body>
 </html>`;
