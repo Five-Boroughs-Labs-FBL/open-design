@@ -228,6 +228,7 @@ import {
   persistLiveHtmlCanvas,
   persistPlainStreamArtifactList,
   plainStdoutFromRunEvents,
+  withoutLiveHtmlCanvasArtifact,
 } from './runtimes/plain-stream.js';
 import {
   readVelaLoginStatus,
@@ -13998,17 +13999,19 @@ export async function startServer({
         (def.streamFormat ?? 'plain') !== 'plain' &&
         executionProfile === 'text_artifact' &&
         run.projectId &&
-        visibleAssistantText.trim() &&
-        !liveHtmlCanvas?.wrote
+        visibleAssistantText.trim()
       ) {
         const streamedArtifacts = extractPlainStreamArtifacts(visibleAssistantText);
-        if (streamedArtifacts.length > 0) {
+        const artifactsToPersist = liveHtmlCanvas?.wrote
+          ? withoutLiveHtmlCanvasArtifact(streamedArtifacts)
+          : streamedArtifacts;
+        if (artifactsToPersist.length > 0) {
           try {
             const project = getProject(db, run.projectId);
             const persistedStreamedArtifacts = await persistPlainStreamArtifactList({
               projectsRoot: PROJECTS_DIR,
               projectId: run.projectId,
-              artifacts: streamedArtifacts,
+              artifacts: artifactsToPersist,
               metadata: project?.metadata,
               writeProjectFile,
             });
