@@ -17,6 +17,7 @@ export function createLiveHtmlCanvasWriter(options: {
   let lastStatus: LiveHtmlCanvasStatus | null = null;
   let wrote = false;
   let sealed = false;
+  let lastWriteAt: number | null = null;
   let chain = Promise.resolve();
   let persistError: unknown = null;
 
@@ -43,6 +44,7 @@ export function createLiveHtmlCanvasWriter(options: {
         lastStreamingContent = snapshot.content;
         lastStatus = status;
         wrote = true;
+        lastWriteAt ??= Date.now();
         await options.persist(snapshot, status);
       })
       .catch((err) => {
@@ -61,14 +63,23 @@ export function createLiveHtmlCanvasWriter(options: {
       pending = artifact;
       if (!wrote) {
         wrote = true;
+        lastWriteAt = Date.now();
         enqueue('streaming');
         return;
       }
-      if (timer) clearTimeout(timer);
+      // Throttle, not debounce: later tokens must not reset an armed timer or
+      // a crash mid-stream leaves only the first ~doctype stub on disk.
+      if (timer) return;
+      const elapsed = lastWriteAt == null ? delayMs : Date.now() - lastWriteAt;
+      const wait = Math.max(0, delayMs - elapsed);
+      if (wait === 0) {
+        enqueue('streaming');
+        return;
+      }
       timer = setTimeout(() => {
         timer = null;
         enqueue('streaming');
-      }, delayMs);
+      }, wait);
     },
     async flush(status: LiveHtmlCanvasStatus) {
       if (sealed) return;

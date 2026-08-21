@@ -299,10 +299,10 @@ import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
 import {
   DESIGN_SYSTEM_TAB,
   FileWorkspace,
-  STREAMING_HTML_PREVIEW_NAME,
   type BrowserOpenRequest,
   type FileRefreshResult,
 } from './FileWorkspace';
+import { STREAMING_HTML_PREVIEW_NAME } from './streaming-html-preview';
 import {
   type PluginFolderAgentAction,
 } from './design-files/pluginFolderActions';
@@ -7489,7 +7489,10 @@ export function ProjectView({
                 ? parsedArtifact
                 : artifactFromStandaloneHtml(finalText);
               if (artifactToPersist?.html) {
-                const producedBeforeFallback = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
+                const producedBeforeFallback = withLiveHtmlCanvasCandidate(
+                  computeProducedFiles(beforeFileNames, nextFiles) ?? [],
+                  nextFiles,
+                );
                 const sameTurnArtifactWrite =
                   await findSameTurnNonHtmlWriteForRecoveredArtifact({
                     artifact: artifactToPersist,
@@ -11396,6 +11399,7 @@ export function ProjectView({
           onRefreshFiles={refreshFileWorkspace}
           isDeck={isDeck}
           streaming={currentConversationActionDisabled}
+          liveHtmlRunActive={currentConversationStreaming || currentConversationHasActiveRun}
           commentQueueOnSend={commentQueueOnSend}
           commentSendDisabled={currentConversationQueueDisabled}
           openRequest={openRequest}
@@ -12259,6 +12263,17 @@ export function computeProducedFiles(
   }
   if (!beforeSet) return undefined;
   return filterImplicitProducedFiles(next.filter((f) => !beforeSet.has(f.name)));
+}
+
+/** Include an already-present live canvas so gen-2 can bind instead of forking hud.html. */
+export function withLiveHtmlCanvasCandidate(
+  produced: readonly ProjectFile[],
+  nextFiles: readonly ProjectFile[],
+): ProjectFile[] {
+  const live = nextFiles.find((file) => file.name === STREAMING_HTML_PREVIEW_NAME);
+  if (!live) return [...produced];
+  if (produced.some((file) => file.name === live.name)) return [...produced];
+  return [...produced, live];
 }
 
 export function computeTraceObjectFiles(

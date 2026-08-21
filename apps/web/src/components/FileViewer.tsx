@@ -185,7 +185,9 @@ import {
   buildSrcDocTransportIdentity,
   canPostSrcDocStream,
   liveHtmlStreamTransportKey,
+  isLiveHtmlDiskFileReady,
   shouldCloseLiveHtmlStream,
+  shouldKeepLiveHtmlStream,
   srcDocStreamShouldReset,
 } from '../runtime/srcdoc-stream';
 import { DeckThumbnailRail, type DeckThumbnailViewport } from './DeckThumbnailRail';
@@ -1754,6 +1756,7 @@ interface Props {
   filesRefreshKey?: number;
   isDeck?: boolean;
   streaming?: boolean;
+  liveHtmlRunActive?: boolean;
   commentQueueOnSend?: boolean;
   commentSendDisabled?: boolean;
   previewComments?: PreviewComment[];
@@ -1855,6 +1858,7 @@ export const FileViewer = memo(function FileViewer({
   filesRefreshKey = 0,
   isDeck,
   streaming,
+  liveHtmlRunActive,
   commentQueueOnSend = false,
   commentSendDisabled = false,
   previewComments = [],
@@ -1944,6 +1948,7 @@ export const FileViewer = memo(function FileViewer({
         filesRefreshKey={filesRefreshKey}
         isDeck={rendererMatch.renderer.id === 'deck-html'}
         streaming={Boolean(streaming)}
+        liveHtmlRunActive={liveHtmlRunActive ?? streaming}
         commentQueueOnSend={commentQueueOnSend}
         commentSendDisabled={commentSendDisabled}
         previewComments={previewComments}
@@ -7336,6 +7341,7 @@ function HtmlViewer({
   filesRefreshKey: requestedFilesRefreshKey = 0,
   isDeck,
   streaming,
+  liveHtmlRunActive,
   commentQueueOnSend = false,
   commentSendDisabled = false,
   previewComments = [],
@@ -7371,6 +7377,7 @@ function HtmlViewer({
   filesRefreshKey?: number;
   isDeck: boolean;
   streaming: boolean;
+  liveHtmlRunActive?: boolean;
   commentQueueOnSend?: boolean;
   commentSendDisabled?: boolean;
   previewComments?: PreviewComment[];
@@ -9966,7 +9973,14 @@ function HtmlViewer({
     return s != null && htmlNeedsPoweredPreview(s);
   }, [routingHtmlSource, serverPoweredPreviewRequired]);
   const [urlSelectionBridgeReady, setUrlSelectionBridgeReady] = useState(false);
-  const streamingLiveHtmlActive = liveHtml !== undefined;
+  const [liveHtmlHandoffClosed, setLiveHtmlHandoffClosed] = useState(false);
+  const liveRunActive = Boolean(liveHtmlRunActive ?? streaming);
+  const streamingLiveHtmlActive = shouldKeepLiveHtmlStream({
+    hasLiveHtml: liveHtml !== undefined,
+    runStreaming: liveRunActive,
+    streamClosed: liveHtmlHandoffClosed,
+    diskFileReady: isLiveHtmlDiskFileReady(file),
+  });
   const urlLoadDecision: UrlLoadDecision = {
     mode,
     isDeck: effectiveDeck,
@@ -11299,15 +11313,16 @@ function HtmlViewer({
     return () => window.removeEventListener('message', onMessage);
   }, [streamingLiveHtmlActive, srcDocTransportGeneration]);
   useEffect(() => {
-    if (streamingLiveHtmlActive && streaming) {
+    if (liveRunActive && liveHtml !== undefined) {
       liveHtmlStreamClosedRef.current = false;
+      setLiveHtmlHandoffClosed(false);
     }
-  }, [streamingLiveHtmlActive, streaming]);
+  }, [liveRunActive, liveHtml]);
   useEffect(() => {
     if (
       !shouldCloseLiveHtmlStream({
         hasLiveHtml: streamingLiveHtmlActive,
-        runStreaming: Boolean(streaming),
+        runStreaming: liveRunActive,
         alreadyClosed: liveHtmlStreamClosedRef.current,
       })
     ) {
@@ -11323,6 +11338,7 @@ function HtmlViewer({
     const win = srcDocPreviewIframeRef.current?.contentWindow;
     if (!win) return;
     liveHtmlStreamClosedRef.current = true;
+    setLiveHtmlHandoffClosed(true);
     win.postMessage({
       type: SRCDOC_STREAM_MESSAGE_TYPE,
       html,
@@ -11331,7 +11347,7 @@ function HtmlViewer({
     }, '*');
   }, [
     streamingLiveHtmlActive,
-    streaming,
+    liveRunActive,
     useUrlLoadPreview,
     useLazySrcDocTransport,
     srcDocShellReady,

@@ -10,6 +10,7 @@ import {
   findSameTurnHtmlWriteForRecoveredArtifact,
   mergeRecoveredArtifact,
   resolveAgentTouchedFileNames,
+  withLiveHtmlCanvasCandidate,
 } from '../../src/components/ProjectView';
 import { resolvePersistedArtifactHtml } from '../../src/artifacts/recover';
 import type { ChatMessage } from '../../src/types';
@@ -453,6 +454,24 @@ describe('findSameTurnHtmlWriteForRecoveredArtifact', () => {
       readProjectHtml,
     })).resolves.toBeNull();
     expect(readProjectHtml).not.toHaveBeenCalled();
+  });
+
+  it('binds a growing live canvas on generation 2 when index.html already existed', async () => {
+    const draft = '<!doctype html><html><head><title>Demo</title></head><body><main><h1>De';
+    const indexFile = {
+      name: 'index.html',
+      path: 'index.html',
+      size: draft.length,
+      mtime: 4,
+      kind: 'html',
+      mime: 'text/html',
+    };
+    const produced = withLiveHtmlCanvasCandidate([], [indexFile] as never);
+    await expect(findSameTurnHtmlWriteForRecoveredArtifact({
+      artifactHtml: html,
+      producedFiles: produced,
+      readProjectHtml: vi.fn(async () => draft),
+    })).resolves.toBe(indexFile);
   });
 });
 

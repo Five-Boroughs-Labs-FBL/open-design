@@ -249,6 +249,29 @@ describe('plain stream artifact extraction', () => {
     expect(live?.content).not.toContain('<artifact');
   });
 
+  it('prefers a closed tagged artifact over a longer thought document', () => {
+    const thought = `<!doctype html><html><body>${'thought '.repeat(40)}</body></html>`;
+    const tagged = '<!doctype html><html><body>NEW</body></html>';
+    const live = extractLiveHtmlCanvasArtifact(
+      `${thought}<artifact identifier="fresh-screen" type="text/html">${tagged}</artifact>`,
+    );
+    expect(live?.identifier).toBe('fresh-screen');
+    expect(live?.fileName).toBe(LIVE_HTML_CANVAS_NAME);
+    expect(live?.content).toBe(tagged);
+    expect(live?.content).not.toContain('thought');
+  });
+
+  it('drops prose after </html> and keeps the last bare document', () => {
+    const first = '<!doctype html><html><body>One</body></html>';
+    const second = '<!doctype html><html><body>Two</body></html>';
+    const live = extractLiveHtmlCanvasArtifact(
+      `${first}\nStill thinking about layout.\n${second}\nThen write DESIGN.md.`,
+    );
+    expect(live?.content).toBe(second);
+    expect(live?.content).not.toContain('DESIGN.md');
+    expect(live?.content).not.toContain('One');
+  });
+
   it('extracts an open HTML artifact for the live canvas', () => {
     const open = extractOpenPlainStreamArtifact(
       '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD',
