@@ -70,4 +70,31 @@ describe('createLiveHtmlCanvasWriter', () => {
     expect(writes.at(-1)?.startsWith('complete:')).toBe(true);
     expect(writes.length).toBe(afterComplete);
   });
+
+  it('throttles sustained tokens instead of resetting the timer on every note', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-21T00:00:00.000Z'));
+    const writes: string[] = [];
+    const writer = createLiveHtmlCanvasWriter({
+      delayMs: 300,
+      persist: async (artifact) => {
+        writes.push(artifact.content);
+      },
+    });
+    writer.note('<artifact type="text/html"><!doctype html><html><body>0');
+    await Promise.resolve();
+    expect(writes).toEqual(['<!doctype html><html><body>0']);
+
+    for (let i = 1; i <= 12; i += 1) {
+      await vi.advanceTimersByTimeAsync(50);
+      writer.note(`<artifact type="text/html"><!doctype html><html><body>${'x'.repeat(i)}`);
+    }
+    await Promise.resolve();
+    expect(writes.length).toBeGreaterThan(1);
+    expect(writes.at(-1)).not.toBe('<!doctype html><html><body>0');
+
+    await writer.flush('complete');
+    expect(writes.at(-1)).toBe(`<!doctype html><html><body>${'x'.repeat(12)}`);
+    vi.useRealTimers();
+  });
 });

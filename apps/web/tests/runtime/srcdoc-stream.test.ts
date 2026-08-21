@@ -12,6 +12,7 @@ import {
   liveHtmlStreamTransportKey,
   planSrcDocStreamWrite,
   shouldCloseLiveHtmlStream,
+  shouldKeepLiveHtmlStream,
   srcDocStreamShouldReset,
 } from '../../src/runtime/srcdoc-stream';
 
@@ -185,6 +186,35 @@ describe('shouldCloseLiveHtmlStream', () => {
       hasLiveHtml: true,
       runStreaming: false,
       alreadyClosed: true,
+    })).toBe(false);
+  });
+});
+
+describe('shouldKeepLiveHtmlStream', () => {
+  it('keeps srcDoc through close until the on-disk file is ready, then hands off', () => {
+    expect(shouldKeepLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: true,
+      streamClosed: false,
+      diskFileReady: false,
+    })).toBe(true);
+    expect(shouldKeepLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: false,
+      streamClosed: false,
+      diskFileReady: true,
+    })).toBe(true);
+    expect(shouldKeepLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: false,
+      streamClosed: true,
+      diskFileReady: false,
+    })).toBe(true);
+    expect(shouldKeepLiveHtmlStream({
+      hasLiveHtml: true,
+      runStreaming: false,
+      streamClosed: true,
+      diskFileReady: true,
     })).toBe(false);
   });
 });

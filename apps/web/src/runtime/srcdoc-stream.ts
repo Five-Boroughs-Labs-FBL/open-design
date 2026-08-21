@@ -71,6 +71,31 @@ export function shouldCloseLiveHtmlStream(state: {
 }
 
 /**
+ * Keep srcDoc ownership through document.close(), then hand off to the
+ * on-disk file once it exists. Dropping liveHtml on chat-idle 404s; keeping
+ * it forever skips file-changed reloads.
+ */
+export function shouldKeepLiveHtmlStream(state: {
+  hasLiveHtml: boolean;
+  runStreaming: boolean;
+  streamClosed: boolean;
+  diskFileReady: boolean;
+}): boolean {
+  if (!state.hasLiveHtml) return false;
+  if (state.runStreaming) return true;
+  if (!state.streamClosed) return true;
+  if (!state.diskFileReady) return true;
+  return false;
+}
+
+export function isLiveHtmlDiskFileReady(file: {
+  size?: number;
+  mtime?: number;
+}): boolean {
+  return (file.size ?? 0) > 0 && (file.mtime ?? 0) > 0;
+}
+
+/**
  * Preview transport identity. During a liveHtml stream this MUST ignore
  * size/mtime refresh keys — growing file size would otherwise mint a new
  * generation (and blob URL) on every token, which reloads the iframe.

@@ -225,6 +225,8 @@ interface Props {
   ) => Promise<FileRefreshResult | void> | FileRefreshResult | void;
   isDeck: boolean;
   streaming?: boolean;
+  /** True while the producing Grok/chat run is active — not the broader action-disabled flag. */
+  liveHtmlRunActive?: boolean;
   commentQueueOnSend?: boolean;
   commentSendDisabled?: boolean;
   openRequest?: { name: string; nonce: number } | null;
@@ -1294,6 +1296,7 @@ export function FileWorkspace({
   onRefreshFiles,
   isDeck,
   streaming,
+  liveHtmlRunActive,
   commentQueueOnSend = false,
   commentSendDisabled = false,
   openRequest,
@@ -3390,6 +3393,7 @@ export function FileWorkspace({
       filesRefreshKey={filesRefreshKey}
       isDeck={isDeck}
       streaming={streaming}
+      liveHtmlRunActive={liveHtmlRunActive ?? streaming}
       commentQueueOnSend={commentQueueOnSend}
       commentSendDisabled={commentSendDisabled}
       previewComments={previewCommentsByFile.get(file.name) ?? NO_PREVIEW_COMMENTS}

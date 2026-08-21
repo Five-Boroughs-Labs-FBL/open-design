@@ -13596,6 +13596,18 @@ export async function startServer({
       finishWithRetryDecision('failed', 1, null);
     });
     child.on('close', async (code, signal) => {
+      const settleLiveHtmlCanvas = async (terminal: 'streaming' | 'complete') => {
+        if (!liveHtmlCanvas || run.child !== child) return;
+        const writer = liveHtmlCanvas;
+        if (terminal === 'complete') liveHtmlCanvas = null;
+        await writer.flush(terminal);
+      };
+      try {
+        await settleLiveHtmlCanvas('streaming');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[live-html-canvas] draft persist failed: ${message}`);
+      }
       try {
       clearInactivityWatchdog();
       clearFirstOutputWatchdog();
@@ -14186,6 +14198,20 @@ export async function startServer({
           persistDeliveredAgentSessionState();
         } catch (err) {
           console.warn('[sessions] delivered session persistence failed', err);
+        }
+      }
+      if (status === 'succeeded') {
+        try {
+          await settleLiveHtmlCanvas('complete');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          send('error', createSseErrorPayload(
+            'LIVE_HTML_CANVAS_PERSIST_FAILED',
+            message,
+            { retryable: false },
+          ));
+          finishRun('failed', 1, signal);
+          return;
         }
       }
       finishWithRetryDecision(status, code, signal);

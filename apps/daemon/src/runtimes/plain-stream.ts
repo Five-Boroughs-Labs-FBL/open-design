@@ -159,39 +159,72 @@ export function extractOpenPlainStreamArtifact(stdout: string): PlainStreamArtif
   };
 }
 
-function extractBareHtmlDocument(stdout: string): string | null {
-  const doctype = stdout.search(/<!doctype\s+html/i);
-  const htmlTag = stdout.search(/<html[\s>]/i);
-  const starts = [doctype, htmlTag].filter((idx) => idx >= 0);
-  if (starts.length === 0) return null;
-  const start = Math.min(...starts);
+const HTML_CLOSE_RE = /<\/html\s*>/i;
+
+/** Drop trailing thought/prose after the document. Live canvas is one HTML page. */
+export function trimLiveHtmlDocument(content: string): string {
+  const close = content.match(HTML_CLOSE_RE);
+  if (!close || close.index == null) return content;
+  return content.slice(0, close.index + close[0].length);
+}
+
+function lastIndexOfPattern(haystack: string, pattern: RegExp): number {
+  const re = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
+  let last = -1;
+  let match: RegExpExecArray | null = re.exec(haystack);
+  while (match) {
+    last = match.index;
+    match = re.exec(haystack);
+  }
+  return last;
+}
+
+function extractLastBareHtmlDocument(stdout: string): string | null {
+  const lastStart = lastIndexOfPattern(stdout, /<!doctype\s+html/i);
+  const start = lastStart >= 0 ? lastStart : lastIndexOfPattern(stdout, /<html[\s>]/i);
+  if (start < 0) return null;
   let content = stdout.slice(start);
   const wrapper = content.search(/<artifact\b/i);
   if (wrapper > 0) content = content.slice(0, wrapper);
   const closeArtifact = content.indexOf(CLOSE_TAG);
   if (closeArtifact >= 0) content = content.slice(0, closeArtifact);
+  content = trimLiveHtmlDocument(content);
   return content || null;
 }
 
-/** Prefer a closed HTML artifact; otherwise the in-flight open body. Always named index.html. */
-export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifact | null {
-  const tagged = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html')
-    ?? extractOpenPlainStreamArtifact(stdout);
-  const taggedHtml = tagged && looksLikeHtmlDocument(tagged.content) ? tagged.content : '';
-  const bare = extractBareHtmlDocument(stdout);
-  const bareHtml = bare && /<!doctype\s+html|<html[\s>]/i.test(bare) ? bare : '';
-  const content = bareHtml.length > taggedHtml.length
-    ? bareHtml
-    : taggedHtml || tagged?.content || '';
-  if (!content) return tagged;
+function toLiveHtmlCanvasArtifact(
+  source: PlainStreamArtifact | null,
+  content: string,
+): PlainStreamArtifact {
   return {
-    identifier: tagged?.identifier ?? '',
-    artifactType: tagged?.artifactType || 'text/html',
-    title: tagged?.title ?? '',
+    identifier: source?.identifier ?? '',
+    artifactType: source?.artifactType || 'text/html',
+    title: source?.title ?? '',
     content,
     extension: '.html',
     fileName: LIVE_HTML_CANVAS_NAME,
   };
+}
+
+/**
+ * Closed tagged HTML wins once it exists. Bare/thought HTML is only the
+ * pre-wrapper and open-stream fallback. Always named index.html.
+ */
+export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifact | null {
+  const closed = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html')
+    ?? null;
+  if (closed && looksLikeHtmlDocument(closed.content)) {
+    return toLiveHtmlCanvasArtifact(closed, trimLiveHtmlDocument(closed.content));
+  }
+  const open = extractOpenPlainStreamArtifact(stdout);
+  if (open && looksLikeHtmlDocument(open.content)) {
+    return toLiveHtmlCanvasArtifact(open, trimLiveHtmlDocument(open.content));
+  }
+  const bare = extractLastBareHtmlDocument(stdout);
+  if (bare && /<!doctype\s+html|<html[\s>]/i.test(bare)) {
+    return toLiveHtmlCanvasArtifact(closed ?? open, bare);
+  }
+  return closed ?? open;
 }
 
 type OverwriteWriteProjectFile = (
