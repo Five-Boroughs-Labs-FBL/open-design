@@ -365,6 +365,8 @@ export interface McpRunCreateRequest {
   /** Skip kind→bundled-scenario plugin fallback for this run. */
   skipDefaultScenario?: boolean;
   model?: string;
+  /** Grok CLI `--reasoning-effort` / `--effort`. */
+  reasoning?: string;
   serviceTier?: string;
   pluginInputs?: Record<string, unknown>;
   mediaExecution?: MediaExecutionPolicy;

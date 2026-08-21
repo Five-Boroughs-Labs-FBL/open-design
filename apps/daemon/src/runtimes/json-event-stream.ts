@@ -921,6 +921,11 @@ function grokPayloadText(obj: JsonObject): string | null {
   return null;
 }
 
+/** Grok often dumps the HTML mock in `thought`. Paint that as visible text so the canvas streams. */
+function grokThoughtLooksLikeHtml(delta: string): boolean {
+  return /<artifact\b|<!doctype\s+html|<html[\s>]|<\/html>|<body[\s>]|<style[\s>]/i.test(delta);
+}
+
 function grokUsageFrom(value: unknown): Usage | null {
   if (!isRecord(value)) return null;
   const usage: Usage = {};
@@ -963,7 +968,12 @@ export function handleGrokEvent(obj: unknown, onEvent: StreamEventHandler): bool
 
   if (type === 'thought' || type === 'thinking') {
     const delta = grokPayloadText(obj);
-    if (delta) onEvent({ type: 'thinking_delta', delta });
+    if (delta) {
+      onEvent({
+        type: grokThoughtLooksLikeHtml(delta) ? 'text_delta' : 'thinking_delta',
+        delta,
+      });
+    }
     return true;
   }
 

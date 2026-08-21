@@ -1,8 +1,3 @@
-function grokModelSupportsReasoningEffort(model: string | null | undefined): boolean {
-  if (!model || model === 'default' || model === 'grok-build') return false;
-  return /reasoning/i.test(model);
-}
-
 export function buildGrokHeadlessArgs(input: {
   promptFilePath: string;
   resumeSessionId?: string | null;
@@ -24,8 +19,11 @@ export function buildGrokHeadlessArgs(input: {
   if (input.model && input.model !== 'default') {
     args.push('--model', input.model);
   }
-  if (input.reasoning && grokModelSupportsReasoningEffort(input.model)) {
-    args.push('--effort', input.reasoning);
+  // Same flag AMC's grok planner uses. CLI alias is --effort. Do not gate on
+  // the model id containing "reasoning": grok-4.6 / grok-4.3 take this too.
+  const reasoning = String(input.reasoning || '').trim();
+  if (reasoning) {
+    args.push('--reasoning-effort', reasoning);
   }
   const resumeSessionId = String(input.resumeSessionId || '').trim();
   if (resumeSessionId) {

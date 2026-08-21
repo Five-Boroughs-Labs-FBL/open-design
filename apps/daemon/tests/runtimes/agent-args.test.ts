@@ -881,6 +881,8 @@ test('grok-build uses --prompt-file and never embeds the prompt in argv or stdin
     '--always-approve',
     '--model',
     'grok-4.3',
+    '--reasoning-effort',
+    'high',
   ]);
   assert.equal(args.includes(prompt), false);
   assert.equal(args.includes('-'), false);
@@ -901,16 +903,17 @@ test('grok-build disables plan mode and auto-approves headless tool calls (issue
   ]);
 });
 
-test('grok-build omits effort for default/build models but keeps it for reasoning models', () => {
+test('grok-build forwards reasoning effort for ordinary grok models, not only *reasoning* ids', () => {
   const promptFilePath = '/tmp/od-grok-prompt/prompt.md';
-  const defaultArgs = grokBuild.buildArgs('', [], [], { model: 'default', reasoning: 'high' }, { promptFilePath });
-  assert.equal(defaultArgs.includes('--effort'), false);
+  const defaultArgs = grokBuild.buildArgs('', [], [], { model: 'default', reasoning: 'low' }, { promptFilePath });
+  assert.equal(defaultArgs[defaultArgs.indexOf('--reasoning-effort') + 1], 'low');
+  assert.equal(defaultArgs.includes('--model'), false);
 
-  const buildArgs = grokBuild.buildArgs('', [], [], { model: 'grok-build', reasoning: 'high' }, { promptFilePath });
-  assert.equal(buildArgs.includes('--effort'), false);
+  const buildArgs = grokBuild.buildArgs('', [], [], { model: 'grok-build', reasoning: 'low' }, { promptFilePath });
+  assert.equal(buildArgs[buildArgs.indexOf('--reasoning-effort') + 1], 'low');
 
-  const reasoningArgs = grokBuild.buildArgs('', [], [], { model: 'grok-4.20-reasoning', reasoning: 'high' }, { promptFilePath });
-  assert.deepEqual(reasoningArgs, [
+  const numbered = grokBuild.buildArgs('', [], [], { model: 'grok-4.6', reasoning: 'low' }, { promptFilePath });
+  assert.deepEqual(numbered, [
     '--prompt-file',
     promptFilePath,
     '--output-format',
@@ -918,9 +921,9 @@ test('grok-build omits effort for default/build models but keeps it for reasonin
     '--no-plan',
     '--always-approve',
     '--model',
-    'grok-4.20-reasoning',
-    '--effort',
-    'high',
+    'grok-4.6',
+    '--reasoning-effort',
+    'low',
   ]);
 });
 
