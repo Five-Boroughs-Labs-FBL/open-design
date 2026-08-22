@@ -227,6 +227,23 @@ export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifa
   return closed ?? open;
 }
 
+/**
+ * Live canvas already wrote `index.html`. Drop exactly the artifact that write
+ * came from — the first HTML artifact, matching `extractLiveHtmlCanvasArtifact`
+ * — so extras (screen-2 / map / HUD) still persist and nothing forks into a
+ * unique-suffixed `index-2.html`.
+ */
+export function withoutLiveHtmlCanvasArtifact(
+  artifacts: readonly PlainStreamArtifact[],
+): PlainStreamArtifact[] {
+  const primary = artifacts.findIndex((artifact) => artifact.extension === '.html');
+  return artifacts.filter((artifact, index) => {
+    if (index === primary) return false;
+    // A later artifact that would also land on `index.html` must not fork.
+    return artifact.fileName.trim().toLowerCase() !== LIVE_HTML_CANVAS_NAME;
+  });
+}
+
 type OverwriteWriteProjectFile = (
   projectsRoot: string,
   projectId: string,

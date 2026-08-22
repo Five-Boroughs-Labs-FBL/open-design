@@ -10,7 +10,9 @@ import {
   extractPlainStreamArtifacts,
   persistLiveHtmlCanvas,
   persistPlainStreamArtifacts,
+  persistPlainStreamArtifactList,
   plainStdoutFromRunEvents,
+  withoutLiveHtmlCanvasArtifact,
 } from '../../src/runtimes/plain-stream.js';
 import { listFiles, writeProjectFile } from '../../src/projects.js';
 
@@ -286,6 +288,54 @@ describe('plain stream artifact extraction', () => {
     );
     expect(live?.fileName).toBe(LIVE_HTML_CANVAS_NAME);
     expect(live?.content).toContain('<h1>HUD</h1>');
+  });
+
+  it('keeps extra screens after the live canvas already wrote index.html', async () => {
+    const stdout = [
+      '<artifact identifier="index" type="text/html" title="primary">',
+      '<!doctype html><html><body>Map</body></html>',
+      '</artifact>',
+      '<artifact identifier="screen-2" type="text/html" title="character">',
+      '<!doctype html><html><body>Hero</body></html>',
+      '</artifact>',
+      '<artifact identifier="screen-3" type="text/html" title="hud">',
+      '<!doctype html><html><body>HUD</body></html>',
+      '</artifact>',
+    ].join('');
+    const extracted = extractPlainStreamArtifacts(stdout);
+    expect(extracted.map((artifact) => artifact.fileName)).toEqual([
+      'index.html',
+      'screen-2.html',
+      'screen-3.html',
+    ]);
+    const extras = withoutLiveHtmlCanvasArtifact(extracted);
+    expect(extras.map((artifact) => artifact.fileName)).toEqual([
+      'screen-2.html',
+      'screen-3.html',
+    ]);
+
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-extra-screens-'));
+    try {
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: extractLiveHtmlCanvasArtifact(stdout)!,
+        status: 'complete',
+        writeProjectFile: writeProjectFile as any,
+      });
+      const written = await persistPlainStreamArtifactList({
+        projectsRoot,
+        projectId: 'project-1',
+        artifacts: extras,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.map((file) => file.name)).toEqual(['screen-2.html', 'screen-3.html']);
+      const files = await listFiles(projectsRoot, 'project-1');
+      expect(files.filter((file) => file.name.endsWith('.html')).map((file) => file.name).sort())
+        .toEqual(['index.html', 'screen-2.html', 'screen-3.html']);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
   });
 
   it('overwrites index.html in place instead of unique-naming', async () => {
