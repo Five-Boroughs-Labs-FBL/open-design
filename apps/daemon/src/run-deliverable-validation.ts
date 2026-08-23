@@ -7,6 +7,7 @@ import type {
   ProjectFileKind,
   ProjectMetadata,
 } from '@open-design/contracts';
+import { designManifestPathIdentity } from '@open-design/contracts';
 
 import { listFiles, resolveProjectDir } from './projects.js';
 
@@ -17,6 +18,7 @@ export type RunDeliverableValidation =
   | 'project_missing'
   | 'entry_missing'
   | 'entry_not_touched'
+  | 'unexpected_artifact'
   | 'entry_unreadable'
   | 'type_mismatch';
 
@@ -36,6 +38,8 @@ interface ValidateRunDeliverableInput {
   /** Exact artifact paths changed by this run. Undefined means the runtime
    *  could not produce a reliable per-file diff (for example contention). */
   touchedPaths?: string[];
+  /** Exact manifest files claimed by a progressive-generation run. */
+  targetFiles?: string[];
 }
 
 const PROJECT_KIND_FILE_KINDS: Partial<
@@ -79,6 +83,16 @@ function projectKind(
 
 function filePath(file: ProjectFile): string {
   return typeof file.path === 'string' && file.path ? file.path : file.name;
+}
+
+function projectFileForPortablePath(files: ProjectFile[], target: string): ProjectFile | null {
+  const exact = files.find(
+    (file) => filePath(file).replaceAll('\\', '/').normalize('NFC') === target.normalize('NFC'),
+  );
+  if (exact) return exact;
+  const identity = designManifestPathIdentity(target);
+  const matches = files.filter((file) => designManifestPathIdentity(filePath(file)) === identity);
+  return matches.length === 1 ? matches[0] ?? null : null;
 }
 
 function inferredEntry(
@@ -146,10 +160,89 @@ export async function validateRunDeliverable(
     return { valid: false, validation: 'project_missing' };
   }
 
+  const normalizedTargetFiles = input.targetFiles?.map(safeRelativeFile) ?? [];
+  if (input.targetFiles && (
+    normalizedTargetFiles.some((candidate) => candidate === null)
+    || normalizedTargetFiles.length === 0
+  )) {
+    return { valid: false, validation: 'entry_missing' };
+  }
+  const scopedFiles = normalizedTargetFiles.filter((candidate): candidate is string => candidate !== null);
   const declared = safeRelativeFile(input.projectMetadata?.entryFile);
-  const selected = declared
-    ? files.find((file) => filePath(file) === declared) ?? null
-    : inferredEntry(files, projectKind(input.projectMetadata));
+  const selected = scopedFiles.length > 0
+    ? projectFileForPortablePath(files, scopedFiles[0]!)
+    : declared
+      ? projectFileForPortablePath(files, declared)
+      : inferredEntry(files, projectKind(input.projectMetadata));
+  if (scopedFiles.length > 0) {
+    const selectedTargets = scopedFiles.map(
+      (target) => projectFileForPortablePath(files, target),
+    );
+    if (selectedTargets.some((file) => file === null)) {
+      return { valid: false, validation: 'entry_missing' };
+    }
+    if (!input.touchedPaths) {
+      return {
+        valid: false,
+        validation: 'entry_not_touched',
+        entryFile: scopedFiles[0]!,
+      };
+    }
+    {
+      const touchedPaths = normalizedTouchedPathList(projectRoot, input.touchedPaths);
+      const touched = new Set(touchedPaths.map((candidate) => candidate.identity));
+      const claimed = new Set(scopedFiles.map(designManifestPathIdentity));
+      const unexpected = touchedPaths.find((candidate) => (
+        candidate.identity === designManifestPathIdentity('DESIGN-MANIFEST.json')
+        || (/\.html?$/i.test(candidate.relative) && !claimed.has(candidate.identity))
+      ));
+      if (unexpected) {
+        return {
+          valid: false,
+          validation: 'unexpected_artifact',
+          entryFile: unexpected.relative,
+        };
+      }
+      if (scopedFiles.some((file) => !touched.has(designManifestPathIdentity(file)))) {
+        const firstFile = scopedFiles[0] as string;
+        const firstTarget = selectedTargets[0];
+        return {
+          valid: false,
+          validation: 'entry_not_touched',
+          entryFile: firstFile,
+          ...(firstTarget ? { artifactKind: firstTarget.kind } : {}),
+        };
+      }
+    }
+    for (const [index, file] of selectedTargets.entries()) {
+      if (!file || !matchesProjectKind(projectKind(input.projectMetadata), file.kind)) {
+        const targetFile = scopedFiles[index] as string;
+        return {
+          valid: false,
+          validation: 'type_mismatch',
+          entryFile: targetFile,
+          ...(file ? { artifactKind: file.kind } : {}),
+        };
+      }
+      const targetFile = scopedFiles[index] as string;
+      if (!await readableProjectFile(projectRoot, filePath(file))) {
+        return {
+          valid: false,
+          validation: 'entry_unreadable',
+          entryFile: targetFile,
+          artifactKind: file.kind,
+        };
+      }
+    }
+    const firstFile = scopedFiles[0] as string;
+    const firstTarget = selectedTargets[0];
+    return {
+      valid: true,
+      validation: 'valid',
+      entryFile: firstFile,
+      ...(firstTarget ? { artifactKind: firstTarget.kind } : {}),
+    };
+  }
   if (!selected) {
     return { valid: false, validation: 'entry_missing' };
   }
@@ -174,10 +267,10 @@ export async function validateRunDeliverable(
         ) {
           return [];
         }
-        return [relative.replaceAll(path.sep, '/')];
+        return [designManifestPathIdentity(relative.replaceAll(path.sep, '/'))];
       }),
     );
-    if (!touched.has(entryFile)) {
+    if (!touched.has(designManifestPathIdentity(entryFile))) {
       return {
         valid: false,
         validation: 'entry_not_touched',
@@ -214,4 +307,42 @@ export async function validateRunDeliverable(
     validation: 'valid',
     ...facts,
   };
+}
+
+function normalizedTouchedPaths(projectRoot: string, candidates: string[]): Set<string> {
+  return new Set(normalizedTouchedPathList(projectRoot, candidates).map(({ identity }) => identity));
+}
+
+function normalizedTouchedPathList(
+  projectRoot: string,
+  candidates: string[],
+): Array<{ relative: string; identity: string }> {
+  const byIdentity = new Map<string, { relative: string; identity: string }>();
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate) continue;
+    const absolute = path.isAbsolute(candidate)
+      ? path.resolve(candidate)
+      : path.resolve(projectRoot, candidate);
+    const relative = path.relative(projectRoot, absolute);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
+    const portable = relative.replaceAll(path.sep, '/');
+    const identity = designManifestPathIdentity(portable);
+    if (!byIdentity.has(identity)) byIdentity.set(identity, { relative: portable, identity });
+  }
+  return [...byIdentity.values()];
+}
+
+async function readableProjectFile(projectRoot: string, file: string): Promise<boolean> {
+  try {
+    const target = path.resolve(projectRoot, file);
+    const relative = path.relative(projectRoot, target);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
+    const fileStat = await fs.stat(target);
+    if (!fileStat.isFile()) return false;
+    const handle = await fs.open(target, 'r');
+    await handle.close();
+    return true;
+  } catch {
+    return false;
+  }
 }

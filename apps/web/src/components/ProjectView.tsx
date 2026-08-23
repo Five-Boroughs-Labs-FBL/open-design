@@ -1691,13 +1691,15 @@ function artifactWithHtml(
   artifact: Artifact | null,
   fallbackIdentifier: string,
   html: string,
+  fileName?: string,
 ): Artifact {
   return artifact
-    ? { ...artifact, html }
+    ? { ...artifact, html, ...(fileName ? { fileName } : {}) }
     : {
         identifier: fallbackIdentifier,
         title: '',
         html,
+        ...(fileName ? { fileName } : {}),
       };
 }
 
@@ -5342,6 +5344,7 @@ export function ProjectView({
             true,
           );
         }
+        const claimedPreviewFile = status.designGenerationSurfaces?.[0]?.file;
 
         if (shouldReplayTerminalRunMessage(message)) {
           const replayedContent = textContentFromAgentEvents(message.events);
@@ -5357,18 +5360,31 @@ export function ProjectView({
                   artifactType: ev.artifactType,
                   title: ev.title,
                   html: '',
+                  ...(claimedPreviewFile ? { fileName: claimedPreviewFile } : {}),
                 };
                 setArtifact(parsedArtifact);
               } else if (ev.type === 'artifact:chunk') {
                 liveHtml += ev.delta;
-                parsedArtifact = artifactWithHtml(parsedArtifact, ev.identifier, liveHtml);
+                parsedArtifact = artifactWithHtml(
+                  parsedArtifact,
+                  ev.identifier,
+                  liveHtml,
+                  claimedPreviewFile,
+                );
                 setArtifact((prev) =>
-                  artifactWithHtml(prev, ev.identifier, liveHtml),
+                  artifactWithHtml(prev, ev.identifier, liveHtml, claimedPreviewFile),
                 );
               } else if (ev.type === 'artifact:end') {
-                parsedArtifact = artifactWithHtml(parsedArtifact, ev.identifier, ev.fullContent);
+                parsedArtifact = artifactWithHtml(
+                  parsedArtifact,
+                  ev.identifier,
+                  ev.fullContent,
+                  claimedPreviewFile,
+                );
                 setArtifact((prev) =>
-                  prev ? artifactWithHtml(prev, ev.identifier, ev.fullContent) : null,
+                  prev
+                    ? artifactWithHtml(prev, ev.identifier, ev.fullContent, claimedPreviewFile)
+                    : null,
                 );
               }
             }
@@ -5578,6 +5594,7 @@ export function ProjectView({
                 artifactType: ev.artifactType,
                 title: ev.title,
                 html: '',
+                ...(claimedPreviewFile ? { fileName: claimedPreviewFile } : {}),
               };
               setArtifact(parsedArtifact);
             } else if (ev.type === 'artifact:chunk') {
@@ -5588,6 +5605,7 @@ export function ProjectView({
                     identifier: ev.identifier,
                     title: '',
                     html: liveHtml,
+                    ...(claimedPreviewFile ? { fileName: claimedPreviewFile } : {}),
                   };
               setArtifact((prev) =>
                 prev
@@ -5596,6 +5614,7 @@ export function ProjectView({
                       identifier: ev.identifier,
                       title: '',
                       html: liveHtml,
+                      ...(claimedPreviewFile ? { fileName: claimedPreviewFile } : {}),
                     },
               );
             } else if (ev.type === 'artifact:end') {
@@ -5605,6 +5624,7 @@ export function ProjectView({
                     identifier: ev.identifier,
                     title: '',
                     html: ev.fullContent,
+                    ...(claimedPreviewFile ? { fileName: claimedPreviewFile } : {}),
                   };
               setArtifact((prev) => (prev ? { ...prev, html: ev.fullContent } : null));
             }
@@ -11474,6 +11494,7 @@ export function ProjectView({
           onWorkspaceContextsChange={handleWorkspaceContextsChange}
           messages={messages}
           artifactHtml={artifact?.html}
+          artifactFileName={artifact?.fileName}
           conversationError={error}
           onAuthorizeAndRetry={handleSwitchToAmrAndRetry}
           onLaunchTerminalAuth={handleLaunchAntigravityOauth}

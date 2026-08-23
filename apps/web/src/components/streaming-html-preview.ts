@@ -6,13 +6,15 @@ export const STREAMING_HTML_PREVIEW_NAME = 'index.html';
 export function resolveStreamingHtmlPreviewFile(
   artifactHtml: string | null | undefined,
   files: readonly ProjectFile[],
+  claimedFileName?: string | null,
 ): ProjectFile | null {
   if (artifactHtml == null) return null;
-  const pinned = files.find((file) => file.name === STREAMING_HTML_PREVIEW_NAME);
+  const previewName = claimedFileName?.trim() || STREAMING_HTML_PREVIEW_NAME;
+  const pinned = files.find((file) => file.name === previewName || file.path === previewName);
   if (pinned) return pinned;
   return {
-    name: STREAMING_HTML_PREVIEW_NAME,
-    path: STREAMING_HTML_PREVIEW_NAME,
+    name: previewName,
+    path: previewName,
     type: 'file',
     // Frozen size: FileViewer keys srcDoc transport by file size; growing
     // length would remount the iframe on every token.

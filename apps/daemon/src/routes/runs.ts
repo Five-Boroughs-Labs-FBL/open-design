@@ -11,6 +11,11 @@ import {
   type ByokChatProviderConfig,
   type ChatRunStatus,
   type ChatRunStatusResponse,
+  type DesignGenerationTarget,
+  type DesignManifestV2,
+  designManifestPathIdentity,
+  DesignManifestValidationError,
+  parseDesignGenerationTarget,
   type ProjectMetadata as ContractProjectMetadata,
   type RunResultPackageResponse,
 } from '@open-design/contracts';
@@ -78,11 +83,19 @@ import {
 } from '../plugins/index.js';
 import {
   assertSandboxProjectRootAvailable,
+  ensureProject,
   isSafeId,
   listFiles,
   resolveProjectDir,
   SandboxImportedProjectError,
 } from '../projects.js';
+import {
+  createDesignManifestStore,
+  DesignManifestNotFoundError,
+  DesignManifestRevisionConflictError,
+  DesignManifestWriterConflictError,
+  type DesignManifestStore,
+} from '../storage/design-manifest.js';
 import {
   amrUserIdForRunAnalytics,
   agentProviderIdForRunAnalytics,
@@ -298,6 +311,11 @@ interface ChatRun {
   assistantMessageId: string | null;
   clientRequestId?: string | null;
   requestFingerprint?: string | null;
+  designGeneration?: DesignGenerationTarget | null;
+  designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
+  /** In-process fence only. It is intentionally not persisted: after a daemon
+   * restart an interrupted terminal claim must be recoverable as stale. */
+  designGenerationReconciliationPending?: boolean;
   agentId: string | null;
   workspaceScope?: RunWorkspaceScope | null;
   model?: string | null;
@@ -384,6 +402,9 @@ interface RunCreateMeta extends JsonRecord {
   assistantMessageId?: string;
   clientRequestId?: string;
   requestFingerprint?: string;
+  designGeneration?: DesignGenerationTarget;
+  designGenerationDirective?: string;
+  designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
   agentId?: string;
   pluginId?: string;
   appliedPluginSnapshotId?: string;
@@ -408,6 +429,7 @@ interface ChatRunService {
   prepareRestart(run: ChatRun): ChatRun | null;
   get(id: string): ChatRun | null;
   findByPluginWorkflowId(pluginWorkflowId: string): ChatRun | null;
+  findByClientRequestId(clientRequestId: string): ChatRun | null;
   list(filters: RunListFilters): ChatRun[];
   statusBody(run: ChatRun): ChatRunStatusResponse;
   stream(run: ChatRun, req: Request, res: Response): void;
@@ -421,6 +443,7 @@ interface ChatRunService {
   drop(run: ChatRun): void;
   isTerminal(status: ChatRunStatus): boolean;
   emit?(run: ChatRun, event: string, data: unknown): RunEventRecord;
+  persistState?(run: ChatRun): void;
   setAnalyticsRecovery?(run: ChatRun, recovery: {
     context: AnalyticsContext;
     properties: Record<string, unknown>;
@@ -674,6 +697,9 @@ async function validateChatRunDeliverable(input: {
     runStatus: input.runStatus,
     artifactCount: input.artifactCount,
     ...(input.touchedPaths ? { touchedPaths: input.touchedPaths } : {}),
+    ...(input.run.designGenerationSurfaces
+      ? { targetFiles: input.run.designGenerationSurfaces.map((surface) => surface.file) }
+      : {}),
   });
 }
 
@@ -853,11 +879,52 @@ function runRequestFingerprint(
   delete logicalRequest.assistantMessageId;
   delete logicalRequest.projectMetadata;
   delete logicalRequest.appliedPluginSnapshotId;
+  delete logicalRequest.designGenerationDirective;
+  delete logicalRequest.designGenerationSurfaces;
   logicalRequest.appliedPluginSnapshot =
     semanticPluginSnapshot(appliedPluginSnapshot);
   return createHash('sha256')
     .update(JSON.stringify(canonicalJsonValue(logicalRequest)))
     .digest('hex');
+}
+
+function renderDesignGenerationDirective(
+  manifest: DesignManifestV2,
+  target: DesignGenerationTarget,
+): string {
+  const targets = target.surfaceIds.map((id) => {
+    const surface = manifest.surfaces.find((candidate) => candidate.id === id)!;
+    return {
+      id: surface.id,
+      file: surface.file,
+      title: surface.title,
+      purpose: surface.purpose,
+      kind: surface.kind,
+      states: surface.states,
+      formFactors: surface.formFactors,
+    };
+  });
+  return [
+    '## Strict design-generation target',
+    `This run is bound to durable manifest revision ${target.manifestRevision}.`,
+    `Generate exactly these ${targets.length} surface(s), in this order:`,
+    ...targets.map((surface, index) =>
+      `${index + 1}. surface id \`${surface.id}\` → project file \`${surface.file}\` (${surface.title}; ${surface.kind})`),
+    '',
+    'Global locked design scope (applies to every target; do not narrow or reinterpret it):',
+    JSON.stringify(manifest.scope, null, 2),
+    '',
+    'Target details:',
+    JSON.stringify(targets, null, 2),
+    '',
+    'Rules:',
+    '- Produce no other design surfaces or HTML files in this run.',
+    '- Never create, edit, rename, or delete `DESIGN-MANIFEST.json`; the daemon owns manifest state and reconciliation.',
+    '- Preserve the exact ids and stable filenames above. The entry surface is always `index.html`; secondary surfaces must never overwrite it.',
+    '- Emit each generated HTML artifact with its exact surface id as the artifact `identifier`, or write it directly to its exact declared file.',
+    '- The first listed surface is the live-stream surface. Do not substitute a generic artifact or a different filename.',
+    '- Use the global scope and existing project files to keep navigation, visual language, data model, and responsive behavior coherent with the whole product.',
+  ].join('\n');
 }
 
 const EXTERNAL_PLUGIN_ANALYTICS_KEYS = [
@@ -927,6 +994,275 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     pinAssistantMessageOnRunCreate,
     reconcileAssistantMessageOnRunEnd,
   } = ctx.messages;
+  const designManifestStore: DesignManifestStore = createDesignManifestStore({
+    projectsRoot: PROJECTS_DIR,
+    authorityRoot: path.join(RUNTIME_DATA_DIR || PROJECTS_DIR, 'design-manifests'),
+    resolveProjectDir,
+    ensureProject,
+    listFiles,
+    projectExists: (projectId) => Boolean(getProject(db, projectId)),
+  });
+  const projectWriterReservations = new Map<
+    string,
+    Map<symbol, 'targeted' | 'unscoped'>
+  >();
+
+  async function recoverProjectStaleClaims(project: ProjectRecord): Promise<void> {
+    try {
+      await designManifestStore.recoverStaleClaims(
+        { id: project.id, metadata: project.metadata },
+        {
+          runState: (runId) => {
+            const run = design.runs.get(runId);
+            return run
+              ? {
+                  active: !TERMINAL_RUN_STATUSES.has(run.status)
+                    || run.designGenerationReconciliationPending === true,
+                  succeeded: run.status === 'succeeded',
+                  exactOutputValidated: run.deliverableValid === true
+                    && run.deliverableValidation === 'valid',
+                  ...(Array.isArray(run.artifactPaths) ? { artifactPaths: run.artifactPaths } : {}),
+                }
+              : null;
+          },
+          updatedAt: new Date().toISOString(),
+        },
+      );
+    } catch (error) {
+      if (!(error instanceof DesignManifestNotFoundError)) throw error;
+    }
+  }
+
+  async function assertProjectWriterAvailable(
+    project: ProjectRecord | null,
+    targeted: boolean,
+    existingRequest: ChatRun | null,
+    ownReservation?: symbol,
+  ): Promise<void> {
+    if (!project || existingRequest) return;
+    const reserved = [...(projectWriterReservations.get(project.id)?.entries() ?? [])]
+      .filter(([token]) => token !== ownReservation)
+      .map(([, mode]) => mode);
+    const active = design.runs.list({ projectId: project.id }).filter(
+      (run) => !TERMINAL_RUN_STATUSES.has(run.status),
+    );
+    // A project directory has exactly one writer at a time. Targeted design
+    // runs and ordinary runs share the same files, so either ordering must be
+    // serialized; the idempotent logical-request replay returned above is the
+    // only exception.
+    if (reserved.length > 0 || active.length > 0) {
+      throw new DesignManifestWriterConflictError(
+        active.map((run) => run.id).concat(reserved.map((mode) => `reserved:${mode}`)),
+      );
+    }
+    if (!targeted) {
+      try {
+        await recoverProjectStaleClaims(project);
+        const manifest = await designManifestStore.get({
+          id: project.id,
+          metadata: project.metadata,
+        });
+        const generating = manifest.surfaces
+          .filter((surface) => surface.status === 'generating')
+          .map((surface) => surface.id);
+        if (generating.length > 0) throw new DesignManifestWriterConflictError(generating);
+      } catch (error) {
+        if (!(error instanceof DesignManifestNotFoundError)) throw error;
+      }
+    }
+  }
+
+  async function reserveProjectWriter(
+    project: ProjectRecord | null,
+    targeted: boolean,
+    existingRequest: ChatRun | null,
+  ): Promise<() => void> {
+    if (!project || existingRequest) return () => undefined;
+    const token = Symbol('project-writer');
+    const reservations = projectWriterReservations.get(project.id) ?? new Map();
+    const reservedModes = [...reservations.values()];
+    if (reservedModes.length > 0) {
+      throw new DesignManifestWriterConflictError(
+        reservedModes.map((mode) => `reserved:${mode}`),
+      );
+    }
+    // Install the provisional reservation before the first await. A second
+    // request therefore cannot pass the same availability check concurrently.
+    reservations.set(token, targeted ? 'targeted' : 'unscoped');
+    projectWriterReservations.set(project.id, reservations);
+    try {
+      await assertProjectWriterAvailable(project, targeted, existingRequest, token);
+    } catch (error) {
+      reservations.delete(token);
+      if (reservations.size === 0) projectWriterReservations.delete(project.id);
+      throw error;
+    }
+    return () => {
+      reservations.delete(token);
+      if (reservations.size === 0) projectWriterReservations.delete(project.id);
+    };
+  }
+
+  async function prepareDesignGeneration(
+    raw: unknown,
+    project: ProjectRecord | null,
+    options: { enforceRevision?: boolean } = {},
+  ): Promise<{
+    target: DesignGenerationTarget;
+    manifest: DesignManifestV2;
+    directive: string;
+    surfaces: Array<{ surfaceId: string; file: string }>;
+  } | null> {
+    if (raw === undefined || raw === null) return null;
+    const target = parseDesignGenerationTarget(raw);
+    if (!project) {
+      throw new DesignManifestValidationError(['designGeneration requires a project']);
+    }
+    await recoverProjectStaleClaims(project);
+    const manifest = await designManifestStore.get({
+      id: project.id,
+      metadata: project.metadata,
+    });
+    if (options.enforceRevision !== false && manifest.revision !== target.manifestRevision) {
+      throw new DesignManifestRevisionConflictError(
+        target.manifestRevision,
+        manifest.revision,
+      );
+    }
+    const byId = new Map(manifest.surfaces.map((surface) => [surface.id, surface]));
+    const missing = target.surfaceIds.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new DesignManifestValidationError([
+        `unknown design surface ids: ${missing.join(', ')}`,
+      ]);
+    }
+    const effectiveTarget = options.enforceRevision === false
+      ? { ...target, manifestRevision: manifest.revision }
+      : target;
+    const surfaces = effectiveTarget.surfaceIds.map((id) => ({
+      surfaceId: id,
+      file: byId.get(id)!.file,
+    }));
+    return {
+      target: effectiveTarget,
+      manifest,
+      directive: renderDesignGenerationDirective(manifest, effectiveTarget),
+      surfaces,
+    };
+  }
+
+  function sendDesignGenerationError(res: ApiResponse, error: unknown): void {
+    if (error instanceof DesignManifestNotFoundError) {
+      sendApiError(res, 404, error.code, error.message);
+      return;
+    }
+    if (
+      error instanceof DesignManifestRevisionConflictError
+      || error instanceof DesignManifestWriterConflictError
+    ) {
+      sendApiError(res, 409, error.code, error.message);
+      return;
+    }
+    if (error instanceof DesignManifestValidationError) {
+      sendApiError(res, 422, error.code, error.message, { issues: error.issues });
+      return;
+    }
+    throw error;
+  }
+
+  async function claimDesignGeneration(
+    run: ChatRun,
+    project: ProjectRecord,
+    prepared: NonNullable<Awaited<ReturnType<typeof prepareDesignGeneration>>>,
+  ): Promise<void> {
+    await designManifestStore.claim(
+      { id: project.id, metadata: project.metadata },
+      {
+        expectedRevision: prepared.manifest.revision,
+        surfaceIds: prepared.target.surfaceIds,
+        runId: run.id,
+        updatedAt: new Date().toISOString(),
+      },
+    );
+    run.designGeneration = prepared.target;
+    run.designGenerationSurfaces = prepared.surfaces;
+    run.designGenerationReconciliationPending = true;
+    design.runs.persistState?.(run);
+  }
+
+  function reconcileDesignGenerationOnEnd(
+    run: ChatRun,
+    project: ProjectRecord,
+    prepared: NonNullable<Awaited<ReturnType<typeof prepareDesignGeneration>>>,
+  ): void {
+    void design.runs.wait(run).then(async () => {
+      const diffTouchedPaths = runTouchedArtifactPaths(run);
+      const touchedPaths = diffTouchedPaths && diffTouchedPaths.length > 0
+        ? diffTouchedPaths
+        : run.artifactPaths;
+      const deliverable = await validateChatRunDeliverable({
+        db,
+        projectsRoot: PROJECTS_DIR,
+        run,
+        runStatus: run.status,
+        artifactCount: Math.max(run.artifactPaths?.length ?? 0, touchedPaths?.length ?? 0),
+        ...(touchedPaths ? { touchedPaths } : {}),
+      });
+      design.runs.setDeliverableValidation?.(run, deliverable);
+      if (!deliverable.valid) {
+        console.warn(
+          `[runs] design generation deliverable rejected run=${run.id} validation=${deliverable.validation}`
+            + `${deliverable.entryFile ? ` entry=${deliverable.entryFile}` : ''}`,
+        );
+      }
+      const files = await listFiles(PROJECTS_DIR, project.id, { metadata: project.metadata });
+      const present = new Set(files.map((file) => designManifestPathIdentity(file.path || file.name)));
+      const completedSurfaceIds = run.status === 'succeeded' && deliverable.valid
+        ? prepared.surfaces
+            .filter((surface) => {
+              const identity = designManifestPathIdentity(surface.file);
+              // validateChatRunDeliverable already proved that every exact
+              // claimed file was touched and no unclaimed HTML was touched.
+              return present.has(identity);
+            })
+            .map((surface) => surface.surfaceId)
+        : [];
+      await designManifestStore.finishClaim(
+        { id: project.id, metadata: project.metadata },
+        {
+          surfaceIds: prepared.target.surfaceIds,
+          completedSurfaceIds,
+          runId: run.id,
+          updatedAt: new Date().toISOString(),
+        },
+      );
+    }).catch((error) => {
+      console.warn('[runs] design generation reconciliation failed', error);
+    }).finally(() => {
+      run.designGenerationReconciliationPending = false;
+    });
+  }
+
+  async function failDesignGenerationClaim(
+    run: ChatRun,
+    project: ProjectRecord | null,
+    prepared: Awaited<ReturnType<typeof prepareDesignGeneration>>,
+  ): Promise<void> {
+    if (!project || !prepared) return;
+    try {
+      await designManifestStore.finishClaim(
+        { id: project.id, metadata: project.metadata },
+        {
+          surfaceIds: prepared.target.surfaceIds,
+          completedSurfaceIds: [],
+          runId: run.id,
+          updatedAt: new Date().toISOString(),
+        },
+      );
+    } finally {
+      run.designGenerationReconciliationPending = false;
+    }
+  }
 
   /** Authorize every bound run mutation before plugin or snapshot resolution. */
   async function authorizeRunProjectBeforePluginResolution(
@@ -1294,6 +1630,62 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       if (!authorization.ok) return;
       authorizedBoundMutation = authorization.authorizedBoundMutation;
     }
+    let runProject: ProjectRecord | null = null;
+    if (typeof requestBody.projectId === 'string' && requestBody.projectId) {
+      try {
+        runProject = toProjectRecord(getProject(db, requestBody.projectId));
+        assertSandboxProjectRootAvailable(runProject?.metadata);
+      } catch (err) {
+        if (err instanceof SandboxImportedProjectError) {
+          return sendApiError(res, 400, 'BAD_REQUEST', err.message);
+        }
+        throw err;
+      }
+    }
+    const existingLogicalRequest = typeof requestBody.clientRequestId === 'string'
+      ? design.runs.findByClientRequestId(requestBody.clientRequestId)
+      : null;
+    let preparedDesignGeneration: Awaited<ReturnType<typeof prepareDesignGeneration>> = null;
+    let resumeDesignGeneration: Awaited<ReturnType<typeof prepareDesignGeneration>> = null;
+    let retryDesignGeneration: DesignGenerationTarget | null = null;
+    if (requestBody.designGeneration !== undefined) {
+      try {
+        // A lost-response retry is bound by its persisted request fingerprint.
+        // Do not make replay depend on a manifest that may since have advanced,
+        // been edited, or been removed; only validate the supplied target shape.
+        if (existingLogicalRequest) {
+          retryDesignGeneration = parseDesignGenerationTarget(requestBody.designGeneration);
+          if (runProject) await recoverProjectStaleClaims(runProject);
+          if (requestBody.resume === true) {
+            resumeDesignGeneration = await prepareDesignGeneration(
+              requestBody.designGeneration,
+              runProject,
+              { enforceRevision: false },
+            );
+          }
+        } else {
+          preparedDesignGeneration = await prepareDesignGeneration(
+            requestBody.designGeneration,
+            runProject,
+          );
+        }
+        await assertProjectWriterAvailable(
+          runProject,
+          preparedDesignGeneration !== null || retryDesignGeneration !== null,
+          requestBody.resume === true ? null : existingLogicalRequest,
+        );
+      } catch (error) {
+        sendDesignGenerationError(res, error);
+        return;
+      }
+    } else {
+      try {
+        await assertProjectWriterAvailable(runProject, false, existingLogicalRequest);
+      } catch (error) {
+        sendDesignGenerationError(res, error);
+        return;
+      }
+    }
     let effectiveAgentId =
       typeof requestBody.agentId === 'string' && requestBody.agentId
         ? requestBody.agentId
@@ -1424,17 +1816,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         if (renderedQuery.length > 0) meta.message = renderedQuery;
       }
     }
-    let runProject: ProjectRecord | null = null;
-    if (typeof meta.projectId === 'string' && meta.projectId) {
-      try {
-        runProject = toProjectRecord(getProject(db, meta.projectId));
-        assertSandboxProjectRootAvailable(runProject?.metadata);
-      } catch (err) {
-        if (err instanceof SandboxImportedProjectError) {
-          return sendApiError(res, 400, 'BAD_REQUEST', err.message);
-        }
-        throw err;
-      }
+    if (preparedDesignGeneration) {
+      meta.designGeneration = preparedDesignGeneration.target;
+      meta.designGenerationDirective = preparedDesignGeneration.directive;
+      meta.designGenerationSurfaces = preparedDesignGeneration.surfaces;
+    } else if (retryDesignGeneration) {
+      meta.designGeneration = retryDesignGeneration;
     }
     if (typeof meta.agentId !== 'string' || !meta.agentId) {
       try {
@@ -1792,7 +2179,23 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       meta,
       resolvedSnapshot?.ok ? resolvedSnapshot.snapshot : null,
     );
-    const creation = design.runs.createOrReuse(meta);
+    let releaseWriterReservation: () => void;
+    try {
+      releaseWriterReservation = await reserveProjectWriter(
+        runProject,
+        preparedDesignGeneration !== null,
+        existingLogicalRequest,
+      );
+    } catch (error) {
+      sendDesignGenerationError(res, error);
+      return;
+    }
+    let creation: ReturnType<ChatRunService['createOrReuse']>;
+    try {
+      creation = design.runs.createOrReuse(meta);
+    } finally {
+      releaseWriterReservation();
+    }
     if (creation.kind === 'conflict') {
       return sendApiError(
         res,
@@ -1802,6 +2205,15 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       );
     }
     const run = creation.run;
+    if (creation.kind === 'created' && preparedDesignGeneration && runProject) {
+      try {
+        await claimDesignGeneration(run, runProject, preparedDesignGeneration);
+      } catch (error) {
+        design.runs.drop(run);
+        sendDesignGenerationError(res, error);
+        return;
+      }
+    }
     if (parsedAmcGrok) {
       run.amcGrok = parsedAmcGrok;
     }
@@ -1812,6 +2224,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         meta.analyticsHints,
       );
     let resumed = false;
+    let resumeManifestClaimed = false;
     if (creation.kind === 'reused') {
       const resumeRequested = requestBody.resume === true;
       const rechargeFailure =
@@ -1846,15 +2259,44 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           'Only a failed OpenDesign Cloud run waiting for recharge can be resumed with the same request',
         );
       }
+      if (resumeDesignGeneration && runProject) {
+        let releaseResumeWriter: () => void;
+        try {
+          releaseResumeWriter = await reserveProjectWriter(runProject, true, null);
+        } catch (error) {
+          sendDesignGenerationError(res, error);
+          return;
+        }
+        try {
+          await claimDesignGeneration(run, runProject, resumeDesignGeneration);
+          resumeManifestClaimed = true;
+        } catch (error) {
+          sendDesignGenerationError(res, error);
+          return;
+        } finally {
+          releaseResumeWriter();
+        }
+      }
       // Claim BEFORE arming the restart. On a conflict the reused run stays
       // terminal + resumable (never dropped) and the request is rejected —
       // the claim writes the post-restart `queued` intent so the message row
       // does not stay terminal while the run is being resumed (#6418).
-      const resumeClaim = pinAssistantMessageOnRunCreate(db, run, {
-        status: 'queued',
-        isRunActive: isRunActiveForAssistantClaim,
-      });
+      let resumeClaim: { ok: boolean; reason?: 'active' | 'scope' };
+      try {
+        resumeClaim = pinAssistantMessageOnRunCreate(db, run, {
+          status: 'queued',
+          isRunActive: isRunActiveForAssistantClaim,
+        });
+      } catch (error) {
+        if (resumeManifestClaimed) {
+          await failDesignGenerationClaim(run, runProject, resumeDesignGeneration);
+        }
+        throw error;
+      }
       if (!resumeClaim.ok) {
+        if (resumeManifestClaimed) {
+          await failDesignGenerationClaim(run, runProject, resumeDesignGeneration);
+        }
         return sendApiError(
           res,
           409,
@@ -1863,6 +2305,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         );
       }
       if (!design.runs.prepareRestart(run)) {
+        if (resumeManifestClaimed) {
+          await failDesignGenerationClaim(run, runProject, resumeDesignGeneration);
+        }
         return sendApiError(
           res,
           409,
@@ -1890,10 +2335,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         claimed = pinAssistantMessageOnRunCreate(db, run, claimOptions);
       } catch (err) {
         // Never let an unclaimed run start.
+        await failDesignGenerationClaim(run, runProject, preparedDesignGeneration);
         design.runs.drop(run);
         throw err;
       }
       if (!claimed.ok) {
+        await failDesignGenerationClaim(run, runProject, preparedDesignGeneration);
         design.runs.drop(run);
         return sendApiError(
           res,
@@ -1958,10 +2405,25 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     const executionMeta: RunCreateMeta = {
       ...meta,
+      ...(resumed && resumeDesignGeneration
+        ? {
+            designGeneration: resumeDesignGeneration.target,
+            designGenerationDirective: resumeDesignGeneration.directive,
+            designGenerationSurfaces: resumeDesignGeneration.surfaces,
+          }
+        : {}),
       ...(requestBody.byokProvider !== undefined
         ? { byokProvider: requestBody.byokProvider }
         : {}),
     };
+    const attemptedDesignGeneration = resumed
+      ? resumeDesignGeneration
+      : creation.kind === 'created'
+        ? preparedDesignGeneration
+        : null;
+    if (attemptedDesignGeneration && runProject) {
+      reconcileDesignGenerationOnEnd(run, runProject, attemptedDesignGeneration);
+    }
     design.runs.start(run, () => startChatRun(executionMeta, run));
 
     const reqBody = requestBody;
@@ -2530,7 +2992,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           }
         }
         const touchedArtifactPaths = runTouchedArtifactPaths(run);
-        const deliverable = run.externalPluginAnalytics
+        const deliverable = run.externalPluginAnalytics || run.designGenerationSurfaces
           ? await validateChatRunDeliverable({
               db,
               projectsRoot: PROJECTS_DIR,
@@ -3125,6 +3587,8 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       return sendApiError(res, 400, 'BAD_REQUEST', toolBundle.message);
     }
     let chatProject: ProjectRecord | null = null;
+    let preparedDesignGeneration: Awaited<ReturnType<typeof prepareDesignGeneration>> = null;
+    let retryDesignGeneration: DesignGenerationTarget | null = null;
     if (typeof requestBody.projectId === 'string' && requestBody.projectId) {
       try {
         chatProject = toProjectRecord(getProject(db, requestBody.projectId));
@@ -3170,6 +3634,19 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       );
       if (!authorization.ok) return;
       authorizedBoundMutation = authorization.authorizedBoundMutation;
+    }
+    const existingLogicalRequest = typeof requestBody.clientRequestId === 'string'
+      ? design.runs.findByClientRequestId(requestBody.clientRequestId)
+      : null;
+    try {
+      await assertProjectWriterAvailable(
+        chatProject,
+        requestBody.designGeneration !== undefined,
+        existingLogicalRequest,
+      );
+    } catch (error) {
+      sendDesignGenerationError(res, error);
+      return;
     }
     if (!hasCompleteByokOpenCodeConfig(requestBody)) {
       return sendApiError(
@@ -3269,8 +3746,46 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         meta.appliedPluginSnapshotId,
       )
     ) return;
+    if (requestBody.designGeneration !== undefined) {
+      try {
+        if (existingLogicalRequest) {
+          retryDesignGeneration = parseDesignGenerationTarget(requestBody.designGeneration);
+        } else {
+          preparedDesignGeneration = await prepareDesignGeneration(
+            requestBody.designGeneration,
+            chatProject,
+          );
+        }
+        if (preparedDesignGeneration) {
+          meta.designGeneration = preparedDesignGeneration.target;
+          meta.designGenerationDirective = preparedDesignGeneration.directive;
+          meta.designGenerationSurfaces = preparedDesignGeneration.surfaces;
+        } else if (retryDesignGeneration) {
+          meta.designGeneration = retryDesignGeneration;
+        }
+      } catch (error) {
+        sendDesignGenerationError(res, error);
+        return;
+      }
+    }
     meta.requestFingerprint = runRequestFingerprint(meta);
-    const creation = design.runs.createOrReuse(meta);
+    let releaseWriterReservation: () => void;
+    try {
+      releaseWriterReservation = await reserveProjectWriter(
+        chatProject,
+        preparedDesignGeneration !== null,
+        existingLogicalRequest,
+      );
+    } catch (error) {
+      sendDesignGenerationError(res, error);
+      return;
+    }
+    let creation: ReturnType<ChatRunService['createOrReuse']>;
+    try {
+      creation = design.runs.createOrReuse(meta);
+    } finally {
+      releaseWriterReservation();
+    }
     if (creation.kind === 'conflict') {
       return sendApiError(
         res,
@@ -3284,6 +3799,15 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       design.runs.stream(run, req, res);
       return;
     }
+    if (preparedDesignGeneration && chatProject) {
+      try {
+        await claimDesignGeneration(run, chatProject, preparedDesignGeneration);
+      } catch (error) {
+        design.runs.drop(run);
+        sendDesignGenerationError(res, error);
+        return;
+      }
+    }
     const isRunActiveForAssistantClaim = (runId: string): boolean => {
       const existingRun = design.runs.get(runId);
       return Boolean(existingRun && !TERMINAL_RUN_STATUSES.has(existingRun.status));
@@ -3296,10 +3820,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         isRunActive: isRunActiveForAssistantClaim,
       });
     } catch (err) {
+      await failDesignGenerationClaim(run, chatProject, preparedDesignGeneration);
       design.runs.drop(run);
       throw err;
     }
     if (!claimed.ok) {
+      await failDesignGenerationClaim(run, chatProject, preparedDesignGeneration);
       design.runs.drop(run);
       return sendApiError(
         res,
@@ -3316,6 +3842,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         ? { byokProvider: requestBody.byokProvider }
         : {}),
     };
+    if (preparedDesignGeneration && chatProject) {
+      reconcileDesignGenerationOnEnd(run, chatProject, preparedDesignGeneration);
+    }
     design.runs.start(run, () => startChatRun(executionMeta, run));
   });
 }

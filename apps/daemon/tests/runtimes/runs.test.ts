@@ -391,6 +391,8 @@ describe('chat run service shutdown', () => {
       clientRequestId: 'brief-recharge-marks',
       requestFingerprint: 'same-logical-request',
       agentId: 'amr',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
     });
     const runStartedAt = Date.now();
     (run as any).analyticsTelemetry = {
@@ -436,6 +438,8 @@ describe('chat run service shutdown', () => {
       clientRequestId: 'brief-1-cloud',
       requestFingerprint: 'same-logical-request',
       agentId: 'amr',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
     });
     (run as any).failureAction = 'recharge';
     runs.emit(run, 'error', {
@@ -459,7 +463,14 @@ describe('chat run service shutdown', () => {
       error: null,
       errorCode: null,
       failureAction: null,
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [
+        { surfaceId: 'billing', file: 'screens/billing.html' },
+      ],
     });
+    expect(run.designGenerationSurfaces).toEqual([
+      { surfaceId: 'billing', file: 'screens/billing.html' },
+    ]);
     expect(run.manualResumeAttemptCount).toBe(1);
     expect(run.rechargeWaitDurationMs).toBe(12_345);
     expect(run.events.at(-1)).toMatchObject({
@@ -1223,6 +1234,8 @@ describe('run event log persistence', () => {
       conversationId: 'c1',
       assistantMessageId: 'm1',
       agentId: 'claude',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
       workspaceScope: {
         schemaVersion: 1,
         projectId: 'p1',
@@ -1237,6 +1250,8 @@ describe('run event log persistence', () => {
       id: run.id,
       status: 'queued',
       assistantMessageId: 'm1',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
       workspaceScope: {
         schemaVersion: 1,
         projectId: 'p1',
@@ -1264,6 +1279,12 @@ describe('run event log persistence', () => {
     run.status = 'running';
     runs.emit(run, 'start', { status: 'running' });
     runs.finish(run, 'failed', 1, null);
+    runs.setDeliverableValidation(run, {
+      valid: true,
+      validation: 'valid',
+      entryFile: 'screens/billing.html',
+      artifactKind: 'html',
+    });
     runs.markAnalyticsCompleted(run);
     runs.markLangfuseCompleted(run);
 
@@ -1275,6 +1296,18 @@ describe('run event log persistence', () => {
         completedAt: expect.any(Number),
       },
       langfuseCompletedAt: expect.any(Number),
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
+      deliverableValid: true,
+      deliverableValidation: 'valid',
+    });
+
+    const restarted = createRunsWithLog(tmpDir);
+    expect(restarted.get(run.id)).toMatchObject({
+      designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
+      deliverableValid: true,
+      deliverableValidation: 'valid',
     });
   });
 

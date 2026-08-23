@@ -33,6 +33,7 @@ import {
   ANALYTICS_HEADER_REQUEST_ID,
   ANALYTICS_HEADER_SESSION_ID,
   buildProjectRawFileUrl,
+  parseDesignGenerationTarget,
   type McpAnalyticsContextResponse,
   type WorkspaceProjectsResponse,
 } from '@open-design/contracts';
@@ -90,7 +91,7 @@ interface ProjectPayload { project?: ProjectSummary; id?: string; name?: string;
 interface ActiveContext { active?: boolean; projectId?: string; projectName?: string | null; fileName?: string | null; ageMs?: number | null }
 type ResolvedProject = { id: string; name: string; source: 'uuid' | 'id' | 'exact' | 'slug' | 'substring' };
 interface ProjectListCache { baseUrl: string; t: number; list: ProjectSummary[] }
-interface McpArgs extends JsonObject { project?: unknown; entry?: unknown; include?: unknown; maxBytes?: unknown; path?: unknown; offset?: unknown; limit?: unknown; since?: unknown; query?: unknown; pattern?: unknown; max?: unknown; name?: unknown; content?: unknown; encoding?: unknown; artifactManifest?: unknown; confirm?: unknown; prompt?: unknown; plugin?: unknown; inputs?: unknown; agent?: unknown; model?: unknown; serviceTier?: unknown; apiKey?: unknown; requestId?: unknown; resume?: unknown; runId?: unknown; id?: unknown; designSystem?: unknown; skill?: unknown; skills?: string[]; includeUnavailable?: unknown; artifactType?: unknown; projectTitle?: unknown; locale?: unknown; knownAnswers?: unknown; skip?: unknown; briefDraftId?: unknown; nonce?: unknown; answers?: unknown; externalPluginContext?: unknown; pluginWorkflowId?: unknown }
+interface McpArgs extends JsonObject { project?: unknown; entry?: unknown; include?: unknown; maxBytes?: unknown; path?: unknown; offset?: unknown; limit?: unknown; since?: unknown; query?: unknown; pattern?: unknown; max?: unknown; name?: unknown; content?: unknown; encoding?: unknown; artifactManifest?: unknown; confirm?: unknown; prompt?: unknown; plugin?: unknown; inputs?: unknown; agent?: unknown; model?: unknown; serviceTier?: unknown; apiKey?: unknown; requestId?: unknown; resume?: unknown; runId?: unknown; id?: unknown; designSystem?: unknown; skill?: unknown; skills?: string[]; includeUnavailable?: unknown; artifactType?: unknown; projectTitle?: unknown; locale?: unknown; knownAnswers?: unknown; skip?: unknown; briefDraftId?: unknown; nonce?: unknown; answers?: unknown; externalPluginContext?: unknown; pluginWorkflowId?: unknown; designGeneration?: unknown }
 interface ProjectFileBundleEntry { name: string; mime: string; size: number | null; content: string | null; binary: boolean }
 interface BundleInput { project: ProjectPayload | ProjectSummary; entry: string; files: ProjectFileBundleEntry[]; truncated: boolean; skippedFileCount?: number; active: ActiveContext | null; resolved?: ResolvedProject | null }
 interface ErrorWithCode { message?: string; code?: string; cause?: { code?: string } }
@@ -787,6 +788,22 @@ export const TOOL_DEFS = [
           type: 'boolean',
           description:
             'Set true only after the user has topped up a paused OpenDesign Cloud run. Reuse the exact original requestId and payload; OpenDesign resumes the same logical run.',
+        },
+        designGeneration: {
+          type: 'object',
+          description: 'Optional progressive-generation target bound to a durable manifest revision. Use only exact surface ids returned by the project design manifest.',
+          properties: {
+            manifestRevision: { type: 'integer', minimum: 1 },
+            surfaceIds: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 3,
+              uniqueItems: true,
+              items: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
+            },
+          },
+          required: ['manifestRevision', 'surfaceIds'],
+          additionalProperties: false,
         },
         pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG,
       },
@@ -2552,6 +2569,9 @@ async function startRun(
   if (args.resume !== undefined) {
     if (typeof args.resume !== 'boolean') throw new Error('resume must be a boolean');
     body.resume = args.resume;
+  }
+  if (args.designGeneration !== undefined) {
+    body.designGeneration = parseDesignGenerationTarget(args.designGeneration);
   }
   if (typeof args.prompt === 'string' && args.prompt.length > 0) {
     body.message = args.prompt;

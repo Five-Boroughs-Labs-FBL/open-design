@@ -139,6 +139,245 @@ describe('POST /api/runs headless fallbacks', () => {
     expect(runBody.assistantMessageId).toBeTruthy();
   });
 
+  it('coordinates revision-bound progressive generation through the run lifecycle', async () => {
+    const binDir = await mkdtemp(path.join(os.tmpdir(), 'od-targeted-qwen-'));
+    const emptyAgentHome = await mkdtemp(path.join(os.tmpdir(), 'od-targeted-agent-home-'));
+    await writeFakeQwen(binDir);
+    process.env.PATH = `${binDir}${path.delimiter}${oldPath ?? ''}`;
+    process.env.OD_AGENT_HOME = emptyAgentHome;
+    try {
+      started = await startTestServer();
+      const { projectId } = await createProject(started.url, 'Progressive generation project');
+      const { projectId: writerProjectId } = await createProject(
+        started.url,
+        'Single writer project',
+      );
+
+      const ordinaryWriter = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: writerProjectId,
+          agentId: 'qwen',
+          message: 'First ordinary writer.',
+          skipDefaultScenario: true,
+        }),
+      });
+      expect(ordinaryWriter.status).toBe(202);
+      const ordinaryWriterBody = await ordinaryWriter.json() as { runId: string };
+      const secondOrdinaryWriter = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: writerProjectId,
+          agentId: 'qwen',
+          message: 'Second ordinary writer must wait.',
+          skipDefaultScenario: true,
+        }),
+      });
+      expect(secondOrdinaryWriter.status).toBe(409);
+      await expect(secondOrdinaryWriter.json()).resolves.toMatchObject({
+        error: { code: 'DESIGN_MANIFEST_WRITER_CONFLICT' },
+      });
+      await fetch(`${started.url}/api/runs/${encodeURIComponent(ordinaryWriterBody.runId)}/cancel`, {
+        method: 'POST',
+      });
+      await waitForRun(started.url, ordinaryWriterBody.runId);
+
+      const manifest = {
+        schema: 'open-design.design-manifest.v2',
+        revision: 1,
+        projectId,
+        entrySurfaceId: 'dashboard',
+        scope: {
+          schema: 'amc.design-scope.v1',
+          scopeId: 'scope-1',
+          revision: 1,
+          intentDigest: 'sha256:test',
+          product: 'A coherent SaaS application',
+        },
+        directionStatus: 'locked',
+        surfaces: [
+          {
+            id: 'dashboard', title: 'Dashboard', purpose: 'Entry', priority: 'primary',
+            kind: 'screen', file: 'index.html', status: 'queued', required: true,
+            states: [], formFactors: ['responsive'], latestRunId: null, updatedAt: null,
+          },
+          {
+            id: 'billing', title: 'Billing', purpose: 'Manage plan', priority: 'required',
+            kind: 'screen', file: 'screens/billing.html', status: 'queued', required: true,
+            states: [], formFactors: ['desktop'], latestRunId: null, updatedAt: null,
+          },
+        ],
+      };
+      const putManifest = await fetch(
+        `${started.url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expectedRevision: 0, manifest }),
+        },
+      );
+      expect(putManifest.status).toBe(200);
+
+      const stale = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          agentId: 'qwen',
+          message: 'Generate billing.',
+          skipDefaultScenario: true,
+          designGeneration: { manifestRevision: 99, surfaceIds: ['billing'] },
+        }),
+      });
+      expect(stale.status).toBe(409);
+      await expect(stale.json()).resolves.toMatchObject({
+        error: { code: 'DESIGN_MANIFEST_REVISION_CONFLICT' },
+      });
+
+      const clientRequestId = randomUUID();
+      const request = {
+        projectId,
+        agentId: 'qwen',
+        message: 'Generate billing.',
+        clientRequestId,
+        skipDefaultScenario: true,
+        designGeneration: { manifestRevision: 1, surfaceIds: ['billing'] },
+      };
+      const startedRunPromise = fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      await waitForManifestClaim(started.url, projectId, 'billing');
+
+      const retryPromise = fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+
+      const claimed = await fetch(
+        `${started.url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+      ).then((response) => response.json()) as { manifest: { revision: number } };
+      expect(claimed.manifest.revision).toBe(2);
+
+      const colliding = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          agentId: 'qwen',
+          message: 'Unscoped collision.',
+          skipDefaultScenario: true,
+        }),
+      });
+      expect(colliding.status).toBe(409);
+      await expect(colliding.json()).resolves.toMatchObject({
+        error: { code: 'DESIGN_MANIFEST_WRITER_CONFLICT' },
+      });
+
+      const retry = await retryPromise;
+      expect(retry.status).toBe(202);
+      const retryBody = await retry.json() as { runId: string; reused: boolean };
+      expect(retryBody).toMatchObject({ reused: true });
+
+      const startedRun = await startedRunPromise;
+      expect(startedRun.status).toBe(202);
+      const startedBody = await startedRun.json() as { runId: string };
+      expect(startedBody.runId).toBe(retryBody.runId);
+
+      const terminal = await waitForRun(started.url, startedBody.runId);
+      expect(terminal).toMatchObject({
+        status: 'succeeded',
+        designGeneration: { manifestRevision: 1, surfaceIds: ['billing'] },
+      });
+      await delay(100);
+      const reconciledRun = await fetch(
+        `${started.url}/api/runs/${encodeURIComponent(startedBody.runId)}`,
+      ).then((response) => response.json()) as Record<string, unknown>;
+      expect(reconciledRun).toMatchObject({ deliverableValidation: 'valid' });
+      const completed = await waitForManifestSurfaceStatus(
+        started.url,
+        projectId,
+        'billing',
+        'complete',
+      );
+      expect(completed)
+        .toMatchObject({ status: 'complete', filePresent: true });
+
+      // A lost-response retry is owned by the persisted fingerprint, not by
+      // whatever the manifest looks like later. Remove the completed surface
+      // and prove the original request still replays the original run.
+      const afterCompletion = await fetch(
+        `${started.url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+      ).then((response) => response.json()) as { manifest: typeof manifest };
+      const editedManifest = {
+        ...afterCompletion.manifest,
+        revision: afterCompletion.manifest.revision + 1,
+        surfaces: afterCompletion.manifest.surfaces.filter((surface) => surface.id !== 'billing'),
+      };
+      const editResponse = await fetch(
+        `${started.url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expectedRevision: afterCompletion.manifest.revision,
+            manifest: editedManifest,
+          }),
+        },
+      );
+      expect(editResponse.status).toBe(200);
+      const lateRetry = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      expect(lateRetry.status).toBe(202);
+      await expect(lateRetry.json()).resolves.toMatchObject({
+        runId: startedBody.runId,
+        reused: true,
+      });
+
+      const currentManifest = await fetch(
+        `${started.url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+      ).then((response) => response.json()) as { manifest: { revision: number } };
+      const failedRun = await fetch(`${started.url}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          agentId: `missing-agent-${randomUUID()}`,
+          message: 'Generate dashboard.',
+          skipDefaultScenario: true,
+          designGeneration: {
+            manifestRevision: currentManifest.manifest.revision,
+            surfaceIds: ['dashboard'],
+          },
+        }),
+      });
+      expect(failedRun.status).toBe(202);
+      const failedBody = await failedRun.json() as { runId: string };
+      await expect(waitForRun(started.url, failedBody.runId)).resolves.toMatchObject({
+        status: 'failed',
+        designGeneration: { surfaceIds: ['dashboard'] },
+      });
+      const failedSurface = await waitForManifestSurfaceStatus(
+        started.url,
+        projectId,
+        'dashboard',
+        'failed',
+      );
+      expect(failedSurface)
+        .toMatchObject({ status: 'failed' });
+    } finally {
+      await rm(binDir, { recursive: true, force: true });
+      await rm(emptyAgentHome, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   it('mints assistantMessageId when conversationId is present but pin id is omitted', async () => {
     started = await startTestServer();
     const { projectId, conversationId } = await createProject(
@@ -858,8 +1097,7 @@ async function restoreAppConfig(url: string, config: Record<string, unknown>): P
 }
 
 async function writeFakeOpencode(dir: string): Promise<string> {
-  const bin = path.join(dir, 'opencode');
-  await writeFile(bin, `#!/usr/bin/env node
+  const script = `
 if (process.argv.includes('--version')) {
   console.log('opencode 0.0.0');
   process.exit(0);
@@ -875,9 +1113,103 @@ if (process.argv[2] === 'run') {
 } else {
   process.exit(0);
 }
-`, 'utf8');
+`;
+  if (process.platform === 'win32') {
+    const runner = path.join(dir, 'opencode-test-runner.cjs');
+    const bin = path.join(dir, 'opencode.cmd');
+    await writeFile(runner, script, 'utf8');
+    await writeFile(bin, `@echo off\r\n"${process.execPath}" "${runner}" %*\r\n`, 'utf8');
+    return bin;
+  }
+  const bin = path.join(dir, 'opencode');
+  await writeFile(bin, `#!/usr/bin/env node\n${script}`, 'utf8');
   await chmod(bin, 0o755);
   return bin;
+}
+
+async function writeFakeQwen(dir: string): Promise<string> {
+  const script = `
+if (process.argv.includes('--version')) {
+  console.log('qwen 0.0.0');
+  process.exit(0);
+}
+setTimeout(() => {
+  console.log('<artifact identifier="billing" type="text/html" title="Billing"><!doctype html><html><body>Billing</body></html></artifact>');
+  process.exit(0);
+}, 10000);
+`;
+  if (process.platform === 'win32') {
+    const runner = path.join(dir, 'qwen-test-runner.cjs');
+    const bin = path.join(dir, 'qwen.cmd');
+    await writeFile(runner, script, 'utf8');
+    await writeFile(bin, `@echo off\r\n"${process.execPath}" "${runner}" %*\r\n`, 'utf8');
+    return bin;
+  }
+  const bin = path.join(dir, 'qwen');
+  await writeFile(bin, `#!/usr/bin/env node\n${script}`, 'utf8');
+  await chmod(bin, 0o755);
+  return bin;
+}
+
+async function waitForRun(url: string, runId: string): Promise<Record<string, unknown>> {
+  for (let attempt = 0; attempt < 800; attempt += 1) {
+    const response = await fetch(`${url}/api/runs/${encodeURIComponent(runId)}`);
+    const body = await response.json() as Record<string, unknown>;
+    if (body.status === 'succeeded' || body.status === 'failed' || body.status === 'canceled') {
+      return body;
+    }
+    await delay(25);
+  }
+  throw new Error(`run ${runId} did not finish`);
+}
+
+async function waitForManifestClaim(
+  url: string,
+  projectId: string,
+  surfaceId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const response = await fetch(
+      `${url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+    );
+    if (response.ok) {
+      const body = await response.json() as {
+        manifest?: { revision?: number; surfaces?: Array<{ id: string; status: string }> };
+      };
+      const surface = body.manifest?.surfaces?.find((candidate) => candidate.id === surfaceId);
+      if (body.manifest?.revision === 2 && surface?.status === 'generating') return;
+    }
+    await delay(25);
+  }
+  throw new Error(`manifest surface ${surfaceId} was not claimed`);
+}
+
+async function waitForManifestSurfaceStatus(
+  url: string,
+  projectId: string,
+  surfaceId: string,
+  status: string,
+): Promise<{ id: string; status: string; filePresent?: boolean }> {
+  let lastSurface: { id: string; status: string; filePresent?: boolean } | undefined;
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const response = await fetch(
+      `${url}/api/projects/${encodeURIComponent(projectId)}/design-manifest`,
+    );
+    if (response.ok) {
+      const body = await response.json() as {
+        manifest?: {
+          surfaces?: Array<{ id: string; status: string; filePresent?: boolean }>;
+        };
+      };
+      const surface = body.manifest?.surfaces?.find((candidate) => candidate.id === surfaceId);
+      lastSurface = surface;
+      if (surface?.status === status) return surface;
+    }
+    await delay(25);
+  }
+  throw new Error(
+    `manifest surface ${surfaceId} did not reach ${status}; last=${JSON.stringify(lastSurface)}`,
+  );
 }
 
 function delay(ms: number): Promise<void> {

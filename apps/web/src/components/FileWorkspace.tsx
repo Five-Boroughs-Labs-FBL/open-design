@@ -71,6 +71,7 @@ import { useKitModuleUpload } from '../runtime/kit-upload';
 import {
   appendResourceQuery,
   workspaceIdentityCacheKey,
+  workspaceProjectHeaders,
 } from '../collab/workspace-identity';
 import {
   DesignKitView,
@@ -104,8 +105,10 @@ import {
 } from '../types';
 import { resolveStreamingHtmlPreviewFile } from './streaming-html-preview';
 import {
+  designManifestPathIdentity,
   resolveLocalizedText,
   type ChatSessionMode,
+  type DesignManifestResponse,
   type InstalledPluginRecord,
   type LocalizedText,
   type WorkspaceCollabContext,
@@ -118,7 +121,11 @@ import {
 import { useProjectCollabContext } from '../collab/collab-context';
 import { createTerminal, killTerminal, listPlugins, moveWorkspaceProject } from '../state/projects';
 import { MoveToTeamConfirmDialog, moveConfirmSkipped } from './MoveToTeamConfirmDialog';
-import { DesignFilesPanel, type DesignFilesNavState } from './DesignFilesPanel';
+import {
+  DesignFilesPanel,
+  type DesignFilesNavState,
+  type DesignManifestCanvasState,
+} from './DesignFilesPanel';
 import {
   DesignBrowserPanel,
   labelFromUrl,
@@ -339,6 +346,7 @@ interface Props {
   onWorkspaceContextsChange?: (contexts: WorkspaceContextItem[]) => void;
   messages?: ChatMessage[];
   artifactHtml?: string | null;
+  artifactFileName?: string | null;
   conversationError?: string | null;
   // Contextual failure recovery, mirrored from the chat error card so the
   // preview surface can offer the same one-click fix (AMR authorize, terminal
@@ -1362,6 +1370,7 @@ export function FileWorkspace({
   onWorkspaceContextsChange,
   messages = [],
   artifactHtml = null,
+  artifactFileName = null,
   conversationId,
   fileActionsBefore,
   headerActions,
@@ -1374,7 +1383,7 @@ export function FileWorkspace({
     await onRefreshFiles();
   }, [onRefreshFiles]);
   const { locale, t } = useI18n();
-  const { workspaceContext } = useProjectCollabContext();
+  const { workspaceContext, workspaceContextLoading } = useProjectCollabContext();
   const iframeKeepAlivePool = useIframeKeepAlivePool();
   const analytics = useAnalytics();
   // P1 page_view page_name=file_manager — once per project the user lands
@@ -1508,6 +1517,10 @@ export function FileWorkspace({
   const openFileRef = useRef<(name: string) => void>(() => {});
   const designFilesNavProjectIdRef = useRef(projectId);
   const designFilesNavRef = useRef<DesignFilesNavState>(createDefaultDesignFilesNavState());
+  const [manifestCanvasState, setManifestCanvasState] = useState<{
+    projectId: string;
+    surfaceFiles: ReadonlySet<string>;
+  } | null>(null);
   if (designFilesNavProjectIdRef.current !== projectId) {
     designFilesNavProjectIdRef.current = projectId;
     designFilesNavRef.current = createDefaultDesignFilesNavState();
@@ -1515,6 +1528,45 @@ export function FileWorkspace({
   const onDesignFilesNavStateChange = useCallback((state: DesignFilesNavState) => {
     designFilesNavRef.current = state;
   }, []);
+  const onManifestCanvasChange = useCallback((state: DesignManifestCanvasState | null) => {
+    if (state && state.projectId !== projectId) return;
+    setManifestCanvasState(state ? {
+      projectId: state.projectId,
+      surfaceFiles: new Set(state.surfaceFiles),
+    } : null);
+  }, [projectId]);
+  useEffect(() => {
+    if (workspaceContextLoading) return;
+    const controller = new AbortController();
+    void Promise.resolve(fetch(`/api/projects/${encodeURIComponent(projectId)}/design-manifest`, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: workspaceContext ? workspaceProjectHeaders(workspaceContext) : undefined,
+    }))
+      .then(async (response) => {
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<DesignManifestResponse>;
+      })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setManifestCanvasState(result ? {
+          projectId,
+          surfaceFiles: new Set(result.manifest.surfaces
+            .filter((surface) => surface.filePresent)
+            .map((surface) => designManifestPathIdentity(surface.file))),
+        } : null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setManifestCanvasState(null);
+      });
+    return () => controller.abort();
+  }, [
+    filesRefreshKey,
+    projectId,
+    workspaceContext,
+    workspaceContextLoading,
+  ]);
 
   // Maps a terminal tab's original session id (the `terminal:<id>` suffix) to
   // the PTY session it is CURRENTLY bound to. Restart rebinds the surface to a
@@ -1640,8 +1692,8 @@ export function FileWorkspace({
     [files],
   );
   const streamingPreviewFile = useMemo(
-    () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles),
-    [artifactHtml, visibleFiles],
+    () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles, artifactFileName),
+    [artifactFileName, artifactHtml, visibleFiles],
   );
   const streamingPreviewIsSynthetic = Boolean(
     streamingPreviewFile
@@ -2062,17 +2114,15 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
 
-  const streamingPreviewOpenedForProjectRef = useRef<string | null>(null);
+  const streamingPreviewOpenedForTargetRef = useRef<string | null>(null);
   useEffect(() => {
-    if (streamingPreviewOpenedForProjectRef.current !== projectId) {
-      streamingPreviewOpenedForProjectRef.current = null;
-    }
     if (!streamingPreviewFile) {
-      streamingPreviewOpenedForProjectRef.current = null;
+      streamingPreviewOpenedForTargetRef.current = null;
       return;
     }
-    if (streamingPreviewOpenedForProjectRef.current === projectId) return;
-    streamingPreviewOpenedForProjectRef.current = projectId;
+    const targetKey = `${projectId}:${streamingPreviewFile.name}`;
+    if (streamingPreviewOpenedForTargetRef.current === targetKey) return;
+    streamingPreviewOpenedForTargetRef.current = targetKey;
     openFile(streamingPreviewFile.name, { forcePersist: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, streamingPreviewFile?.name, artifactHtml == null]);
@@ -3385,6 +3435,15 @@ export function FileWorkspace({
     [slideNavRequest, activeViewerFile?.name, slideNavDeliverableNonce],
   );
   const stableOpenFileReplacing = useStableHandler(openFileReplacing);
+  const stableShowAllDesignScreens = useStableHandler(() => {
+    designFilesNavRef.current = {
+      ...designFilesNavRef.current,
+      currentDir: '',
+      page: 0,
+    };
+    setUploadDir('');
+    setPersistedActive(DESIGN_FILES_TAB);
+  });
   const renderFileViewer = (file: ProjectFile, workspaceActive: boolean) => (
     <FileViewer
       projectId={projectId}
@@ -3406,6 +3465,12 @@ export function FileWorkspace({
       }
       onFileSaved={refreshFilesWithoutResult}
       onOpenFileReplacing={stableOpenFileReplacing}
+      onShowAllScreens={
+        manifestCanvasState?.projectId === projectId
+        && manifestCanvasState.surfaceFiles.has(designManifestPathIdentity(file.name))
+          ? stableShowAllDesignScreens
+          : undefined
+      }
       commentPortalId={workspaceActive ? commentPortalId : undefined}
       onCommentModeChange={workspaceActive ? onCommentModeChange : undefined}
       shareRequest={
@@ -4336,6 +4401,7 @@ export function FileWorkspace({
             folders={projectFolders}
             liveArtifacts={liveArtifactEntries}
             onRefreshFiles={refreshFilesWithoutResult}
+            onManifestCanvasChange={onManifestCanvasChange}
             onCurrentDirChange={setUploadDir}
             navState={designFilesNavRef.current}
             onNavStateChange={onDesignFilesNavStateChange}

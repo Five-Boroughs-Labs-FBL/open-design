@@ -1776,6 +1776,9 @@ interface Props {
   // atomic tab-state update. The React module pointer uses this to jump to the
   // HTML entry that renders a module and drop the dead-end module tab.
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
+  /** Return to the durable manifest canvas. Present only for files that belong
+   * to a validated multi-surface design manifest. */
+  onShowAllScreens?: () => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
   // Bumped nonce asking this viewer to open its Share/Export menu (chat-side
@@ -1869,6 +1872,7 @@ export const FileViewer = memo(function FileViewer({
   onFileSaved,
   onBrandExtractionStopRequest,
   onOpenFileReplacing,
+  onShowAllScreens,
   commentPortalId,
   onCommentModeChange,
   shareRequest,
@@ -1959,6 +1963,7 @@ export const FileViewer = memo(function FileViewer({
         onFileSaved={onFileSaved}
         onBrandExtractionStopRequest={onBrandExtractionStopRequest}
         onOpenFileReplacing={onOpenFileReplacing}
+        onShowAllScreens={onShowAllScreens}
         commentPortalId={commentPortalId}
         onCommentModeChange={onCommentModeChange}
         shareRequest={shareRequest}
@@ -7352,6 +7357,7 @@ function HtmlViewer({
   onFileSaved,
   onBrandExtractionStopRequest,
   onOpenFileReplacing,
+  onShowAllScreens,
   commentPortalId,
   onCommentModeChange,
   shareRequest,
@@ -7388,6 +7394,7 @@ function HtmlViewer({
   onFileSaved?: () => Promise<void> | void;
   onBrandExtractionStopRequest?: () => void;
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
+  onShowAllScreens?: () => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
   shareRequest?: { nonce: number } | null;
@@ -15489,6 +15496,19 @@ function HtmlViewer({
     <div className={`viewer html-viewer${inTabPresent ? ' is-tab-present' : ''}${viewerOnly ? ' html-viewer--viewer-only' : ''}`}>
       <div className="viewer-toolbar">
         <div className="viewer-toolbar-left">
+          {onShowAllScreens ? (
+            <Button
+              variant="ghost"
+              className="viewer-all-screens"
+              data-testid="file-viewer-all-screens"
+              title={t('designFiles.allScreens')}
+              aria-label={t('designFiles.allScreens')}
+              onClick={onShowAllScreens}
+            >
+              <Icon name="grid" size={14} />
+              <span className="viewer-all-screens-label">{t('designFiles.allScreens')}</span>
+            </Button>
+          ) : null}
           {showDeckThumbnailRail ? (
             <button
               type="button"

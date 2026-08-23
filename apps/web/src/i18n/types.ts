@@ -3714,6 +3714,15 @@ export interface Dict {
   'designFiles.expandGroup': string;
   'designFiles.collapseGroup': string;
   'designFiles.sectionPages': string;
+  'designFiles.canvasView': string;
+  'designFiles.allScreens': string;
+  'designFiles.fitCanvas': string;
+  'designFiles.openSurface': string;
+  'designFiles.statusWaived': string;
+  'designFiles.statusMissingFile': string;
+  'designFiles.statusGenerating': string;
+  'designFiles.statusReady': string;
+  'designFiles.manifestUnavailable': string;
   'designFiles.sectionScripts': string;
   'designFiles.sectionImages': string;
   'designFiles.sectionSketches': string;

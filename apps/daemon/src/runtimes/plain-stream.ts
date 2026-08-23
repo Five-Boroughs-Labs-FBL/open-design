@@ -15,6 +15,9 @@ export interface PlainStreamArtifact {
   content: string;
   extension: SupportedArtifactExtension;
   fileName: string;
+  /** Filename inferred from the original declaration before the live preview
+   * aliases its displayed output to index.html. */
+  declaredFileName?: string;
 }
 
 export interface PersistedPlainStreamArtifact {
@@ -23,6 +26,20 @@ export interface PersistedPlainStreamArtifact {
   title: string;
   name: string;
   file: unknown;
+}
+
+export interface DesignGenerationArtifactTarget {
+  surfaceId: string;
+  file: string;
+}
+
+function artifactMatchesDesignTarget(
+  artifact: PlainStreamArtifact,
+  target: DesignGenerationArtifactTarget,
+): boolean {
+  return artifact.identifier
+    ? artifact.identifier === target.surfaceId
+    : (artifact.declaredFileName ?? artifact.fileName) === target.file;
 }
 
 interface RunEventLike {
@@ -114,13 +131,15 @@ export function extractPlainStreamArtifacts(stdout: string): PlainStreamArtifact
     if (artifactType && extension) {
       const title = attrs.title ?? '';
       const identifier = attrs.identifier ?? '';
+      const fileName = `${artifactBaseNameFor({ identifier, title })}${extension}`;
       artifacts.push({
         identifier,
         artifactType,
         title,
         content,
         extension,
-        fileName: `${artifactBaseNameFor({ identifier, title })}${extension}`,
+        fileName,
+        declaredFileName: fileName,
       });
     }
     from = closeStart + CLOSE_TAG.length;
@@ -149,13 +168,16 @@ export function extractOpenPlainStreamArtifact(stdout: string): PlainStreamArtif
   const artifactType = normalizeArtifactType(attrs.type, content);
   const extension = artifactType ? TYPE_TO_EXTENSION.get(artifactType) : undefined;
   if (!artifactType || extension !== '.html') return null;
+  const identifier = attrs.identifier ?? '';
+  const title = attrs.title ?? '';
   return {
-    identifier: attrs.identifier ?? '',
+    identifier,
     artifactType,
-    title: attrs.title ?? '',
+    title,
     content,
     extension,
     fileName: LIVE_HTML_CANVAS_NAME,
+    declaredFileName: `${artifactBaseNameFor({ identifier, title })}.html`,
   };
 }
 
@@ -203,6 +225,7 @@ function toLiveHtmlCanvasArtifact(
     content,
     extension: '.html',
     fileName: LIVE_HTML_CANVAS_NAME,
+    ...(source?.declaredFileName ? { declaredFileName: source.declaredFileName } : {}),
   };
 }
 
@@ -260,9 +283,24 @@ export async function persistLiveHtmlCanvas(options: {
   status: 'streaming' | 'complete';
   metadata?: unknown;
   writeProjectFile?: OverwriteWriteProjectFile;
+  /** Exact manifest claim for a targeted surface; legacy remains index.html. */
+  target?: DesignGenerationArtifactTarget;
 }): Promise<PersistedPlainStreamArtifact> {
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
-  const name = LIVE_HTML_CANVAS_NAME;
+  const target = options.target;
+  // A targeted run gives otherwise-anonymous thought HTML its authoritative
+  // filename. Explicit identifiers remain strict so a model naming the wrong
+  // surface can never overwrite the claimed file (especially index.html).
+  if (
+    target
+    && options.artifact.identifier
+    && !artifactMatchesDesignTarget(options.artifact, target)
+  ) {
+    throw new Error(
+      `live artifact does not match claimed surface ${target.surfaceId} (${target.file})`,
+    );
+  }
+  const name = target?.file ?? LIVE_HTML_CANVAS_NAME;
   const file = await writeProjectFile(
     options.projectsRoot,
     options.projectId,
@@ -291,6 +329,7 @@ export async function persistPlainStreamArtifacts(options: {
   metadata?: unknown;
   writeProjectFile?: WriteProjectFile;
   listFiles?: ListFiles;
+  targets?: DesignGenerationArtifactTarget[];
 }): Promise<PersistedPlainStreamArtifact[]> {
   return persistPlainStreamArtifactList({
     ...options,
@@ -308,12 +347,41 @@ export async function persistPlainStreamArtifactList(options: {
   metadata?: unknown;
   writeProjectFile?: WriteProjectFile;
   listFiles?: ListFiles;
+  /** When present, persist only exact claimed surfaces and overwrite their stable files. */
+  targets?: DesignGenerationArtifactTarget[];
 }): Promise<PersistedPlainStreamArtifact[]> {
   const artifacts = options.artifacts;
   if (artifacts.length === 0) return [];
 
   const listFiles = options.listFiles ?? (defaultListFiles as ListFiles);
   const writeProjectFile = options.writeProjectFile ?? (defaultWriteProjectFile as WriteProjectFile);
+  if (options.targets) {
+    const persisted: PersistedPlainStreamArtifact[] = [];
+    const remaining = [...artifacts];
+    for (const target of options.targets) {
+      const index = remaining.findIndex((artifact) => artifactMatchesDesignTarget(artifact, target));
+      if (index < 0) continue;
+      const [artifact] = remaining.splice(index, 1);
+      if (!artifact) continue;
+      const manifest = artifactManifestFor(artifact, target.file);
+      const file = await (writeProjectFile as OverwriteWriteProjectFile)(
+        options.projectsRoot,
+        options.projectId,
+        target.file,
+        Buffer.from(artifact.content, 'utf8'),
+        { overwrite: true, artifactManifest: manifest },
+        options.metadata,
+      );
+      persisted.push({
+        identifier: target.surfaceId,
+        artifactType: artifact.artifactType,
+        title: artifact.title,
+        name: target.file,
+        file,
+      });
+    }
+    return persisted;
+  }
   const existingFiles = await listFiles(options.projectsRoot, options.projectId, {
     metadata: options.metadata,
   });

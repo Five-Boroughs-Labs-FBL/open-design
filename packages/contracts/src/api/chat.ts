@@ -330,6 +330,8 @@ export interface ChatRunCreateRequest extends ChatRequest {
   /** Client pin id; daemon mints when omitted (API / omit-pin clients). */
   assistantMessageId?: string;
   clientRequestId: string;
+  /** Optional bounded progressive-generation claim against the durable design manifest. */
+  designGeneration?: import('./design-manifest.js').DesignGenerationTarget;
   /** AMC Design gate: same Grok login as AMC planner/builder. */
   amcGrok?: {
     sessionId: string;
@@ -358,6 +360,8 @@ export interface McpRunCreateRequest {
   assistantMessageId?: string;
   /** Stable id generated once per confirmed user action and reused on transport retry. */
   clientRequestId?: string;
+  /** Optional bounded progressive-generation claim against the durable design manifest. */
+  designGeneration?: import('./design-manifest.js').DesignGenerationTarget;
   message?: string;
   agentId?: string;
   skillId?: string;
@@ -642,6 +646,10 @@ export interface ChatRunStatusResponse {
   assistantMessageId: string | null;
   /** Stable caller request id used to suppress duplicate logical runs. */
   clientRequestId?: string | null;
+  /** Durable bounded progressive-generation claim, when this run targets manifest surfaces. */
+  designGeneration?: import('./design-manifest.js').DesignGenerationTarget;
+  /** Server-resolved stable files for the claimed surfaces, in generation order. */
+  designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
   agentId: string | null;
   /** Design system whose prompt context was actually injected for this run. */
   designSystemId?: string | null;

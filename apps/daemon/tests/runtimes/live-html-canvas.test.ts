@@ -1,7 +1,14 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createLiveHtmlCanvasWriter } from '../../src/runtimes/live-html-canvas.js';
-import { LIVE_HTML_CANVAS_NAME } from '../../src/runtimes/plain-stream.js';
+import {
+  LIVE_HTML_CANVAS_NAME,
+  persistLiveHtmlCanvas,
+} from '../../src/runtimes/plain-stream.js';
+import { writeProjectFile } from '../../src/projects.js';
 
 describe('createLiveHtmlCanvasWriter', () => {
   it('writes the first draft immediately and overwrites the same name', async () => {
@@ -96,5 +103,74 @@ describe('createLiveHtmlCanvasWriter', () => {
     await writer.flush('complete');
     expect(writes.at(-1)).toBe(`<!doctype html><html><body>${'x'.repeat(12)}`);
     vi.useRealTimers();
+  });
+
+  it('recovers when thought HTML precedes an identified secondary surface', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-thought-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(path.join(projectDir, 'screens'), { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><title>Entry</title>');
+      const target = { surfaceId: 'billing', file: 'screens/billing.html' };
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        persist: (artifact, status) => persistLiveHtmlCanvas({
+          projectsRoot,
+          projectId: 'project-1',
+          artifact,
+          status,
+          target,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      const thought = '<!doctype html><html><body>Thinking draft</body></html>';
+      writer.note(thought);
+      await Promise.resolve();
+      writer.note([
+        thought,
+        '<artifact identifier="billing" type="text/html">',
+        '<!doctype html><html><body>Billing screen</body></html>',
+        '</artifact>',
+      ].join('\n'));
+
+      await expect(writer.flush('complete')).resolves.toBeUndefined();
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8')).toContain('Entry');
+      expect(await readFile(path.join(projectDir, 'screens', 'billing.html'), 'utf8'))
+        .toContain('Billing screen');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('still rejects when a terminal persist fails after an earlier success', async () => {
+    let attempts = 0;
+    const writer = createLiveHtmlCanvasWriter({
+      delayMs: 0,
+      persist: async () => {
+        attempts += 1;
+        if (attempts > 1) throw new Error('terminal persist failed');
+      },
+    });
+
+    writer.note('<!doctype html><html><body>Initial persisted draft</body></html>');
+    await Promise.resolve();
+    await expect(writer.flush('complete')).rejects.toThrow('terminal persist failed');
+  });
+
+  it('does not clear a persist error when a later ownership check no-ops', async () => {
+    let attempts = 0;
+    const writer = createLiveHtmlCanvasWriter({
+      delayMs: 0,
+      persist: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('draft persist failed');
+        return false;
+      },
+    });
+
+    writer.note('<!doctype html><html><body>Unpersisted draft</body></html>');
+    await Promise.resolve();
+    await expect(writer.flush('complete')).rejects.toThrow('draft persist failed');
   });
 });

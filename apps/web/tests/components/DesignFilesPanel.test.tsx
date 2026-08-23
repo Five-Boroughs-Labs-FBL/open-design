@@ -140,6 +140,129 @@ function clickTab(id: string) {
   fireEvent.click(screen.getByTestId(`design-files-tab-${id}`));
 }
 
+function rawFileFetchCount(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => String(input).includes('/raw/')).length;
+}
+
+describe("DesignFilesPanel design manifest", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("loads the ordered manifest and replaces the ordinary Pages grid with the canvas", async () => {
+    const onManifestCanvasChange = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/design-manifest")) {
+        return new Response(JSON.stringify({
+          manifest: {
+            schema: "open-design.design-manifest.v2",
+            revision: 1,
+            projectId: "test-project",
+            entrySurfaceId: "home",
+            scope: {
+              schema: "amc.design-scope.v1",
+              scopeId: "scope-1",
+              revision: 1,
+              intentDigest: "digest",
+            },
+            directionStatus: "locked",
+            surfaces: [
+              {
+                id: "home",
+                title: "Home",
+                purpose: "Primary landing surface",
+                priority: "primary",
+                kind: "screen",
+                file: "index.html",
+                status: "complete",
+                required: true,
+                states: [],
+                formFactors: ["responsive"],
+                latestRunId: "run-1",
+                updatedAt: "2026-08-22T00:00:00.000Z",
+                filePresent: true,
+              },
+              {
+                id: "checkout",
+                title: "Checkout",
+                purpose: "Finish the purchase",
+                priority: "required",
+                kind: "screen",
+                file: "checkout.html",
+                status: "queued",
+                required: true,
+                states: [],
+                formFactors: ["desktop"],
+                latestRunId: null,
+                updatedAt: null,
+                filePresent: false,
+              },
+            ],
+            coverage: {
+              required: 2,
+              complete: 1,
+              failed: 0,
+              waived: 0,
+              pending: 1,
+              missingSurfaceIds: ["checkout"],
+              percent: 50,
+              ready: false,
+            },
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response("<!doctype html><html><body>Home</body></html>", { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPanel([
+      file({ name: "index.html", kind: "html" }),
+      file({ name: "assets/readme.txt", kind: "text", mime: "text/plain" }),
+    ], { onManifestCanvasChange });
+
+    expect(await screen.findByTestId("design-surface-canvas-viewport")).toBeTruthy();
+    expect(screen.getByTestId("design-files-tab-cat:html").textContent).toContain("2");
+    expect(
+      Array.from(document.querySelectorAll<HTMLElement>("[data-surface-id]"))
+        .map((node) => node.dataset.surfaceId),
+    ).toEqual(["home", "checkout"]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/projects/test-project/design-manifest",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    await waitFor(() => {
+      expect(onManifestCanvasChange).toHaveBeenLastCalledWith({
+        projectId: "test-project",
+        // Only committed, unambiguous files receive the viewer return affordance.
+        surfaceFiles: ["index.html"],
+      });
+    });
+
+    clickTab("folders");
+    fireEvent.click(screen.getByRole("button", { name: /assets/i }));
+    expect(screen.queryByTestId("design-surface-canvas-viewport")).toBeNull();
+    expect(screen.getByTestId("design-file-row-assets/readme.txt")).toBeTruthy();
+  });
+
+  it("keeps imported v1 handoff manifests on the ordinary Pages grid", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      error: { code: "DESIGN_MANIFEST_NOT_FOUND", message: "design manifest not found" },
+    }), { status: 404, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPanel([
+      file({ name: "index.html", kind: "html" }),
+    ]);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByTestId("design-surface-canvas-viewport")).toBeNull();
+    expect(screen.getByTestId("design-file-row-index.html")).toBeTruthy();
+    expect(screen.queryByTestId("design-manifest-error")).toBeNull();
+  });
+});
+
 describe("DesignFilesPanel sections", () => {
   afterEach(() => {
     cleanup();
@@ -583,7 +706,7 @@ describe("DesignFilesPanel page thumbnails", () => {
       }),
     ]);
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rawFileFetchCount(fetchMock)).toBe(0);
     // Over the inline cap the card thumb never URL-loads the iframe; it falls
     // back to the glyph placeholder.
     expect(container.querySelector(".df-card-thumb iframe")).toBeNull();
@@ -642,21 +765,21 @@ describe("DesignFilesPanel page thumbnails", () => {
     await waitFor(() => {
       expect(first.container.querySelector(".df-card-thumb iframe")).toBeTruthy();
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(rawFileFetchCount(fetchMock)).toBe(1);
     first.unmount();
 
     const second = renderPanel([cachedFile]);
     await waitFor(() => {
       expect(second.container.querySelector(".df-card-thumb iframe")).toBeTruthy();
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(rawFileFetchCount(fetchMock)).toBe(1);
     second.unmount();
 
     const changed = renderPanel([{ ...cachedFile, mtime: cachedFile.mtime + 1 }]);
     await waitFor(() => {
       expect(changed.container.querySelector(".df-card-thumb iframe")).toBeTruthy();
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(rawFileFetchCount(fetchMock)).toBe(2);
   });
 
   it("builds the current file thumbnail from the exact viewer source snapshot", async () => {
@@ -684,7 +807,7 @@ describe("DesignFilesPanel page thumbnails", () => {
       expect(iframe?.getAttribute("srcdoc") ?? iframe?.srcdoc ?? "")
         .toContain("Already loaded");
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rawFileFetchCount(fetchMock)).toBe(0);
   });
 
   it("mounts a cached HTML thumbnail with the desktop layout viewport on its first render", () => {

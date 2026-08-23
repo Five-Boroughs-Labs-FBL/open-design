@@ -10,8 +10,11 @@ type StoredHtmlThumbnailSource = Readonly<{
   utf16Bytes: number;
 }>;
 
-const MAX_ENTRIES = 16;
-const MAX_UTF16_BYTES = 16 * 1024 * 1024;
+// A manifest canvas supports up to 60 surfaces. Keep one ordinary-sized source
+// per surface so toggling Canvas/Grid does not immediately refetch most of the
+// board, while retaining a hard byte ceiling for unusually large documents.
+const MAX_ENTRIES = 60;
+const MAX_UTF16_BYTES = 24 * 1024 * 1024;
 
 const sources = new Map<string, StoredHtmlThumbnailSource>();
 const inFlight = new Map<string, Promise<string | null>>();

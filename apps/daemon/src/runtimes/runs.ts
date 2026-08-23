@@ -504,7 +504,25 @@ function atomicWriteJson(filePath, value) {
   }
 }
 
+function normalizeDesignGenerationSurfaces(value) {
+  if (!Array.isArray(value)) return undefined;
+  const surfaces = value
+    .filter((surface) => (
+      surface
+      && typeof surface === 'object'
+      && typeof surface.surfaceId === 'string'
+      && surface.surfaceId
+      && typeof surface.file === 'string'
+      && surface.file
+    ))
+    .map((surface) => ({ surfaceId: surface.surfaceId, file: surface.file }));
+  return surfaces.length === value.length ? surfaces : undefined;
+}
+
 function durableRunState(run) {
+  const designGenerationSurfaces = normalizeDesignGenerationSurfaces(
+    run.designGenerationSurfaces,
+  );
   return {
     schemaVersion: RUN_STATE_SCHEMA_VERSION,
     id: run.id,
@@ -513,6 +531,8 @@ function durableRunState(run) {
     assistantMessageId: run.assistantMessageId,
     clientRequestId: run.clientRequestId,
     requestFingerprint: run.requestFingerprint,
+    ...(run.designGeneration ? { designGeneration: run.designGeneration } : {}),
+    ...(designGenerationSurfaces ? { designGenerationSurfaces } : {}),
     agentId: run.agentId,
     status: run.status,
     createdAt: run.createdAt,
@@ -734,6 +754,13 @@ export function createChatRunService({
         typeof state.clientRequestId === 'string' ? state.clientRequestId : null,
       requestFingerprint:
         typeof state.requestFingerprint === 'string' ? state.requestFingerprint : null,
+      designGeneration:
+        state.designGeneration && typeof state.designGeneration === 'object'
+          ? state.designGeneration
+          : null,
+      designGenerationSurfaces: normalizeDesignGenerationSurfaces(
+        state.designGenerationSurfaces,
+      ),
       agentId: typeof state.agentId === 'string' ? state.agentId : null,
       projectMetadata: null,
       events,
@@ -771,6 +798,13 @@ export function createChatRunService({
         typeof meta.requestFingerprint === 'string' && meta.requestFingerprint
           ? meta.requestFingerprint
           : null,
+      designGeneration:
+        meta.designGeneration && typeof meta.designGeneration === 'object'
+          ? meta.designGeneration
+          : null,
+      designGenerationSurfaces: normalizeDesignGenerationSurfaces(
+        meta.designGenerationSurfaces,
+      ),
       agentId: typeof meta.agentId === 'string' && meta.agentId ? meta.agentId : null,
       projectMetadata:
         meta.projectMetadata && typeof meta.projectMetadata === 'object' && !Array.isArray(meta.projectMetadata)
@@ -966,6 +1000,11 @@ export function createChatRunService({
   };
 
   const get = (id) => runs.get(id) ?? hydrateDurableRun(id);
+  const findByClientRequestId = (clientRequestId) => {
+    if (typeof clientRequestId !== 'string' || !clientRequestId) return null;
+    const runId = runIdsByClientRequestId.get(clientRequestId);
+    return runId ? get(runId) : null;
+  };
   const findByPluginWorkflowId = (pluginWorkflowId) => {
     if (typeof pluginWorkflowId !== 'string' || !pluginWorkflowId) return null;
     const runId = runIdsByPluginWorkflowId.get(pluginWorkflowId);
@@ -1123,6 +1162,10 @@ export function createChatRunService({
     conversationId: run.conversationId,
     assistantMessageId: run.assistantMessageId,
     clientRequestId: run.clientRequestId ?? null,
+    ...(run.designGeneration ? { designGeneration: run.designGeneration } : {}),
+    ...(run.designGenerationSurfaces
+      ? { designGenerationSurfaces: run.designGenerationSurfaces }
+      : {}),
     agentId: run.agentId,
     designSystemId: run.designSystemId ?? null,
     designSystemRequestedId: run.designSystemRequestedId ?? null,
@@ -1575,6 +1618,7 @@ export function createChatRunService({
     start,
     get,
     findByPluginWorkflowId,
+    findByClientRequestId,
     list,
     stream,
     cancel,

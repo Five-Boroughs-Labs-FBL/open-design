@@ -51,4 +51,26 @@ describe('resolveStreamingHtmlPreviewFile', () => {
       index,
     ])).toBe(index);
   });
+
+  it('pins a claimed secondary file instead of index.html', () => {
+    const index = file('index.html');
+    const billing = file('screens/billing.html');
+    expect(resolveStreamingHtmlPreviewFile(
+      '<h1>Billing live</h1>',
+      [index, billing],
+      'screens/billing.html',
+    )).toBe(billing);
+  });
+
+  it('synthesizes the claimed file before its first write lands on disk', () => {
+    expect(resolveStreamingHtmlPreviewFile(
+      '<h1>Billing live</h1>',
+      [file('index.html')],
+      'screens/billing.html',
+    )).toMatchObject({
+      name: 'screens/billing.html',
+      path: 'screens/billing.html',
+      size: 0,
+    });
+  });
 });
