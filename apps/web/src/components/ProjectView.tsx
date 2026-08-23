@@ -5611,6 +5611,14 @@ export function ProjectView({
         let authoritativeReattachArtifactPaths = status.artifactPaths;
         const applyContentDelta = (delta: string) => {
           for (const ev of parser.feed(delta)) {
+            if (
+              ev.type !== 'text'
+              && claimedSurface
+              && ev.identifier
+              && ev.identifier !== claimedSurface.surfaceId
+            ) {
+              continue;
+            }
             if (ev.type === 'artifact:start') {
               liveHtml = '';
               parsedArtifact = {
@@ -5745,6 +5753,14 @@ export function ProjectView({
               if (runMayFinalize && spuriouslyFailedPending) setError(null);
               if (!runMayFinalize) return;
               for (const ev of parser.flush()) {
+                if (
+                  ev.type !== 'text'
+                  && claimedSurface
+                  && ev.identifier
+                  && ev.identifier !== claimedSurface.surfaceId
+                ) {
+                  continue;
+                }
                 if (ev.type === 'artifact:end') {
                   parsedArtifact = parsedArtifact
                     ? { ...parsedArtifact, html: ev.fullContent }
@@ -5792,24 +5808,32 @@ export function ProjectView({
                 // fall back to the current list for legacy messages.
                 const beforeFileNames = new Set(preTurn ?? nextFiles.map((f) => f.name));
                 let recoveredExistingArtifact: ProjectFile | null = null;
-                const artifactToPersist = parsedArtifact?.html
+                const recoveredArtifact = parsedArtifact?.html
                   ? parsedArtifact
                   : artifactFromStandaloneHtml(replayedContent);
+                const artifactToPersist = artifactForClaimedSurface(
+                  recoveredArtifact,
+                  claimedSurface,
+                );
+                if (recoveredArtifact && claimedSurface && !artifactToPersist) {
+                  artifactPersistenceError =
+                    `Artifact identifier does not match claimed surface ${claimedSurface.surfaceId}.`;
+                }
                 if (artifactToPersist?.html) {
                   const producedBeforeFallback = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
                   const runStartedAt = status.createdAt || message.startedAt || message.createdAt;
                   recoveredExistingArtifact =
+                    findExistingArtifactProjectFile(
+                      artifactToPersist,
+                      nextFiles,
+                      { minMtime: runStartedAt },
+                    ) ??
                     await findSameTurnWriteForRecoveredArtifact({
                       artifact: artifactToPersist,
                       sourceText: replayedContent,
                       producedFiles: producedBeforeFallback,
                       readProjectText: readProjectHtml,
-                    }) ??
-                    findExistingArtifactProjectFile(
-                      artifactToPersist,
-                      nextFiles,
-                      { minMtime: runStartedAt },
-                    );
+                    });
                   if (recoveredExistingArtifact) {
                     artifactPersistenceSucceeded = true;
                     savedArtifactRef.current = recoveredExistingArtifact.name;
