@@ -5,6 +5,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProjectView,
+  artifactForClaimedSurface,
   clearStreamingConversationMarker,
   finalizeActiveAssistantMessagesOnStop,
   findExistingArtifactProjectFile,
@@ -248,6 +249,21 @@ async function settleTestClock(): Promise<void> {
 }
 
 describe('terminal replay artifact recovery', () => {
+  it('binds anonymous recovery to the claimed file and rejects a wrong identifier', () => {
+    const claim = { surfaceId: 'billing', file: 'screens/billing.html' };
+    expect(artifactForClaimedSurface({ ...replayArtifact, identifier: '' }, claim))
+      .toMatchObject({ fileName: 'screens/billing.html' });
+    expect(artifactForClaimedSurface({ ...replayArtifact, identifier: 'dashboard' }, claim))
+      .toBeNull();
+  });
+
+  it('reuses only the server-resolved claimed file during recovery', () => {
+    const claimedArtifact = { ...replayArtifact, fileName: 'screens/billing.html' };
+    const wrong = artifactProjectFile('index.html', 2_000);
+    const claimed = artifactProjectFile('screens/billing.html', 2_000);
+    expect(findExistingArtifactProjectFile(claimedArtifact, [wrong, claimed])).toBe(claimed);
+  });
+
   it('only reuses existing artifacts created at or after the current run started', () => {
     const runCreatedAt = 1_000;
     const stale = artifactProjectFile('real-daemon-smoke.html', runCreatedAt - 1);

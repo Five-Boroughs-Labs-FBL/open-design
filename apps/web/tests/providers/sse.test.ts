@@ -2015,7 +2015,10 @@ describe('streamViaDaemon', () => {
       assistantMessageId: 'assistant-1',
       clientRequestId: 'client-1',
     });
-    expect(onRunCreated).toHaveBeenCalledWith('run-1');
+    expect(onRunCreated).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ runId: 'run-1' }),
+    );
     expect(onRunStatus).toHaveBeenCalledWith('queued');
     expect(onRunStatus).toHaveBeenCalledWith('running');
     expect(onRunStatus).toHaveBeenCalledWith('succeeded');
@@ -2042,6 +2045,31 @@ describe('streamViaDaemon', () => {
     });
     expect(handlers.onDelta).toHaveBeenCalledWith('lo');
     expect(handlers.onDone).toHaveBeenCalledWith('lo');
+  });
+
+  it('reports the authoritative live-canvas file from an agent event', async () => {
+    const onLiveHtmlCanvasArtifact = vi.fn();
+    const handlers = { ...createDaemonHandlers(), onLiveHtmlCanvasArtifact };
+    const fetchMock = vi.fn().mockResolvedValueOnce(sseResponse([
+      'id: 8',
+      'event: agent',
+      'data: {"type":"artifact","source":"live-html-canvas","name":"screens/billing.html"}',
+      '',
+      'id: 9',
+      'event: end',
+      'data: {"code":0,"status":"succeeded"}',
+      '',
+      '',
+    ].join('\n')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await reattachDaemonRun({
+      runId: 'run-1',
+      signal: new AbortController().signal,
+      handlers,
+    });
+
+    expect(onLiveHtmlCanvasArtifact).toHaveBeenCalledWith('screens/billing.html');
   });
 
   it('keeps reconnecting when quiet resumed streams only receive keepalives', async () => {

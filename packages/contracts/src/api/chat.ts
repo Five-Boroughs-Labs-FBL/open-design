@@ -454,6 +454,8 @@ export interface ChatRunFeedbackResponse {
 
 export interface ChatRunCreateResponse {
   runId: string;
+  /** Server-resolved stable files for a targeted design-generation run. */
+  designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
   // Daemon-resolved conversation/message ids — populated for MCP /
   // SDK callers that POST /api/runs with only projectId. The web flow
   // normally sends these in already; daemon falls back to the

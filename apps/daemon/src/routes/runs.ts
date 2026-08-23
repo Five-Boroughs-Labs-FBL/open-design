@@ -2237,6 +2237,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       if (!resumeRequested) {
         return res.status(202).json({
           runId: run.id,
+          ...(run.designGenerationSurfaces
+            ? { designGenerationSurfaces: run.designGenerationSurfaces }
+            : {}),
           conversationId: run.conversationId ?? null,
           assistantMessageId: run.assistantMessageId ?? null,
           clientRequestId: run.clientRequestId ?? null,
@@ -2369,6 +2372,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     const body = {
       runId: run.id,
+      ...(run.designGenerationSurfaces
+        ? { designGenerationSurfaces: run.designGenerationSurfaces }
+        : {}),
       conversationId: run.conversationId ?? null,
       assistantMessageId: run.assistantMessageId ?? null,
       clientRequestId: run.clientRequestId ?? null,

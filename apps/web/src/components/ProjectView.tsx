@@ -1703,6 +1703,15 @@ function artifactWithHtml(
       };
 }
 
+export function artifactForClaimedSurface(
+  artifact: Artifact | null,
+  surface: { surfaceId: string; file: string } | undefined,
+): Artifact | null {
+  if (!artifact || !surface) return artifact;
+  if (artifact.identifier && artifact.identifier !== surface.surfaceId) return null;
+  return { ...artifact, fileName: surface.file };
+}
+
 const SHARED_PROJECT_PLACEHOLDER_NAME = '共享项目';
 
 export type ProjectNameAuthorityResolution =
@@ -3681,16 +3690,19 @@ export function ProjectView({
       const ext = artifactExtensionFor(art);
       const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
       const existing = new Set(currentProjectFiles.map((f) => f.name));
-      let fileName = `${baseName}${ext}`;
+      const claimedFileName = art.fileName?.trim();
+      let fileName = claimedFileName || `${baseName}${ext}`;
       // A non-empty identifier is stable artifact identity: when its canonical
       // filename already exists, update that file in place. Title- and
       // fallback-derived names still suffix collisions so new artifacts cannot
       // silently replace unrelated project files.
       const updatesExplicitlyIdentifiedFile =
-        Boolean(art.identifier?.trim()) && existing.has(fileName);
+        Boolean(claimedFileName)
+        || (Boolean(art.identifier?.trim()) && existing.has(fileName));
       let collisionFileName = fileName;
       let n = 2;
       while (
+        !claimedFileName &&
         existing.has(collisionFileName) &&
         savedArtifactRef.current !== collisionFileName
       ) {
@@ -3698,7 +3710,10 @@ export function ProjectView({
         n += 1;
       }
       if (!updatesExplicitlyIdentifiedFile) fileName = collisionFileName;
-      if (ext === '.html') {
+      // A server-issued claimed filename is authoritative. Pointer-style HTML
+      // is a legacy recovery convention and must never redirect a claimed
+      // secondary surface back to index.html (or any other project file).
+      if (ext === '.html' && !claimedFileName) {
         const pointerProjectFiles = filterProjectFilesByMinMtime(
           currentProjectFiles,
           options.pointerMinMtime,
@@ -5344,7 +5359,8 @@ export function ProjectView({
             true,
           );
         }
-        const claimedPreviewFile = status.designGenerationSurfaces?.[0]?.file;
+        const claimedSurface = status.designGenerationSurfaces?.[0];
+        const claimedPreviewFile = claimedSurface?.file;
 
         if (shouldReplayTerminalRunMessage(message)) {
           const replayedContent = textContentFromAgentEvents(message.events);
@@ -5414,27 +5430,35 @@ export function ProjectView({
             const beforeFileNames = new Set(
               message.preTurnFileNames ?? nextFiles.map((f) => f.name),
             );
-            const artifactToPersist = parsedArtifact?.html
+            const recoveredArtifact = parsedArtifact?.html
               ? parsedArtifact
               : artifactFromStandaloneHtml(replayedContent);
+            const artifactToPersist = artifactForClaimedSurface(
+              recoveredArtifact,
+              claimedSurface,
+            );
             let recoveredExistingArtifact: ProjectFile | null = null;
             let artifactPersistenceSucceeded = false;
             let artifactPersistenceError: string | undefined;
+            if (recoveredArtifact && claimedSurface && !artifactToPersist) {
+              artifactPersistenceError =
+                `Artifact identifier does not match claimed surface ${claimedSurface.surfaceId}.`;
+            }
             if (artifactToPersist?.html) {
               const producedBeforeFallback = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
               const runStartedAt = status.createdAt || message.startedAt || message.createdAt;
               recoveredExistingArtifact =
+                findExistingArtifactProjectFile(
+                  artifactToPersist,
+                  nextFiles,
+                  { minMtime: runStartedAt },
+                ) ??
                 await findSameTurnWriteForRecoveredArtifact({
                   artifact: artifactToPersist,
                   sourceText: replayedContent,
                   producedFiles: producedBeforeFallback,
                   readProjectText: readProjectHtml,
-                }) ??
-                findExistingArtifactProjectFile(
-                  artifactToPersist,
-                  nextFiles,
-                  { minMtime: runStartedAt },
-                );
+                });
               if (recoveredExistingArtifact) {
                 artifactPersistenceSucceeded = true;
                 savedArtifactRef.current = recoveredExistingArtifact.name;
@@ -5691,6 +5715,10 @@ export function ProjectView({
             },
             onArtifactCount: (count) => {
               daemonArtifactCount = count;
+            },
+            onLiveHtmlCanvasArtifact: (fileName) => {
+              requestOpenFile(fileName);
+              void refreshProjectFiles();
             },
             onDone: async () => {
               // A reattached run interrupted by a "send now" still receives a
@@ -6286,6 +6314,12 @@ export function ProjectView({
           const runId = message.runId;
           if (!runId) continue;
 
+          const latestRunStatus = await fetchChatRunStatus(
+            runId,
+            projectRunWorkspaceContext,
+          ).catch(() => null);
+          const claimedSurface = latestRunStatus?.designGenerationSurfaces?.[0];
+
           const sourceText = message.content.trim().length > 0
             ? message.content
             : textContentFromAgentEvents(message.events);
@@ -6301,30 +6335,43 @@ export function ProjectView({
                 artifactType: ev.artifactType,
                 title: ev.title,
                 html: '',
+                ...(claimedSurface?.file ? { fileName: claimedSurface.file } : {}),
               };
               setArtifact(parsedArtifact);
             } else if (ev.type === 'artifact:chunk') {
               liveHtml += ev.delta;
-              parsedArtifact = artifactWithHtml(parsedArtifact, ev.identifier, liveHtml);
+              parsedArtifact = artifactWithHtml(
+                parsedArtifact,
+                ev.identifier,
+                liveHtml,
+                claimedSurface?.file,
+              );
               setArtifact((prev) =>
-                artifactWithHtml(prev, ev.identifier, liveHtml),
+                artifactWithHtml(prev, ev.identifier, liveHtml, claimedSurface?.file),
               );
             } else if (ev.type === 'artifact:end') {
-              parsedArtifact = artifactWithHtml(parsedArtifact, ev.identifier, ev.fullContent);
+              parsedArtifact = artifactWithHtml(
+                parsedArtifact,
+                ev.identifier,
+                ev.fullContent,
+                claimedSurface?.file,
+              );
               setArtifact((prev) =>
-                prev ? artifactWithHtml(prev, ev.identifier, ev.fullContent) : null,
+                prev
+                  ? artifactWithHtml(prev, ev.identifier, ev.fullContent, claimedSurface?.file)
+                  : null,
               );
             }
           }
 
-          const artifactToPersist = parsedArtifact?.html
+          const recoveredArtifact = parsedArtifact?.html
             ? parsedArtifact
             : artifactFromStandaloneHtml(sourceText);
+          const artifactToPersist = artifactForClaimedSurface(
+            recoveredArtifact,
+            claimedSurface,
+          );
           if (!artifactToPersist?.html) continue;
-          const latestRunStatus = await fetchChatRunStatus(
-            runId,
-            projectRunWorkspaceContext,
-          ).catch(() => null);
           let nextFiles = await refreshProjectFiles();
           if (cancelled) return;
           const beforeFileNames = new Set(
@@ -6334,17 +6381,17 @@ export function ProjectView({
             latestRunStatus?.createdAt || message.startedAt || message.createdAt;
           const producedBeforeFallback = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
           let recoveredExistingArtifact =
+            findExistingArtifactProjectFile(
+              artifactToPersist,
+              nextFiles,
+              { minMtime: runStartedAt },
+            ) ??
             await findSameTurnWriteForRecoveredArtifact({
               artifact: artifactToPersist,
               sourceText,
               producedFiles: producedBeforeFallback,
               readProjectText: readProjectHtml,
-            }) ??
-            findExistingArtifactProjectFile(
-              artifactToPersist,
-              nextFiles,
-              { minMtime: runStartedAt },
-            );
+            });
           if (recoveredExistingArtifact) {
             savedArtifactRef.current = recoveredExistingArtifact.name;
             requestOpenFile(recoveredExistingArtifact.name);
@@ -6934,6 +6981,7 @@ export function ProjectView({
       // that just failed in the current session (the daemon status fetch is only
       // needed on reload, not for runs that are already known to have failed).
       let currentRunId: string | undefined = undefined;
+      let currentClaimedSurface: { surfaceId: string; file: string } | undefined;
       let daemonArtifactCount: number | undefined;
       const updateConversationLatestRun = (
         status: NonNullable<ChatMessage['runStatus']>,
@@ -7301,6 +7349,15 @@ export function ProjectView({
 
       const applyContentDelta = (delta: string) => {
         for (const ev of parser.feed(delta)) {
+          if (
+            ev.type !== 'text'
+            && currentClaimedSurface
+            && ev.identifier
+            && ev.identifier !== currentClaimedSurface.surfaceId
+          ) {
+            continue;
+          }
+          const claimedFileName = currentClaimedSurface?.file;
           if (ev.type === 'artifact:start') {
             liveHtml = '';
             parsedArtifact = {
@@ -7308,6 +7365,7 @@ export function ProjectView({
               artifactType: ev.artifactType,
               title: ev.title,
               html: '',
+              ...(claimedFileName ? { fileName: claimedFileName } : {}),
             };
             setArtifact(parsedArtifact);
           } else if (ev.type === 'artifact:chunk') {
@@ -7318,6 +7376,7 @@ export function ProjectView({
                   identifier: ev.identifier,
                   title: '',
                   html: liveHtml,
+                  ...(claimedFileName ? { fileName: claimedFileName } : {}),
                 };
             setArtifact((prev) =>
               prev
@@ -7326,6 +7385,7 @@ export function ProjectView({
                     identifier: ev.identifier,
                     title: '',
                     html: liveHtml,
+                    ...(claimedFileName ? { fileName: claimedFileName } : {}),
                   },
             );
           } else if (ev.type === 'artifact:end') {
@@ -7335,6 +7395,7 @@ export function ProjectView({
                   identifier: ev.identifier,
                   title: '',
                   html: ev.fullContent,
+                  ...(claimedFileName ? { fileName: claimedFileName } : {}),
                 };
             setArtifact((prev) => (prev ? { ...prev, html: ev.fullContent } : null));
           }
@@ -7381,6 +7442,12 @@ export function ProjectView({
         },
         onArtifactCount: (count: number) => {
           daemonArtifactCount = count;
+        },
+        onLiveHtmlCanvasArtifact: (fileName: string) => {
+          // Anonymous thought HTML never enters the browser's <artifact>
+          // parser. The daemon's successful write is the filename authority.
+          requestOpenFile(fileName);
+          void refreshProjectFiles();
         },
         onToolInputDelta: (id: string, name: string, delta: string) => {
           setLiveToolInput((prev) => ({
@@ -8025,7 +8092,8 @@ export function ProjectView({
           titleGeneration: isFirstTurn ? { enabled: true } : undefined,
           locale,
           ...(runAnalyticsHints ? { analyticsHints: runAnalyticsHints } : {}),
-          onRunCreated: (runId) => {
+          onRunCreated: (runId, created) => {
+            currentClaimedSurface = created?.designGenerationSurfaces?.[0];
             const resolvedTaskAnalytics = {
               ...taskAnalytics,
               initialRunId: taskAnalytics.initialRunId ?? runId,
@@ -11647,6 +11715,13 @@ export function findExistingArtifactProjectFile(
   const baseName = artifactBaseNameFor(art);
   const candidateFileName = `${baseName}${ext}`;
   const currentRunFiles = filterProjectFilesByMinMtime(projectFiles, options.minMtime);
+
+  if (art.fileName) {
+    const claimed = currentRunFiles.find(
+      (file) => file.name === art.fileName || file.path === art.fileName,
+    );
+    if (claimed) return claimed;
+  }
 
   if (ext === '.html') {
     const pointerTarget = resolveHtmlPointerArtifactTarget({

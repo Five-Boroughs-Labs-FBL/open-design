@@ -35,7 +35,7 @@ export interface LiveArtifactRefreshSsePayload {
 
 export interface PlainStreamArtifactSsePayload {
   type: 'artifact';
-  source: 'plain-stream';
+  source: 'plain-stream' | 'live-html-canvas';
   name: string;
   path?: string;
   identifier?: string;
