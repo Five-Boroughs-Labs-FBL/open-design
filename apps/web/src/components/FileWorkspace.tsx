@@ -2114,17 +2114,15 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
 
-  const streamingPreviewOpenedForProjectRef = useRef<string | null>(null);
+  const streamingPreviewOpenedForTargetRef = useRef<string | null>(null);
   useEffect(() => {
-    if (streamingPreviewOpenedForProjectRef.current !== projectId) {
-      streamingPreviewOpenedForProjectRef.current = null;
-    }
     if (!streamingPreviewFile) {
-      streamingPreviewOpenedForProjectRef.current = null;
+      streamingPreviewOpenedForTargetRef.current = null;
       return;
     }
-    if (streamingPreviewOpenedForProjectRef.current === projectId) return;
-    streamingPreviewOpenedForProjectRef.current = projectId;
+    const targetKey = `${projectId}:${streamingPreviewFile.name}`;
+    if (streamingPreviewOpenedForTargetRef.current === targetKey) return;
+    streamingPreviewOpenedForTargetRef.current = targetKey;
     openFile(streamingPreviewFile.name, { forcePersist: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, streamingPreviewFile?.name, artifactHtml == null]);
