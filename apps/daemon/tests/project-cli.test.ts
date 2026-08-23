@@ -84,6 +84,34 @@ async function startProjectStubServer(): Promise<StubServer> {
         res.end(JSON.stringify({ files: [] }));
         return;
       }
+      if (captured.method === 'GET' && captured.url === '/api/projects/project-1/design-manifest') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({
+          manifest: {
+            schema: 'open-design.design-manifest.v2',
+            revision: 1,
+            projectId: 'project-1',
+            coverage: { required: 2, complete: 1, ready: false },
+          },
+        }));
+        return;
+      }
+      if (captured.method === 'PUT' && captured.url === '/api/projects/project-1/design-manifest') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({
+          manifest: {
+            ...JSON.parse(captured.body).manifest,
+            revision: 2,
+            coverage: { required: 1, complete: 1, ready: true },
+          },
+        }));
+        return;
+      }
+      if (captured.method === 'POST' && captured.url === '/api/runs') {
+        res.statusCode = 202;
+        res.end(JSON.stringify({ runId: 'run-targeted-1' }));
+        return;
+      }
       if (
         captured.method === 'DELETE'
         && captured.url === '/api/projects/project-1/files/nested%2Findex.html/publish-public'
@@ -224,6 +252,42 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 describe('od project CLI', () => {
+  it('gets and puts project design manifests through the shared API', async () => {
+    stub = await startProjectStubServer();
+    const get = await runCli([
+      'project', 'design-manifest', 'get', 'project-1',
+      '--daemon-url', stub.baseUrl, '--workspace', 'ws-1',
+      '--workspace-member', 'member-1', '--json',
+    ]);
+    expect(get.code).toBe(0);
+    expect(JSON.parse(get.stdout).manifest.revision).toBe(1);
+
+    tempRoot = mkdtempSync(join(tmpdir(), 'od-manifest-cli-'));
+    const manifestPath = join(tempRoot, 'manifest.json');
+    writeFileSync(manifestPath, JSON.stringify({
+      manifest: {
+        schema: 'open-design.design-manifest.v2',
+        revision: 2,
+        projectId: 'project-1',
+        entrySurfaceId: 'dashboard',
+        scope: { schema: 'amc.design-scope.v1', scopeId: 'scope-1', revision: 1, intentDigest: 'sha256:abc' },
+        directionStatus: 'locked',
+        surfaces: [],
+      },
+    }));
+    const put = await runCli([
+      'project', 'design-manifest', 'put', 'project-1', '--file', manifestPath,
+      '--expected-revision', '1', '--daemon-url', stub.baseUrl,
+      '--workspace', 'ws-1', '--workspace-member', 'member-1', '--json',
+    ]);
+    expect(put.code).toBe(0);
+    expect(JSON.parse(put.stdout).manifest.revision).toBe(2);
+    const request = stub.requests.find((item) =>
+      item.method === 'PUT' && item.url === '/api/projects/project-1/design-manifest');
+    expect(JSON.parse(request?.body ?? '{}').expectedRevision).toBe(1);
+    expect(request?.headers['x-od-workspace-id']).toBe('ws-1');
+  });
+
   it('documents exact workspace identity for bound project and file commands', async () => {
     const projectHelp = await runCli(['project', 'help']);
     const filesHelp = await runCli(['files', 'help']);
@@ -234,6 +298,23 @@ describe('od project CLI', () => {
     expect(projectHelp.stdout).toContain('--workspace-member <id>');
     expect(filesHelp.stdout).toContain('--workspace <id>');
     expect(filesHelp.stdout).toContain('--workspace-member <id>');
+  });
+
+  it('forwards a bounded design-generation target from od run start', async () => {
+    stub = await startProjectStubServer();
+    const result = await runCli([
+      'run', 'start', '--project', 'project-1', '--message', 'Generate surfaces',
+      '--surface-ids', 'dashboard,billing', '--expected-revision', '4',
+      '--daemon-url', stub.baseUrl, '--json',
+    ]);
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ runId: 'run-targeted-1' });
+    const request = stub.requests.find((item) =>
+      item.method === 'POST' && item.url === '/api/runs');
+    expect(JSON.parse(request?.body ?? '{}').designGeneration).toEqual({
+      manifestRevision: 4,
+      surfaceIds: ['dashboard', 'billing'],
+    });
   });
 
   it.each([

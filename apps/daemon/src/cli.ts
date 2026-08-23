@@ -248,7 +248,8 @@ const PROJECT_STRING_FLAGS = new Set([
   'prompt-file', 'path', 'dir', 'as', 'url',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
-  'source',
+  'source', 'file', 'expected-revision',
+  'surface-ids',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -6886,6 +6887,11 @@ async function runProject(args) {
                     [--design-system <id>] [--json]
   od project list                         List projects.
   od project info <id>                    Print one project.
+  od project design-manifest get <id> [--json]
+                    Read the normalized v2 manifest and derived coverage.
+  od project design-manifest put <id> --file <path|-> --expected-revision <n>
+                    [--json]
+                    Replace the manifest with optimistic revision checking.
   od project delete <id>                  Delete a project.
   od project revoke-public-link <id> --path <file> --url <public-url>
                     Revoke a public file link whose local publication record
@@ -6927,6 +6933,55 @@ Common options:
   const explicitWorkspaceHeaders = workspaceHeadersFromExplicitFlags(flags);
   const workspaceHeaders = explicitWorkspaceHeaders ?? {};
   switch (sub) {
+    case 'design-manifest': {
+      const parts = collectCliPositionals(rest, PROJECT_RESOURCE_STRING_FLAGS);
+      const action = parts[0];
+      const id = parts[1];
+      if (!id || (action !== 'get' && action !== 'put')) {
+        console.error('Usage: od project design-manifest get <id> [--json] | put <id> --file <path|-> --expected-revision <n> [--json]');
+        process.exit(2);
+      }
+      const url = `${base}/api/projects/${encodeURIComponent(id)}/design-manifest`;
+      if (action === 'get') {
+        const resp = await fetch(url, { headers: workspaceHeaders });
+        if (!resp.ok) return structuredHttpFailure(resp);
+        const data = await resp.json();
+        if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        const coverage = data?.manifest?.coverage ?? {};
+        console.log(
+          `[project] design manifest ${id} rev ${data?.manifest?.revision ?? '-'}: `
+          + `${coverage.complete ?? 0}/${coverage.required ?? 0} required surfaces complete`
+          + (coverage.ready ? ' (ready)' : ''),
+        );
+        return;
+      }
+      const file = typeof flags.file === 'string' ? flags.file : '';
+      const expectedRevision = Number(flags['expected-revision']);
+      if (!file || !Number.isInteger(expectedRevision) || expectedRevision < 0) {
+        console.error('od project design-manifest put requires --file <path|-> and --expected-revision <non-negative integer>');
+        process.exit(2);
+      }
+      const parsed = safeReadJsonFile(file);
+      if (!parsed || typeof parsed !== 'object') {
+        console.error(`Unable to read a JSON design manifest from ${file}`);
+        process.exit(2);
+      }
+      // Accept either a raw manifest file or the wrapper emitted by `get --json`
+      // so an agent can round-trip without a jq reshaping step.
+      const manifest = parsed.manifest && typeof parsed.manifest === 'object'
+        ? parsed.manifest
+        : parsed;
+      const resp = await fetch(url, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', ...workspaceHeaders },
+        body: JSON.stringify({ expectedRevision, manifest }),
+      });
+      if (!resp.ok) return structuredHttpFailure(resp);
+      const data = await resp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(`[project] updated design manifest ${id} to rev ${data?.manifest?.revision ?? '-'}`);
+      return;
+    }
     case 'list': {
       // After 0.18.0's workspace isolation, GET /api/projects is the NO-SCOPE
       // catalog: it only returns projects that were never adopted into a
@@ -7517,6 +7572,7 @@ async function runRun(args) {
     console.log(`Usage:
   od run start --project <projectId> [--conversation <id>] [--message "<text>"]
                [--plugin <id>] [--inputs <json>] [--grant-caps a,b]
+               [--surface-ids id[,id...] --expected-revision <n>]
                [--agent claude|codex|opencode] [--model <id>] [--service-tier <id>]
                [--workspace <id> --workspace-member <id>] [--follow] [--json]
   od run redesign [--path <folder>] [--message "<text>" | --prompt-file <path|->]
@@ -7757,6 +7813,24 @@ Common options:
         body.grantCaps = String(flags['grant-caps']).split(',').map((c) => c.trim()).filter(Boolean);
       }
       if (flags['snapshot-id']) body.appliedPluginSnapshotId = flags['snapshot-id'];
+      if (flags['surface-ids'] !== undefined || flags['expected-revision'] !== undefined) {
+        const surfaceIds = String(flags['surface-ids'] ?? '')
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean);
+        const manifestRevision = Number(flags['expected-revision']);
+        if (
+          surfaceIds.length < 1
+          || surfaceIds.length > 3
+          || new Set(surfaceIds).size !== surfaceIds.length
+          || !Number.isInteger(manifestRevision)
+          || manifestRevision < 1
+        ) {
+          console.error('--surface-ids requires 1-3 unique comma-separated ids and --expected-revision requires a positive integer');
+          process.exit(2);
+        }
+        body.designGeneration = { manifestRevision, surfaceIds };
+      }
       const resp = await fetch(`${base}/api/runs`, {
         method:  'POST',
         headers: { 'content-type': 'application/json', ...workspaceHeaders },

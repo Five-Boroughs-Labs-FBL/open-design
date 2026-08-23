@@ -374,6 +374,121 @@ describe('plain stream artifact extraction', () => {
     }
   });
 
+  it('overwrites only exact targeted stable files and ignores a generic artifact', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-screens-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(path.join(projectDir, 'screens'), { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><title>Entry</title>');
+      await writeFile(path.join(projectDir, 'screens', 'billing.html'), '<!doctype html><title>Old</title>');
+      const artifacts = extractPlainStreamArtifacts([
+        '<artifact identifier="generic" type="text/html"><!doctype html><title>Wrong</title></artifact>',
+        '<artifact identifier="billing" type="text/html"><!doctype html><title>New</title></artifact>',
+      ].join(''));
+
+      const written = await persistPlainStreamArtifactList({
+        projectsRoot,
+        projectId: 'project-1',
+        artifacts,
+        targets: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
+        writeProjectFile: writeProjectFile as any,
+      });
+
+      expect(written.map((file) => file.name)).toEqual(['screens/billing.html']);
+      expect(await readFile(path.join(projectDir, 'screens', 'billing.html'), 'utf8')).toContain('New');
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8')).toContain('Entry');
+      expect((await listFiles(projectsRoot, 'project-1')).some((file) => file.name === 'generic.html'))
+        .toBe(false);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('streams a targeted secondary surface without overwriting index.html', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(path.join(projectDir, 'screens'), { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><title>Entry</title>');
+      const artifact = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="billing" type="text/html"><!doctype html><title>Billing</title></artifact>',
+      )!;
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'complete',
+        target: { surfaceId: 'billing', file: 'screens/billing.html' },
+        writeProjectFile: writeProjectFile as any,
+      });
+
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8')).toContain('Entry');
+      expect(await readFile(path.join(projectDir, 'screens', 'billing.html'), 'utf8')).toContain('Billing');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a generic live artifact for a claimed secondary surface', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-mismatch-'));
+    try {
+      const artifact = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="generic" type="text/html"><!doctype html><title>Wrong</title></artifact>',
+      )!;
+      await expect(persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'complete',
+        target: { surfaceId: 'billing', file: 'screens/billing.html' },
+        writeProjectFile: writeProjectFile as any,
+      })).rejects.toThrow('does not match claimed surface billing');
+      await expect(readFile(
+        path.join(projectsRoot, 'project-1', 'screens', 'billing.html'),
+        'utf8',
+      )).rejects.toThrow();
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not let a wrong identifier claim a target through its filename', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-id-authority-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><title>Original</title>');
+      const wrong = {
+        ...extractLiveHtmlCanvasArtifact(
+          '<artifact identifier="other-surface" type="text/html"><!doctype html><title>Wrong</title></artifact>',
+        )!,
+        fileName: 'index.html',
+        declaredFileName: 'index.html',
+      };
+
+      await expect(persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: wrong,
+        status: 'complete',
+        target: { surfaceId: 'dashboard', file: 'index.html' },
+        writeProjectFile: writeProjectFile as any,
+      })).rejects.toThrow('does not match claimed surface dashboard');
+
+      const written = await persistPlainStreamArtifactList({
+        projectsRoot,
+        projectId: 'project-1',
+        artifacts: [wrong],
+        targets: [{ surfaceId: 'dashboard', file: 'index.html' }],
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written).toEqual([]);
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8')).toContain('Original');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('writes streaming drafts that still contain publication placeholders', async () => {
     const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-placeholder-'));
     try {

@@ -49,6 +49,18 @@
   }
 }
 .viewer-toolbar-left { display: inline-flex; align-items: center; gap: 8px; }
+.viewer-toolbar .viewer-all-screens {
+  height: 28px;
+  min-width: 0;
+  gap: 5px;
+  padding-inline: 7px;
+  border-color: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.viewer-toolbar .viewer-all-screens:hover:not(:disabled) {
+  color: var(--text);
+}
 .viewer-toolbar-actions { display: inline-flex; gap: 2px; align-items: center; }
 /* Wraps the icon-action group (screenshot/comment/mark/edit/comment-count/
    zoom) as a single unit `.viewer-toolbar-actions` can hide via the 600px
@@ -186,6 +198,9 @@
 }
 
 @container (max-width: 500px) {
+  .viewer-all-screens-label {
+    display: none;
+  }
   .viewer-preview-toolbar-inline,
   .viewer-toolbar-left > .file-version-trigger {
     display: none;

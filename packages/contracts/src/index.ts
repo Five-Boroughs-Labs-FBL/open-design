@@ -16,6 +16,7 @@ export * from './api/brief.js';
 export * from './api/chat.js';
 export * from './api/community.js';
 export * from './api/context.js';
+export * from './api/design-manifest.js';
 export * from './api/connectors.js';
 export * from './api/comments.js';
 export * from './api/collab.js';

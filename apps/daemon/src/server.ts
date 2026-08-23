@@ -9673,6 +9673,8 @@ export async function startServer({
       titleGeneration,
       byokProvider,
       byokMediaDefaults,
+      designGenerationDirective,
+      designGenerationSurfaces = [],
     } = chatBody;
     lifecycle.mark('prompt_build_start');
     if (typeof projectId === 'string' && projectId) run.projectId = projectId;
@@ -9712,6 +9714,9 @@ export async function startServer({
     if (typeof model === 'string' && model) run.model = model;
     if (typeof reasoning === 'string' && reasoning) run.reasoning = reasoning;
     if (typeof serviceTier === 'string' && serviceTier) run.serviceTier = serviceTier;
+    if (chatBody.designGeneration && typeof chatBody.designGeneration === 'object') {
+      run.designGeneration = chatBody.designGeneration;
+    }
     if (typeof skillId === 'string' && skillId) run.skillId = skillId;
     if (typeof designSystemId === 'string' && designSystemId)
       run.designSystemId = designSystemId;
@@ -10635,8 +10640,8 @@ export async function startServer({
     // giving the model the current MCP auth state on every turn.
     const mcpConnectedDirective = renderConnectedExternalMcpDirective(connectedExternalMcp);
     const clientInstructionParts = includeStableInstructions
-      ? [researchCommandContract, runContextPrompt, mcpConnectedDirective, browserUsePromptGuard, titleGenerationPrompt, systemPrompt]
-      : [researchCommandContract, runContextPrompt, mcpConnectedDirective, browserUsePromptGuard, titleGenerationPrompt];
+      ? [researchCommandContract, runContextPrompt, mcpConnectedDirective, browserUsePromptGuard, titleGenerationPrompt, designGenerationDirective, systemPrompt]
+      : [researchCommandContract, runContextPrompt, mcpConnectedDirective, browserUsePromptGuard, titleGenerationPrompt, designGenerationDirective];
     const clientInstructionPrompt = clientInstructionParts
       .map((part) => (typeof part === 'string' ? part.trim() : ''))
       .filter(Boolean)
@@ -10866,6 +10871,9 @@ export async function startServer({
             status: canvasStatus,
             metadata: project?.metadata,
             writeProjectFile,
+            ...(designGenerationSurfaces[0]?.file
+              ? { target: designGenerationSurfaces[0] }
+              : {}),
           });
           if (!liveHtmlCanvasAnnounced) {
             liveHtmlCanvasAnnounced = true;
@@ -14014,6 +14022,13 @@ export async function startServer({
               artifacts: artifactsToPersist,
               metadata: project?.metadata,
               writeProjectFile,
+              ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
+                ? {
+                    targets: liveHtmlCanvas?.wrote
+                      ? designGenerationSurfaces.slice(1)
+                      : designGenerationSurfaces,
+                  }
+                : {}),
             });
             if (persistedStreamedArtifacts.length > 0) {
               for (const artifact of persistedStreamedArtifacts) {
@@ -14085,6 +14100,9 @@ export async function startServer({
               artifacts: plainArtifacts,
               metadata: project?.metadata,
               writeProjectFile,
+              ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
+                ? { targets: designGenerationSurfaces }
+                : {}),
             });
             if (persistedPlainArtifacts.length > 0) {
               for (const artifact of persistedPlainArtifacts) {

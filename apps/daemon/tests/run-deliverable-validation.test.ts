@@ -147,4 +147,123 @@ describe('run deliverable validation', () => {
       validation: 'no_artifact',
     });
   });
+
+  it('accepts exact touched secondary target files without requiring index.html', async () => {
+    const fixture = await projectFixture({
+      'screens/billing.html': '<!doctype html><title>Billing</title>',
+      'screens/settings.html': '<!doctype html><title>Settings</title>',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 2,
+      targetFiles: ['screens/billing.html', 'screens/settings.html'],
+      touchedPaths: ['screens/billing.html', 'screens/settings.html'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: true,
+      validation: 'valid',
+      entryFile: 'screens/billing.html',
+      artifactKind: 'html',
+    });
+  });
+
+  it('resolves one portable case and Unicode alias back to the actual project file', async () => {
+    const fixture = await projectFixture({
+      'Screens/Cafe\u0301.HTML': '<!doctype html><title>Caf\u00e9</title>',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 1,
+      targetFiles: ['screens/caf\u00e9.html'],
+      touchedPaths: ['Screens/Cafe\u0301.HTML'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: true,
+      validation: 'valid',
+      entryFile: 'screens/caf\u00e9.html',
+      artifactKind: 'html',
+    });
+  });
+
+  it('rejects a scoped batch when any claimed secondary file was not touched', async () => {
+    const fixture = await projectFixture({
+      'screens/billing.html': '<!doctype html><title>Billing</title>',
+      'screens/settings.html': '<!doctype html><title>Old settings</title>',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 1,
+      targetFiles: ['screens/billing.html', 'screens/settings.html'],
+      touchedPaths: ['screens/billing.html'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: false,
+      validation: 'entry_not_touched',
+      entryFile: 'screens/billing.html',
+    });
+  });
+
+  it('fails closed when a scoped runtime cannot provide touched paths', async () => {
+    const fixture = await projectFixture({
+      'screens/billing.html': '<!doctype html><title>Billing</title>',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 1,
+      targetFiles: ['screens/billing.html'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: false,
+      validation: 'entry_not_touched',
+      entryFile: 'screens/billing.html',
+    });
+  });
+
+  it('rejects a scoped batch that also writes an unclaimed HTML surface', async () => {
+    const fixture = await projectFixture({
+      'screens/billing.html': '<!doctype html><title>Billing</title>',
+      'screens/settings.html': '<!doctype html><title>Settings</title>',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 2,
+      targetFiles: ['screens/billing.html'],
+      touchedPaths: ['screens/billing.html', 'screens/settings.html'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: false,
+      validation: 'unexpected_artifact',
+      entryFile: 'screens/settings.html',
+    });
+  });
+
+  it('rejects a scoped run that tries to modify daemon-owned manifest state', async () => {
+    const fixture = await projectFixture({
+      'screens/billing.html': '<!doctype html><title>Billing</title>',
+      'DESIGN-MANIFEST.json': '{}',
+    });
+
+    await expect(validateRunDeliverable({
+      ...fixture,
+      runStatus: 'succeeded',
+      artifactCount: 2,
+      targetFiles: ['screens/billing.html'],
+      touchedPaths: ['screens/billing.html', 'DESIGN-MANIFEST.json'],
+      projectMetadata: { kind: 'prototype', entryFile: 'index.html' },
+    })).resolves.toMatchObject({
+      valid: false,
+      validation: 'unexpected_artifact',
+      entryFile: 'DESIGN-MANIFEST.json',
+    });
+  });
 });

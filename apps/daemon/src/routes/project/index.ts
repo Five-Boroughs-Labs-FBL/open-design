@@ -121,6 +121,11 @@ import {
 import { localPluginRegistryScope } from '../../plugins/local-source.js';
 import type { WorkspaceDirectoryFetchResult } from '../../collab/vela-workspace-context.js';
 import { cancelRunsOwnedBy } from './cancel-owned-runs.js';
+import { registerDesignManifestRoutes } from './design-manifest.js';
+import {
+  createDesignManifestStore,
+  DesignManifestNotFoundError,
+} from '../../storage/design-manifest.js';
 
 export function rewriteOutsideExecutableHtmlRanges(
   html: string,
@@ -1806,7 +1811,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   const { db, design } = ctx;
   const projectTelemetry = ctx.telemetry;
   const { sendApiError, createSseResponse } = ctx.http;
-  const { DESIGN_SYSTEMS_DIR, PROJECTS_DIR, SKILLS_DIR, BRANDS_DIR, USER_DESIGN_SYSTEMS_DIR } = ctx.paths;
+  const { DESIGN_SYSTEMS_DIR, PROJECTS_DIR, RUNTIME_DATA_DIR, SKILLS_DIR, BRANDS_DIR, USER_DESIGN_SYSTEMS_DIR } = ctx.paths;
   const { readAppConfig, writeAppConfig } = ctx.appConfig;
   const {
     insertProject,
@@ -1862,6 +1867,59 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     ctx.verifyPersonalProjectDeleteLeaseAuthority,
     authorizeProjectRequest,
   );
+  const designManifestStore = createDesignManifestStore({
+    projectsRoot: PROJECTS_DIR,
+    authorityRoot: path.join(RUNTIME_DATA_DIR || PROJECTS_DIR, 'design-manifests'),
+    resolveProjectDir,
+    ensureProject,
+    listFiles,
+    projectExists: (projectId) => Boolean(getProject(db, projectId)),
+  });
+  registerDesignManifestRoutes(app, {
+    getProject: (projectId) => getProject(db, projectId),
+    authorizeProjectRequest,
+    sendApiError,
+    store: designManifestStore,
+    recoverStaleClaims: async (project) => {
+      try {
+        await designManifestStore.recoverStaleClaims(project, {
+          runState: (runId) => {
+            const run = design.runs.get(runId);
+            return run
+              ? {
+                  active: !design.runs.isTerminal(run.status)
+                    || run.designGenerationReconciliationPending === true,
+                  succeeded: run.status === 'succeeded',
+                  exactOutputValidated: run.deliverableValid === true
+                    && run.deliverableValidation === 'valid',
+                  ...(Array.isArray(run.artifactPaths) ? { artifactPaths: run.artifactPaths } : {}),
+                }
+              : null;
+          },
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        if (!(error instanceof DesignManifestNotFoundError)) throw error;
+      }
+    },
+    // The filesystem watcher will also report this atomic rename. Emitting the
+    // existing thin invalidation immediately avoids waiting for watcher latency;
+    // consumers already treat duplicate file-change signals as idempotent.
+    emitInvalidation: (projectId) => {
+      const sinks = activeProjectEventSinks?.get?.(projectId);
+      for (const sink of Array.from(sinks ?? []) as Array<(payload: unknown) => void>) {
+        try {
+          sink({
+            type: 'file-changed',
+            path: 'DESIGN-MANIFEST.json',
+            kind: 'change',
+          });
+        } catch {
+          sinks?.delete(sink);
+        }
+      }
+    },
+  });
   async function verifiedWorkspaceProjectContext(
     req: any,
   ): Promise<WorkspaceProjectContext | null> {
@@ -3414,6 +3472,16 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         return sendApiError(res, 403, 'PROJECT_BATCH_CONTAINS_FORBIDDEN_ITEMS', 'batch contains forbidden projects');
       }
       const finalProjectIds = projectIds.filter((id: string) => countWorkspaceProjectRefs(db, id) <= 1);
+      const finalProjects = finalProjectIds
+        .map((id: string) => getProject(db, id))
+        .filter(Boolean);
+      // Batch deletion is a second project-destruction path. It must stop the
+      // same writers and clear the same private manifest authority as DELETE.
+      if (design.runs?.list && design.runs?.cancel) {
+        await Promise.all(finalProjectIds.map((projectId: string) => (
+          cancelRunsOwnedBy(design.runs, { projectId })
+        )));
+      }
       const deleteMany = db.transaction((ids: string[], finalIds: string[]) => {
         for (const id of ids) deleteWorkspaceProject(db, ctx.workspaceId, id);
         for (const id of finalIds) {
@@ -3429,7 +3497,26 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         await stagedDelete?.rollback();
         throw error;
       }
+      let manifestCleanupError: unknown = null;
+      try {
+        await Promise.all(finalProjects.map((project: any) => (
+          designManifestStore.deleteProjectState({
+            id: project.id,
+            metadata: project.metadata,
+          })
+        )));
+      } catch (error) {
+        manifestCleanupError = error;
+      }
       await stagedDelete?.commit();
+      // A reconciliation that had already passed its existence check before
+      // deletion may have recreated the original root while the old root was
+      // staged. The manifest lock above waited for it and removed its files;
+      // this final idempotent removal clears the now-empty recreated root.
+      await Promise.all(finalProjectIds.map((projectId: string) => (
+        removeProjectDir(PROJECTS_DIR, projectId)
+      )));
+      if (manifestCleanupError) throw manifestCleanupError;
       res.json({ ok: true, deletedProjectIds: projectIds });
     } catch (err: any) {
       sendApiError(res, 400, 'BAD_REQUEST', String(err));
@@ -3954,6 +4041,15 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       const targetProjectId = randomId();
       const targetName = normalizeProjectDuplicateName(req.body?.name, sourceProject);
       const metadata = cloneProjectMetadataForDuplicate(sourceProject);
+      let sourceDesignManifest: Awaited<ReturnType<typeof designManifestStore.get>> | null = null;
+      try {
+        sourceDesignManifest = await designManifestStore.get({
+          id: sourceProject.id,
+          metadata: sourceProject.metadata,
+        });
+      } catch (error) {
+        if (!(error instanceof DesignManifestNotFoundError)) throw error;
+      }
       let insertedProject = false;
       try {
         await ensureProject(PROJECTS_DIR, targetProjectId, metadata);
@@ -3996,6 +4092,28 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           updatedAt: now,
         });
         insertedProject = true;
+        if (sourceDesignManifest) {
+          await designManifestStore.put({ id: targetProjectId, metadata }, {
+            expectedRevision: 0,
+            manifest: {
+              schema: sourceDesignManifest.schema,
+              revision: 1,
+              projectId: targetProjectId,
+              entrySurfaceId: sourceDesignManifest.entrySurfaceId,
+              scope: sourceDesignManifest.scope,
+              directionStatus: sourceDesignManifest.directionStatus,
+              surfaces: sourceDesignManifest.surfaces.map(({
+                filePresent: _filePresent,
+                ...surface
+              }) => ({
+                ...surface,
+                status: surface.status === 'generating' ? 'queued' : surface.status,
+                latestRunId: null,
+                updatedAt: null,
+              })),
+            },
+          });
+        }
         bindDuplicateIntoRequestWorkspace(createHome, targetProjectId, now);
         const conversationId = randomId();
         insertConversation(db, {
@@ -4024,6 +4142,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         res.json(body);
       } catch (err) {
         if (insertedProject) dbDeleteProject(db, targetProjectId);
+        await designManifestStore.deleteProjectState({ id: targetProjectId, metadata }).catch(() => {});
         await removeProjectDir(PROJECTS_DIR, targetProjectId).catch(() => {});
         throw err;
       }
@@ -4652,7 +4771,22 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       // billing and writes into a directory that no longer exists (#5468).
       await cancelRunsOwnedBy(design.runs, { projectId: req.params.id });
       dbDeleteProject(db, req.params.id);
-      await removeProjectDir(PROJECTS_DIR, req.params.id).catch(() => {});
+      // Queue behind any detached terminal reconciliation, then remove both
+      // authority and projection. The registry fence rejects every later
+      // mutation before it can recreate the deleted project directory.
+      let manifestCleanupError: unknown = null;
+      try {
+        await designManifestStore.deleteProjectState({
+          id: project.id,
+          metadata: project.metadata,
+        });
+      } catch (error) {
+        manifestCleanupError = error;
+      }
+      // Always attempt filesystem cleanup after the registry row is gone, but
+      // preserve and report any non-ENOENT authority cleanup failure.
+      await removeProjectDir(PROJECTS_DIR, req.params.id);
+      if (manifestCleanupError) throw manifestCleanupError;
       /** @type {import('@open-design/contracts').OkResponse} */
       const body = { ok: true };
       res.json(body);

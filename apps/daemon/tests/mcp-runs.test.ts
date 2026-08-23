@@ -52,6 +52,7 @@ describe('public MCP discovery + generation tools', () => {
     expect(definitions.some((tool) => tool.name === 'list_byok_profiles')).toBe(false);
     const startRun = definitions.find((tool) => tool.name === 'start_run');
     expect(startRun?.inputSchema.properties).not.toHaveProperty('byokProfile');
+    expect(startRun?.inputSchema.properties).toHaveProperty('designGeneration');
   });
 
   it('start_run rejects raw credential fields at any nesting depth', async () => {
@@ -95,6 +96,7 @@ describe('public MCP discovery + generation tools', () => {
       model: 'claude-opus-4-7',
       serviceTier: 'priority',
       requestId: 'brief-42-cloud',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['dashboard', 'billing'] },
     });
 
     const postBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
@@ -108,6 +110,7 @@ describe('public MCP discovery + generation tools', () => {
       agentId: 'claude',
       model: 'claude-opus-4-7',
       serviceTier: 'priority',
+      designGeneration: { manifestRevision: 4, surfaceIds: ['dashboard', 'billing'] },
     });
     expect(JSON.parse(firstText(result))).toMatchObject({
       runId: 'run-42',

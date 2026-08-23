@@ -264,6 +264,7 @@ afterEach(() => {
   host?.remove();
   host = null;
   window.history.replaceState(null, '', '/');
+  delete document.documentElement.dataset.amcEmbed;
   vi.clearAllMocks();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -698,6 +699,121 @@ function unreadableDropDataTransfer(fallbackFiles: File[] = []) {
     ],
   };
 }
+
+describe('FileWorkspace manifest canvas return path', () => {
+  it('returns a directly opened manifest surface to All screens in AMC embed mode', async () => {
+    document.documentElement.dataset.amcEmbed = '1';
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/design-manifest')) {
+        return new Response(JSON.stringify({
+          manifest: {
+            schema: 'open-design.design-manifest.v2',
+            revision: 1,
+            projectId: 'manifest-project',
+            entrySurfaceId: 'home',
+            scope: {
+              schema: 'amc.design-scope.v1',
+              scopeId: 'scope-1',
+              revision: 1,
+              intentDigest: 'digest',
+            },
+            directionStatus: 'locked',
+            surfaces: [
+              {
+                id: 'home',
+                title: 'Home',
+                purpose: 'Entry surface',
+                priority: 'primary',
+                kind: 'screen',
+                file: 'index.html',
+                status: 'complete',
+                required: true,
+                states: [],
+                formFactors: ['responsive'],
+                latestRunId: null,
+                updatedAt: '2026-08-22T00:00:00.000Z',
+                filePresent: true,
+              },
+              {
+                id: 'settings',
+                title: 'Settings',
+                purpose: 'Configure the account',
+                priority: 'required',
+                kind: 'screen',
+                file: 'screens/settings.html',
+                status: 'complete',
+                required: true,
+                states: [],
+                formFactors: ['responsive'],
+                latestRunId: null,
+                updatedAt: '2026-08-22T00:00:00.000Z',
+                filePresent: true,
+              },
+            ],
+            coverage: {
+              required: 2,
+              complete: 2,
+              failed: 0,
+              waived: 0,
+              pending: 0,
+              missingSurfaceIds: [],
+              percent: 100,
+              ready: true,
+            },
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('<!doctype html><html><body>Home</body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }));
+
+    function Harness() {
+      const [tabsState, setTabsState] = useState<OpenTabsState>({
+        tabs: ['index.html'],
+        active: 'index.html',
+      });
+      return (
+        <FileWorkspace
+          projectId="manifest-project"
+          projectKind="prototype"
+          files={[
+            workspaceFile('index.html'),
+            workspaceFile('screens/settings.html'),
+          ]}
+          liveArtifacts={[]}
+          onRefreshFiles={vi.fn()}
+          isDeck={false}
+          tabsState={tabsState}
+          onTabsStateChange={setTabsState}
+        />
+      );
+    }
+
+    render(<Harness />);
+    const allScreens = await screen.findByTestId('file-viewer-all-screens');
+    expect(allScreens.getAttribute('aria-label')).toBe('All screens');
+    fireEvent.click(allScreens);
+
+    expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
+    expect(screen.getByTestId('design-files-tab').getAttribute('aria-selected')).toBe('true');
+
+    // Reproduce the old trap: navigate into a folder, open a nested manifest
+    // surface, then use All screens. The action must reset navigation to the
+    // root Canvas instead of remounting the nested folder grid.
+    fireEvent.click(screen.getByTestId('design-files-tab-folders'));
+    fireEvent.click(document.querySelector('.df-dir-row .df-row-name-btn')!);
+    const settingsCard = await screen.findByTestId('design-file-row-screens/settings.html');
+    fireEvent.click(settingsCard.querySelector<HTMLButtonElement>('.df-card-thumb')!);
+    const returnButtons = await screen.findAllByTestId('file-viewer-all-screens');
+    fireEvent.click(returnButtons.at(-1)!);
+
+    expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
+    expect(document.querySelector('.df-breadcrumb-current')?.textContent).toBe('Project');
+  });
+});
 
 describe('FileWorkspace upload input', () => {
   it('keeps the Design Files picker aligned with drag-and-drop file support', () => {

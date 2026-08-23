@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  designManifestPathIdentity,
+  type DesignManifestResponse,
+  type DesignManifestV2,
+} from '@open-design/contracts';
 import { useAnalytics } from '../analytics/provider';
 import { trackFileManagerClick } from '../analytics/events';
 import { useT } from '../i18n';
@@ -6,13 +11,8 @@ import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectFileUrl, projectRawUrl } from '../providers/registry';
-import {
-  appendResourceQuery,
-  workspaceIdentityCacheKey,
-  workspaceProjectHeaders,
-} from '../collab/workspace-identity';
+import { appendResourceQuery, workspaceProjectHeaders } from '../collab/workspace-identity';
 import { useProjectCollabContext } from '../collab/collab-context';
-import { buildSrcdoc } from '../runtime/srcdoc';
 import type { LiveArtifactWorkspaceEntry, ProjectFile, ProjectFileKind, ProjectFolder } from '../types';
 import {
   createFileSystemReadError,
@@ -26,14 +26,12 @@ import { FileSyncBadge } from '../collab/FileSyncBadge';
 import { Icon } from './Icon';
 import { LiveArtifactBadges } from './LiveArtifactBadges';
 import { RemixIcon } from './RemixIcon';
+import { HtmlPageThumbnail } from './HtmlPageThumbnail';
 import {
-  getHtmlSourceSnapshot,
-  htmlSourceSnapshotRefreshKey,
-} from './html-source-snapshot-cache';
-import {
-  getHtmlThumbnailSource,
-  loadHtmlThumbnailSource,
-} from './html-thumbnail-source-cache';
+  DesignSurfaceCanvas,
+  type DesignSurfaceCanvasItem,
+  type DesignSurfaceCanvasLabels,
+} from './DesignSurfaceCanvas';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
@@ -42,6 +40,11 @@ export interface DesignFilesNavState {
   currentDir: string;
   page: number;
   pageSize: number | 'all';
+}
+
+export interface DesignManifestCanvasState {
+  projectId: string;
+  surfaceFiles: readonly string[];
 }
 
 interface Props {
@@ -75,6 +78,9 @@ interface Props {
   liveArtifacts: LiveArtifactWorkspaceEntry[];
   onRefreshFiles: () => Promise<void> | void;
   onOpenFile: (name: string) => void;
+  /** Reports the validated v2 canvas so its full-screen viewers can return to
+   * this overview even while the panel itself is unmounted. */
+  onManifestCanvasChange?: (state: DesignManifestCanvasState | null) => void;
   onOpenLiveArtifact: (tabId: LiveArtifactWorkspaceEntry['tabId']) => void;
   onRenameFile: (from: string, to: string) => Promise<ProjectFile | null> | ProjectFile | null;
   onDeleteFile: (name: string) => void;
@@ -137,8 +143,6 @@ const SECTION_ORDER: FileCategory[] = [
 ];
 
 const STYLESHEET_EXTENSIONS = new Set(['css', 'scss', 'sass', 'less']);
-const HTML_THUMBNAIL_INLINE_MAX_BYTES = 512 * 1024;
-
 // Incremental grid rendering: the page-card grid and the image masonry start
 // with this many entries and reveal the next batch when the invisible
 // end-of-grid sentinel nears the viewport. Root views intentionally list every
@@ -146,75 +150,6 @@ const HTML_THUMBNAIL_INLINE_MAX_BYTES = 512 * 1024;
 // HTML files in one section — rendering them all at once froze the client.
 const GRID_RENDER_BATCH = 48;
 
-// At most this many thumbnail content fetches run concurrently. Each visible
-// card fetches its HTML to build a srcDoc preview; without a cap, a large
-// section fires thousands of parallel fetches, exhausting local sockets
-// (net::ERR_INSUFFICIENT_RESOURCES) and starving the web<->daemon proxy.
-const MAX_CONCURRENT_HTML_THUMBNAIL_FETCHES = 6;
-
-let activeHtmlThumbnailFetches = 0;
-const queuedHtmlThumbnailFetches: Array<() => void> = [];
-
-// Start queued thumbnail fetches on a microtask, never synchronously from a
-// release. A synchronous pump would let one card's unmount cleanup start a
-// queued fetch for a sibling card that is being torn down in the same commit
-// (its own cleanup just hasn't run yet). Deferring to a microtask lets every
-// cleanup dequeue its task first; the pump then only starts live tasks.
-function pumpHtmlThumbnailFetchQueue(): void {
-  queueMicrotask(() => {
-    while (
-      activeHtmlThumbnailFetches < MAX_CONCURRENT_HTML_THUMBNAIL_FETCHES
-      && queuedHtmlThumbnailFetches.length > 0
-    ) {
-      queuedHtmlThumbnailFetches.shift()!();
-    }
-  });
-}
-
-/**
- * FIFO concurrency gate for thumbnail content fetches. `start` runs once a
- * slot is free (synchronously when one is available now) and receives the
- * release function to call when the fetch settles. The returned function
- * abandons the reservation, for effect cleanup:
- * - abandoned before starting → the queued task is removed and never runs;
- * - abandoned after starting → the slot stays held until the underlying
- *   request settles and the settle path calls `release`. Cleanup must never
- *   free a slot whose request is still on the network: releasing early would
- *   let the queue pump start replacement fetches while the abandoned ones are
- *   still in flight, pushing real connection concurrency above the cap during
- *   directory/project navigation — the exact socket-exhaustion path this pool
- *   exists to prevent.
- */
-function acquireHtmlThumbnailFetchSlot(
-  start: (release: () => void) => void,
-): () => void {
-  let started = false;
-  let released = false;
-  const release = () => {
-    if (released) return;
-    released = true;
-    activeHtmlThumbnailFetches -= 1;
-    pumpHtmlThumbnailFetchQueue();
-  };
-  const run = () => {
-    started = true;
-    activeHtmlThumbnailFetches += 1;
-    start(release);
-  };
-  let abandoned = false;
-  const abandon = () => {
-    if (abandoned || started) return;
-    abandoned = true;
-    const index = queuedHtmlThumbnailFetches.indexOf(run);
-    if (index >= 0) queuedHtmlThumbnailFetches.splice(index, 1);
-  };
-  if (activeHtmlThumbnailFetches < MAX_CONCURRENT_HTML_THUMBNAIL_FETCHES) {
-    run();
-  } else {
-    queuedHtmlThumbnailFetches.push(run);
-  }
-  return abandon;
-}
 
 function fileCategory(file: ProjectFile): FileCategory {
   const dot = file.name.lastIndexOf('.');
@@ -453,6 +388,7 @@ export function DesignFilesPanel({
   folders,
   liveArtifacts,
   onOpenFile,
+  onManifestCanvasChange,
   onOpenLiveArtifact,
   onRenameFile,
   onDeleteFile,
@@ -477,7 +413,7 @@ export function DesignFilesPanel({
   navState,
   onNavStateChange,
 }: Props) {
-  const { workspaceContext } = useProjectCollabContext();
+  const { workspaceContext, workspaceContextLoading } = useProjectCollabContext();
   const t = useT();
   const analytics = useAnalytics();
   const [draggingFiles, setDraggingFiles] = useState(false);
@@ -497,6 +433,92 @@ export function DesignFilesPanel({
   const [currentDir, setCurrentDir] = useState<string>(() => navState?.currentDir ?? '');
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
+  const [designManifest, setDesignManifest] = useState<DesignManifestV2 | null>(null);
+  const [designManifestError, setDesignManifestError] = useState<string | null>(null);
+  const showDesignManifestCanvas = designManifest !== null && currentDir === '';
+
+  useEffect(() => {
+    if (workspaceContextLoading) return;
+    const controller = new AbortController();
+    setDesignManifestError(null);
+    void Promise.resolve(fetch(`/api/projects/${encodeURIComponent(projectId)}/design-manifest`, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: workspaceContext ? workspaceProjectHeaders(workspaceContext) : undefined,
+    }))
+      .then(async (response) => {
+        // Export/import already uses the same filename for a legacy v1 handoff
+        // manifest. The daemon reports that as no durable v2 manifest; keep
+        // those ordinary projects on their historical Pages grid.
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<DesignManifestResponse>;
+      })
+      .then((result) => {
+        if (!controller.signal.aborted) setDesignManifest(result?.manifest ?? null);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setDesignManifest(null);
+        setDesignManifestError(error instanceof Error ? error.message : String(error));
+      });
+    return () => controller.abort();
+  }, [projectId, workspaceContext, workspaceContextLoading, filesRefreshKey]);
+
+  const designSurfaceFiles = useMemo(() => {
+    if (!designManifest) return [];
+    const filesByIdentity = new Map<string, ProjectFile[]>();
+    for (const file of files) {
+      const identity = designManifestPathIdentity(file.name);
+      filesByIdentity.set(identity, [...(filesByIdentity.get(identity) ?? []), file]);
+    }
+    return designManifest.surfaces.map<DesignSurfaceCanvasItem>((surface) => {
+      const matches = filesByIdentity.get(designManifestPathIdentity(surface.file)) ?? [];
+      const file = surface.filePresent
+        ? files.find((candidate) => candidate.name.normalize('NFC') === surface.file.normalize('NFC'))
+          ?? (matches.length === 1 ? matches[0] : undefined)
+        : undefined;
+      return {
+        id: surface.id,
+        title: surface.title,
+        description: surface.purpose,
+        file,
+        status: surface.status === 'complete'
+          ? (file ? 'ready' : 'missing')
+          : surface.status,
+      };
+    });
+  }, [designManifest, files]);
+
+  useEffect(() => {
+    onManifestCanvasChange?.(designManifest ? {
+      projectId,
+      surfaceFiles: designManifest.surfaces
+        .filter((surface) => surface.filePresent)
+        .map((surface) => designManifestPathIdentity(surface.file)),
+    } : null);
+    // Do not clear on unmount: opening a surface intentionally unmounts this
+    // panel, and FileWorkspace owns the return affordance until a subsequent
+    // manifest read reports a different state.
+  }, [designManifest, onManifestCanvasChange, projectId]);
+
+  const designSurfaceLabels = useMemo<DesignSurfaceCanvasLabels>(() => ({
+    canvas: t('designFiles.canvasView'),
+    grid: t('designs.viewGrid'),
+    zoomIn: t('fileViewer.zoomIn'),
+    zoomOut: t('fileViewer.zoomOut'),
+    fit: t('designFiles.fitCanvas'),
+    resetZoom: t('fileViewer.resetZoom'),
+    openSurface: (title) => t('designFiles.openSurface', { title }),
+    status: {
+      queued: t('designs.status.queued'),
+      generating: t('designFiles.statusGenerating'),
+      ready: t('designFiles.statusReady'),
+      failed: t('designs.status.failed'),
+      waived: t('designFiles.statusWaived'),
+      missing: t('designFiles.statusMissingFile'),
+    },
+  }), [t]);
 
   // Keep the parent's create-target in sync with the folder being viewed, so
   // uploads / pastes / new sketches / dropped files land in the open folder
@@ -628,11 +650,20 @@ export function DesignFilesPanel({
       tabs.push({
         id: `cat:${category}`,
         label: sectionLabel(category, t),
-        count: sectionFiles.length,
+        count: category === 'html' && showDesignManifestCanvas
+          ? designManifest.surfaces.length
+          : sectionFiles.length,
+      });
+    }
+    if (showDesignManifestCanvas && !tabs.some((tab) => tab.id === 'cat:html')) {
+      tabs.push({
+        id: 'cat:html',
+        label: t('designFiles.sectionPages'),
+        count: designManifest.surfaces.length,
       });
     }
     return tabs;
-  }, [liveArtifacts, pluginFolders, dirsAtCurrentDir, sections, t]);
+  }, [liveArtifacts, pluginFolders, dirsAtCurrentDir, sections, designManifest, showDesignManifestCanvas, t]);
   // Pages are the primary artifact — land on them by default. Derived (not
   // synced through an effect) so a picked tab that empties out (last file
   // deleted, directory change) falls back instantly without a stale frame.
@@ -1646,6 +1677,11 @@ export function DesignFilesPanel({
                   ))}
                 </div>
               ) : null}
+              {designManifestError ? (
+                <div className="df-inline-notice" role="status" data-testid="design-manifest-error">
+                  {t('designFiles.manifestUnavailable')} ({designManifestError})
+                </div>
+              ) : null}
               {resolvedTab === 'live-artifacts' ? (
                 <div className="df-section" key="live-artifacts">
                   {liveArtifacts.map((artifact) => (
@@ -1757,8 +1793,20 @@ export function DesignFilesPanel({
                   {dirsAtCurrentDir.map((d) => renderDirRow(d))}
                 </div>
               ) : null}
+              {resolvedTab === 'cat:html' && showDesignManifestCanvas ? (
+                <DesignSurfaceCanvas
+                  key="design-surface-canvas"
+                  projectId={projectId}
+                  surfaces={designSurfaceFiles}
+                  filesRefreshKey={filesRefreshKey}
+                  labels={designSurfaceLabels}
+                  onOpenSurface={(surface) => {
+                    if (surface.file) onOpenFile(surface.file.name);
+                  }}
+                />
+              ) : null}
               {sections.map(([category, sectionFiles]) =>
-                resolvedTab === `cat:${category}` ? (
+                resolvedTab === `cat:${category}` && !(category === 'html' && showDesignManifestCanvas) ? (
                   <div className="df-section" key={`cat:${category}`}>
                     {category === 'html' ? (
                       // Page cards are self-describing — a straight grid
@@ -1921,17 +1969,9 @@ function GridRenderSentinel({ onReveal }: { onReveal: () => void }) {
   );
 }
 
-// Pages are laid out at a desktop-ish width and scaled down to the card, so
-// the thumbnail reads as a zoomed-out page preview instead of the page's
-// narrow mobile layout cropped to the card's top-left corner.
-const PAGE_THUMB_LAYOUT_WIDTH = 1200;
-// Matches the card thumb's 16/9 aspect-ratio box.
-const PAGE_THUMB_LAYOUT_HEIGHT = Math.round(PAGE_THUMB_LAYOUT_WIDTH * (9 / 16));
-
-// The HTML page thumbnail: fetch + buildSrcdoc (guarded by the inline size
-// cap), rendered through the #5517 reference's fixed-layout iframe scaled to
-// the card width. While no srcdoc is available (too large, still fetching, or
-// fetch failed) the glyph placeholder shows instead of URL-loading the iframe.
+// The page-card adapter intentionally preserves the existing Design Files
+// sandbox and motion behavior. The shared thumbnail also has a stricter
+// static-canvas mode, consumed by DesignSurfaceCanvas.
 function HtmlCardThumbnail({
   projectId,
   file,
@@ -1941,175 +1981,13 @@ function HtmlCardThumbnail({
   file: ProjectFile;
   filesRefreshKey: number;
 }) {
-  const {
-    workspaceContext,
-    workspaceContextLoading,
-  } = useProjectCollabContext();
-  const tooLargeForThumbnail = file.size > HTML_THUMBNAIL_INLINE_MAX_BYTES;
-  const url = projectFileUrl(projectId, file.name, workspaceContext);
-  const authorizationScopeKey = workspaceContextLoading
-    ? null
-    : workspaceContext
-      ? `workspace:${workspaceIdentityCacheKey(workspaceContext)}`
-      : 'local';
-  const refreshKey = htmlSourceSnapshotRefreshKey(file, filesRefreshKey);
-  const thumbnailIdentity = authorizationScopeKey
-    ? {
-        authorizationScopeKey,
-        projectId,
-        fileName: file.name,
-        refreshKey,
-      }
-    : null;
-  const baseHref = projectRawUrl(
-    projectId,
-    baseDirForFile(file.name),
-    workspaceContext,
-  );
-  const [srcDoc, setSrcDoc] = useState<string | null>(() => {
-    if (!thumbnailIdentity) return null;
-    const source =
-      getHtmlSourceSnapshot(
-        thumbnailIdentity.authorizationScopeKey,
-        thumbnailIdentity.projectId,
-        thumbnailIdentity.fileName,
-        thumbnailIdentity.refreshKey,
-      )?.source
-      ?? getHtmlThumbnailSource(thumbnailIdentity);
-    return source === null ? null : buildSrcdoc(source, { baseHref });
-  });
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState<number | null>(null);
-
-  // Content fetches wait until the card scrolls near the viewport; the 800px
-  // bottom rootMargin prefetches cards about to be scrolled into view, and a
-  // card that has intersected once stays "near" for good (same pattern as
-  // ExampleCard in ExamplesTab). Environments without IntersectionObserver
-  // (jsdom) fall back to treating every card as immediately visible.
-  const [nearViewport, setNearViewport] = useState(false);
-  useEffect(() => {
-    if (nearViewport) return;
-    const host = hostRef.current;
-    if (!host) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setNearViewport(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setNearViewport(true);
-            observer.disconnect();
-            break;
-          }
-        }
-      },
-      { rootMargin: '0px 0px 800px 0px' },
-    );
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, [nearViewport]);
-
-  useEffect(() => {
-    setSrcDoc(null);
-    if (tooLargeForThumbnail || !thumbnailIdentity) return;
-    const cachedSource =
-      getHtmlSourceSnapshot(
-        thumbnailIdentity.authorizationScopeKey,
-        thumbnailIdentity.projectId,
-        thumbnailIdentity.fileName,
-        thumbnailIdentity.refreshKey,
-      )?.source
-      ?? getHtmlThumbnailSource(thumbnailIdentity);
-    if (cachedSource !== null) {
-      setSrcDoc(buildSrcdoc(cachedSource, { baseHref }));
-      return;
-    }
-    // Only an actual network load waits for viewport proximity (cached
-    // sources above render immediately) and for a free fetch slot — the
-    // gate + pool that keep a huge grid from firing thousands of fetches.
-    if (!nearViewport) return;
-    let cancelled = false;
-    const abandonSlot = acquireHtmlThumbnailFetchSlot((release) => {
-      void loadHtmlThumbnailSource(
-        thumbnailIdentity,
-        async () => {
-          const response = await fetch(
-            appendResourceQuery(url, `v=${Math.round(file.mtime)}`),
-            {},
-          );
-          return response?.ok ? response.text() : null;
-        },
-      ).then((html) => {
-          if (cancelled || html === null) return;
-          const nextSrcDoc = buildSrcdoc(html, { baseHref });
-          if (!cancelled) setSrcDoc(nextSrcDoc);
-        })
-        .catch(() => {
-          if (!cancelled) setSrcDoc(null);
-        })
-        // Success and failure both pass through here exactly once per
-        // started fetch — the ONLY place a started fetch's slot is freed.
-        // Cleanup below abandons the reservation without freeing the slot,
-        // so a fetch abandoned mid-flight keeps its slot until the network
-        // actually settles it and real concurrency stays within the cap.
-        .finally(release);
-    });
-    return () => {
-      cancelled = true;
-      abandonSlot();
-    };
-  }, [
-    authorizationScopeKey,
-    baseHref,
-    nearViewport,
-    refreshKey,
-    tooLargeForThumbnail,
-    url,
-  ]);
-
-  // Track the host width before paint so the iframe's first rendered viewport
-  // is the fixed desktop layout, then only its outer transform follows the
-  // card. This prevents responsive decks from fitting once to the card-sized
-  // iframe and then being scaled a second time after ResizeObserver runs.
-  useLayoutEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const update = () => {
-      const width = host.clientWidth;
-      if (width > 0) setScale(width / PAGE_THUMB_LAYOUT_WIDTH);
-    };
-    update();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(update);
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div ref={hostRef} className="df-thumb-scale-host">
-      {tooLargeForThumbnail || srcDoc === null ? (
-        <FilePreviewPlaceholder file={file} />
-      ) : (
-        <iframe
-          title={file.name}
-          srcDoc={srcDoc}
-          sandbox="allow-scripts allow-downloads"
-          loading="lazy"
-          style={{
-            width: PAGE_THUMB_LAYOUT_WIDTH,
-            height: PAGE_THUMB_LAYOUT_HEIGHT,
-            ...(scale
-              ? {
-                  transform: `scale(${scale})`,
-                  transformOrigin: '0 0',
-                }
-              : {}),
-          }}
-        />
-      )}
-    </div>
+    <HtmlPageThumbnail
+      projectId={projectId}
+      file={file}
+      filesRefreshKey={filesRefreshKey}
+      fallback={<FilePreviewPlaceholder file={file} />}
+    />
   );
 }
 
@@ -2125,11 +2003,6 @@ function FilePreviewPlaceholder({
       {categoryGlyph(fileCategory(file))}
     </div>
   );
-}
-
-function baseDirForFile(name: string): string {
-  const index = name.lastIndexOf('/');
-  return index >= 0 ? name.slice(0, index + 1) : '';
 }
 
 function fileExtensionLabel(name: string): string {
