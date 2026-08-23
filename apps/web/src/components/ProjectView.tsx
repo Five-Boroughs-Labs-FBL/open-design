@@ -5961,9 +5961,15 @@ export function ProjectView({
                       runId,
                       projectRunWorkspaceContext,
                     ).catch(() => null);
-                    const artifactToPersist = parsedArtifact?.html
+                    const recoveredArtifact = parsedArtifact?.html
                       ? parsedArtifact
                       : artifactFromStandaloneHtml(replayedContent);
+                    const recoveryClaim = latestRunStatus?.designGenerationSurfaces?.[0]
+                      ?? claimedSurface;
+                    const artifactToPersist = artifactForClaimedSurface(
+                      recoveredArtifact,
+                      recoveryClaim,
+                    );
                     if (!artifactToPersist?.html) return;
                     let nextFiles = await refreshProjectFiles();
                     const beforeFileNames = new Set(
@@ -5973,17 +5979,17 @@ export function ProjectView({
                       latestRunStatus?.createdAt || message.startedAt || message.createdAt;
                     const producedBeforeFallback = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
                     let recoveredExistingArtifact =
+                      findExistingArtifactProjectFile(
+                        artifactToPersist,
+                        nextFiles,
+                        { minMtime: runStartedAt },
+                      ) ??
                       await findSameTurnWriteForRecoveredArtifact({
                         artifact: artifactToPersist,
                         sourceText: replayedContent,
                         producedFiles: producedBeforeFallback,
                         readProjectText: readProjectHtml,
-                      }) ??
-                      findExistingArtifactProjectFile(
-                        artifactToPersist,
-                        nextFiles,
-                        { minMtime: runStartedAt },
-                      );
+                      });
                     if (recoveredExistingArtifact) {
                       savedArtifactRef.current = recoveredExistingArtifact.name;
                       requestOpenFile(recoveredExistingArtifact.name);
@@ -7596,22 +7602,39 @@ export function ProjectView({
               let artifactPersistenceSucceeded = false;
               let artifactPersistenceError: string | undefined;
               const finalText = streamedText || fullText;
-              const artifactToPersist = parsedArtifact?.html
+              const recoveredArtifact = parsedArtifact?.html
                 ? parsedArtifact
                 : artifactFromStandaloneHtml(finalText);
+              const artifactToPersist = artifactForClaimedSurface(
+                recoveredArtifact,
+                currentClaimedSurface,
+              );
+              if (recoveredArtifact && currentClaimedSurface && !artifactToPersist) {
+                artifactPersistenceError =
+                  `Artifact identifier does not match claimed surface ${currentClaimedSurface.surfaceId}.`;
+              }
               if (artifactToPersist?.html) {
                 const producedBeforeFallback = withLiveHtmlCanvasCandidate(
                   computeProducedFiles(beforeFileNames, nextFiles) ?? [],
                   nextFiles,
                 );
-                const sameTurnArtifactWrite =
-                  await findSameTurnNonHtmlWriteForRecoveredArtifact({
-                    artifact: artifactToPersist,
-                    producedFiles: producedBeforeFallback,
-                    readProjectText: readProjectHtml,
-                  });
+                const claimedExistingArtifact = currentClaimedSurface
+                  ? findExistingArtifactProjectFile(
+                      artifactToPersist,
+                      nextFiles,
+                      { minMtime: startedAt },
+                    )
+                  : null;
+                const sameTurnArtifactWrite = claimedExistingArtifact
+                  ?? await findSameTurnNonHtmlWriteForRecoveredArtifact({
+                      artifact: artifactToPersist,
+                      producedFiles: producedBeforeFallback,
+                      readProjectText: readProjectHtml,
+                    });
                 const sameTurnHtmlWrite = sameTurnArtifactWrite
                   ? null
+                  : currentClaimedSurface
+                    ? null
                   : await findSameTurnHtmlWriteForRecoveredArtifact({
                       artifactHtml: resolvePersistedArtifactHtml({
                         artifactHtml: artifactToPersist.html,
@@ -11744,7 +11767,7 @@ export function findExistingArtifactProjectFile(
     const claimed = currentRunFiles.find(
       (file) => file.name === art.fileName || file.path === art.fileName,
     );
-    if (claimed) return claimed;
+    return claimed ?? null;
   }
 
   if (ext === '.html') {
@@ -11829,6 +11852,10 @@ async function findSameTurnWriteForRecoveredArtifact({
   producedFiles: readonly ProjectFile[];
   readProjectText: (name: string) => Promise<string | null>;
 }): Promise<ProjectFile | null> {
+  // Server-issued filenames are exclusive ownership claims. Callers check the
+  // exact claimed path first; if it is absent, legacy content heuristics must
+  // not substitute index.html or another same-turn file.
+  if (artifact.fileName) return null;
   const nonHtmlWrite = await findSameTurnNonHtmlWriteForRecoveredArtifact({
     artifact,
     producedFiles,
@@ -12028,7 +12055,10 @@ function artifactFromRecoverableSourceText(sourceText: string): Artifact | null 
     ?? recoverHtmlDocumentFromMarkdownFence(sourceText);
   if (!html) return null;
   return {
-    identifier: 'response',
+    // This document had no model-provided artifact identity. Keep the title
+    // for the legacy response.html filename, but leave identifier empty so a
+    // server-issued design-surface claim can bind it safely.
+    identifier: '',
     artifactType: 'text/html',
     title: 'Response',
     html,

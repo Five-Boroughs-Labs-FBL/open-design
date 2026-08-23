@@ -262,6 +262,7 @@ describe('terminal replay artifact recovery', () => {
     const wrong = artifactProjectFile('index.html', 2_000);
     const claimed = artifactProjectFile('screens/billing.html', 2_000);
     expect(findExistingArtifactProjectFile(claimedArtifact, [wrong, claimed])).toBe(claimed);
+    expect(findExistingArtifactProjectFile(claimedArtifact, [wrong])).toBeNull();
   });
 
   it('only reuses existing artifacts created at or after the current run started', () => {
