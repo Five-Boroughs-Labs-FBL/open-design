@@ -5369,6 +5369,14 @@ export function ProjectView({
             let parsedArtifact: Artifact | null = null;
             let liveHtml = '';
             for (const ev of [...parser.feed(replayedContent), ...parser.flush()]) {
+              if (
+                ev.type !== 'text'
+                && claimedSurface
+                && ev.identifier
+                && ev.identifier !== claimedSurface.surfaceId
+              ) {
+                continue;
+              }
               if (ev.type === 'artifact:start') {
                 liveHtml = '';
                 parsedArtifact = {
@@ -6358,6 +6366,14 @@ export function ProjectView({
           let parsedArtifact: Artifact | null = null;
           let liveHtml = '';
           for (const ev of [...parser.feed(sourceText), ...parser.flush()]) {
+            if (
+              ev.type !== 'text'
+              && claimedSurface
+              && ev.identifier
+              && ev.identifier !== claimedSurface.surfaceId
+            ) {
+              continue;
+            }
             if (ev.type === 'artifact:start') {
               liveHtml = '';
               parsedArtifact = {
