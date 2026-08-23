@@ -280,13 +280,26 @@ describe('POST /api/runs headless fallbacks', () => {
 
       const retry = await retryPromise;
       expect(retry.status).toBe(202);
-      const retryBody = await retry.json() as { runId: string; reused: boolean };
-      expect(retryBody).toMatchObject({ reused: true });
+      const retryBody = await retry.json() as {
+        runId: string;
+        reused: boolean;
+        designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
+      };
+      expect(retryBody).toMatchObject({
+        reused: true,
+        designGenerationSurfaces: [{ surfaceId: 'billing', file: 'screens/billing.html' }],
+      });
 
       const startedRun = await startedRunPromise;
       expect(startedRun.status).toBe(202);
-      const startedBody = await startedRun.json() as { runId: string };
+      const startedBody = await startedRun.json() as {
+        runId: string;
+        designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
+      };
       expect(startedBody.runId).toBe(retryBody.runId);
+      expect(startedBody.designGenerationSurfaces).toEqual([
+        { surfaceId: 'billing', file: 'screens/billing.html' },
+      ]);
 
       const terminal = await waitForRun(started.url, startedBody.runId);
       expect(terminal).toMatchObject({

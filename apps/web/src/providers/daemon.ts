@@ -272,6 +272,8 @@ export function buildDaemonTranscript(history: ChatMessage[], targetAgentId?: st
 
 export interface DaemonStreamHandlers extends StreamHandlers {
   onAgentEvent: (ev: AgentEvent) => void;
+  /** First durable live-canvas write; used to open anonymous thought HTML. */
+  onLiveHtmlCanvasArtifact?: (fileName: string) => void;
   /** Authoritative artifact count from the daemon's terminal run record. */
   onArtifactCount?: (count: number) => void;
   /**
@@ -339,7 +341,7 @@ export interface DaemonStreamOptions {
   // (non-workspace) usage, matching those other call sites.
   workspaceContext?: WorkspaceCollabContext | null;
   initialLastEventId?: string | null;
-  onRunCreated?: (runId: string) => void;
+  onRunCreated?: (runId: string, response?: ChatRunCreateResponse) => void;
   onRunStatus?: (status: ChatRunStatus) => void;
   /** Authoritative project-relative artifacts created or modified by the run. */
   onArtifactPaths?: (paths: string[]) => void;
@@ -802,7 +804,7 @@ export async function streamViaDaemon({
 
     const created = (await createResp.json()) as ChatRunCreateResponse;
     const runId = created.runId;
-    onRunCreated?.(runId);
+    onRunCreated?.(runId, created);
     // Start the stuck-run watchdog. trackRunProgress is called inside the
     // SSE consumer below on every event; trackRunTerminal fires when the
     // stream resolves to a terminal state (or errors out).
@@ -1359,6 +1361,13 @@ async function consumeDaemonRun({
           }
 
           if (event.event === 'agent') {
+            if (
+              event.data.type === 'artifact'
+              && event.data.source === 'live-html-canvas'
+              && typeof event.data.name === 'string'
+            ) {
+              handlers.onLiveHtmlCanvasArtifact?.(event.data.name);
+            }
             if (event.data.type === 'tool_input_delta') {
               if (
                 typeof event.data.id === 'string' &&
