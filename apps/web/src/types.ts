@@ -519,6 +519,8 @@ export interface Artifact {
   artifactType?: string;
   title: string;
   html: string;
+  /** Authoritative project-relative file for a targeted generation run. */
+  fileName?: string;
   savedUrl?: string;
 }
 

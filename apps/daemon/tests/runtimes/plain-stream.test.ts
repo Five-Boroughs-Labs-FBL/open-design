@@ -429,6 +429,36 @@ describe('plain stream artifact extraction', () => {
     }
   });
 
+  it('assigns anonymous thought HTML to the claimed secondary surface', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-thought-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(path.join(projectDir, 'screens'), { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><title>Dashboard</title>');
+      const artifact = extractLiveHtmlCanvasArtifact(
+        'Thinking through the layout...<!doctype html><html><title>Billing</title></html>',
+      )!;
+      expect(artifact.identifier).toBe('');
+
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'streaming',
+        target: { surfaceId: 'billing', file: 'screens/billing.html' },
+        writeProjectFile: writeProjectFile as any,
+      });
+
+      expect(written.name).toBe('screens/billing.html');
+      expect(await readFile(path.join(projectDir, 'screens', 'billing.html'), 'utf8'))
+        .toContain('Billing');
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8'))
+        .toContain('Dashboard');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('refuses a generic live artifact for a claimed secondary surface', async () => {
     const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-mismatch-'));
     try {

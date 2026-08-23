@@ -648,6 +648,8 @@ export interface ChatRunStatusResponse {
   clientRequestId?: string | null;
   /** Durable bounded progressive-generation claim, when this run targets manifest surfaces. */
   designGeneration?: import('./design-manifest.js').DesignGenerationTarget;
+  /** Server-resolved stable files for the claimed surfaces, in generation order. */
+  designGenerationSurfaces?: Array<{ surfaceId: string; file: string }>;
   agentId: string | null;
   /** Design system whose prompt context was actually injected for this run. */
   designSystemId?: string | null;

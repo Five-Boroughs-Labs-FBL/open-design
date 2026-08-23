@@ -1163,6 +1163,9 @@ export function createChatRunService({
     assistantMessageId: run.assistantMessageId,
     clientRequestId: run.clientRequestId ?? null,
     ...(run.designGeneration ? { designGeneration: run.designGeneration } : {}),
+    ...(run.designGenerationSurfaces
+      ? { designGenerationSurfaces: run.designGenerationSurfaces }
+      : {}),
     agentId: run.agentId,
     designSystemId: run.designSystemId ?? null,
     designSystemRequestedId: run.designSystemRequestedId ?? null,

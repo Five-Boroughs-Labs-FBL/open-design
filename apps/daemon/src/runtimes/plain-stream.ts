@@ -288,7 +288,14 @@ export async function persistLiveHtmlCanvas(options: {
 }): Promise<PersistedPlainStreamArtifact> {
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
   const target = options.target;
-  if (target && !artifactMatchesDesignTarget(options.artifact, target)) {
+  // A targeted run gives otherwise-anonymous thought HTML its authoritative
+  // filename. Explicit identifiers remain strict so a model naming the wrong
+  // surface can never overwrite the claimed file (especially index.html).
+  if (
+    target
+    && options.artifact.identifier
+    && !artifactMatchesDesignTarget(options.artifact, target)
+  ) {
     throw new Error(
       `live artifact does not match claimed surface ${target.surfaceId} (${target.file})`,
     );

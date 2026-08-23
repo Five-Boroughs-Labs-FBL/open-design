@@ -346,6 +346,7 @@ interface Props {
   onWorkspaceContextsChange?: (contexts: WorkspaceContextItem[]) => void;
   messages?: ChatMessage[];
   artifactHtml?: string | null;
+  artifactFileName?: string | null;
   conversationError?: string | null;
   // Contextual failure recovery, mirrored from the chat error card so the
   // preview surface can offer the same one-click fix (AMR authorize, terminal
@@ -1369,6 +1370,7 @@ export function FileWorkspace({
   onWorkspaceContextsChange,
   messages = [],
   artifactHtml = null,
+  artifactFileName = null,
   conversationId,
   fileActionsBefore,
   headerActions,
@@ -1690,8 +1692,8 @@ export function FileWorkspace({
     [files],
   );
   const streamingPreviewFile = useMemo(
-    () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles),
-    [artifactHtml, visibleFiles],
+    () => resolveStreamingHtmlPreviewFile(artifactHtml, visibleFiles, artifactFileName),
+    [artifactFileName, artifactHtml, visibleFiles],
   );
   const streamingPreviewIsSynthetic = Boolean(
     streamingPreviewFile

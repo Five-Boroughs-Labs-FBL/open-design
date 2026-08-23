@@ -464,6 +464,9 @@ describe('chat run service shutdown', () => {
       errorCode: null,
       failureAction: null,
       designGeneration: { manifestRevision: 4, surfaceIds: ['billing'] },
+      designGenerationSurfaces: [
+        { surfaceId: 'billing', file: 'screens/billing.html' },
+      ],
     });
     expect(run.designGenerationSurfaces).toEqual([
       { surfaceId: 'billing', file: 'screens/billing.html' },
