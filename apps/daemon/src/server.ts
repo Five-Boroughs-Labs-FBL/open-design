@@ -10862,7 +10862,7 @@ export async function startServer({
       let liveHtmlCanvasAnnounced = false;
       liveHtmlCanvas = createLiveHtmlCanvasWriter({
         persist: async (artifact, canvasStatus) => {
-          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return false;
           const project = getProject(db, projectId);
           const persisted = await persistLiveHtmlCanvas({
             projectsRoot: PROJECTS_DIR,
@@ -10886,6 +10886,7 @@ export async function startServer({
               artifactType: artifact.artifactType,
             });
           }
+          return true;
         },
       });
     }

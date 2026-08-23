@@ -7,7 +7,7 @@ export function createLiveHtmlCanvasWriter(options: {
   persist: (
     artifact: PlainStreamArtifact,
     status: LiveHtmlCanvasStatus,
-  ) => Promise<unknown>;
+  ) => Promise<unknown | false>;
   delayMs?: number;
 }) {
   const delayMs = options.delayMs ?? 300;
@@ -45,7 +45,13 @@ export function createLiveHtmlCanvasWriter(options: {
         lastStatus = status;
         wrote = true;
         lastWriteAt ??= Date.now();
-        await options.persist(snapshot, status);
+        const persisted = await options.persist(snapshot, status);
+        // Streaming extraction can first surface an unattributed HTML draft
+        // before a provider emits the authoritative <artifact identifier>.
+        // A later successful snapshot supersedes that recoverable failure;
+        // only the most recent unresolved persist error should fail flush().
+        // `false` is an ownership no-op, not a successful persistence.
+        if (persisted !== false) persistError = null;
       })
       .catch((err) => {
         persistError = err;
