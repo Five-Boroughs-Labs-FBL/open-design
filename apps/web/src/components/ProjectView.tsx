@@ -1712,6 +1712,13 @@ export function artifactForClaimedSurface(
   return { ...artifact, fileName: surface.file };
 }
 
+export function claimedSurfaceAcceptsFile(
+  surface: { file: string } | undefined,
+  fileName: string,
+): boolean {
+  return !surface || fileName === surface.file;
+}
+
 const SHARED_PROJECT_PLACEHOLDER_NAME = '共享项目';
 
 export type ProjectNameAuthorityResolution =
@@ -5368,6 +5375,7 @@ export function ProjectView({
             const parser = createArtifactParser();
             let parsedArtifact: Artifact | null = null;
             let liveHtml = '';
+            let claimMismatch = false;
             for (const ev of [...parser.feed(replayedContent), ...parser.flush()]) {
               if (
                 ev.type !== 'text'
@@ -5375,6 +5383,7 @@ export function ProjectView({
                 && ev.identifier
                 && ev.identifier !== claimedSurface.surfaceId
               ) {
+                claimMismatch = true;
                 continue;
               }
               if (ev.type === 'artifact:start') {
@@ -5412,6 +5421,7 @@ export function ProjectView({
                 );
               }
             }
+            if (claimMismatch && !parsedArtifact) setArtifact(null);
 
             // Legacy rows persisted before `endedAt` existed reach this
             // branch with no stored `endedAt` at all — fall back to the
@@ -5733,6 +5743,8 @@ export function ProjectView({
               daemonArtifactCount = count;
             },
             onLiveHtmlCanvasArtifact: (fileName) => {
+              if (supersededRunsRef.current.has(controller)) return;
+              if (!claimedSurfaceAcceptsFile(claimedSurface, fileName)) return;
               requestOpenFile(fileName);
               void refreshProjectFiles();
             },
@@ -6356,6 +6368,10 @@ export function ProjectView({
             runId,
             projectRunWorkspaceContext,
           ).catch(() => null);
+          // A run-linked recovery cannot safely infer whether it was targeted.
+          // Wait for authoritative status instead of falling back to legacy
+          // filenames and potentially writing over index.html.
+          if (!latestRunStatus) continue;
           const claimedSurface = latestRunStatus?.designGenerationSurfaces?.[0];
 
           const sourceText = message.content.trim().length > 0
@@ -7492,6 +7508,8 @@ export function ProjectView({
         onLiveHtmlCanvasArtifact: (fileName: string) => {
           // Anonymous thought HTML never enters the browser's <artifact>
           // parser. The daemon's successful write is the filename authority.
+          if (supersededRunsRef.current.has(controller)) return;
+          if (!claimedSurfaceAcceptsFile(currentClaimedSurface, fileName)) return;
           requestOpenFile(fileName);
           void refreshProjectFiles();
         },

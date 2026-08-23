@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProjectView,
   artifactForClaimedSurface,
+  claimedSurfaceAcceptsFile,
   clearStreamingConversationMarker,
   finalizeActiveAssistantMessagesOnStop,
   findExistingArtifactProjectFile,
@@ -255,6 +256,8 @@ describe('terminal replay artifact recovery', () => {
       .toMatchObject({ fileName: 'screens/billing.html' });
     expect(artifactForClaimedSurface({ ...replayArtifact, identifier: 'dashboard' }, claim))
       .toBeNull();
+    expect(claimedSurfaceAcceptsFile(claim, 'screens/billing.html')).toBe(true);
+    expect(claimedSurfaceAcceptsFile(claim, 'index.html')).toBe(false);
   });
 
   it('reuses only the server-resolved claimed file during recovery', () => {
