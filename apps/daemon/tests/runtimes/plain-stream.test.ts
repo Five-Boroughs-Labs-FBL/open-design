@@ -429,6 +429,30 @@ describe('plain stream artifact extraction', () => {
     }
   });
 
+  it('accepts the canonical index artifact for a claimed primary surface', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-primary-index-'));
+    try {
+      const artifact = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="index" type="text/html"><!doctype html><title>Register</title></artifact>',
+      )!;
+
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'complete',
+        target: { surfaceId: 'registration', file: 'index.html' },
+        writeProjectFile: writeProjectFile as any,
+      });
+
+      expect(written.name).toBe('index.html');
+      expect(await readFile(path.join(projectsRoot, 'project-1', 'index.html'), 'utf8'))
+        .toContain('Register');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('assigns anonymous thought HTML to the claimed secondary surface', async () => {
     const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-targeted-live-thought-'));
     try {

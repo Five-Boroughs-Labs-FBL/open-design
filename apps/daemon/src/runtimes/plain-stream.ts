@@ -39,6 +39,12 @@ function artifactMatchesDesignTarget(
 ): boolean {
   return artifact.identifier
     ? artifact.identifier === target.surfaceId
+      // AMC's primary live-paint contract deliberately uses the stable
+      // `index` artifact identifier even when the manifest's semantic surface
+      // id is `registration`, `dashboard`, or another product-specific name.
+      // Limit that alias to the canonical entry file so a wrong identifier can
+      // never claim a secondary surface or overwrite index.html by filename.
+      || (artifact.identifier === 'index' && target.file === LIVE_HTML_CANVAS_NAME)
     : (artifact.declaredFileName ?? artifact.fileName) === target.file;
 }
 
