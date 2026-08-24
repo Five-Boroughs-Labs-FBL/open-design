@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   DESIGN_MANIFEST_FILENAME,
   DESIGN_MANIFEST_MAX_BYTES,
+  DESIGN_MANIFEST_MAX_SURFACES,
   designManifestPathIdentity,
   DesignManifestValidationError,
   parseDesignManifestV2,
@@ -356,7 +357,7 @@ export function createDesignManifestStore(
           'expectedRevision must be a positive integer',
         ]);
       }
-      if (!options.runId || !options.updatedAt || options.surfaceIds.length < 1 || options.surfaceIds.length > 3) {
+      if (!options.runId || !options.updatedAt || options.surfaceIds.length < 1 || options.surfaceIds.length > DESIGN_MANIFEST_MAX_SURFACES) {
         throw new DesignManifestValidationError(['invalid design generation claim']);
       }
       const filePath = manifestPath(project);
@@ -471,9 +472,7 @@ export function createDesignManifestStore(
             const touched = new Set(
               (runState?.artifactPaths ?? []).map(designManifestPathIdentity),
             );
-            const completed = runState?.succeeded === true
-              && runState.exactOutputValidated === true
-              && surface.filePresent
+            const completed = surface.filePresent
               && touched.has(designManifestPathIdentity(surface.file));
             return {
               ...surface,

@@ -1217,16 +1217,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       }
       const files = await listFiles(PROJECTS_DIR, project.id, { metadata: project.metadata });
       const present = new Set(files.map((file) => designManifestPathIdentity(file.path || file.name)));
-      const completedSurfaceIds = run.status === 'succeeded' && deliverable.valid
-        ? prepared.surfaces
-            .filter((surface) => {
-              const identity = designManifestPathIdentity(surface.file);
-              // validateChatRunDeliverable already proved that every exact
-              // claimed file was touched and no unclaimed HTML was touched.
-              return present.has(identity);
-            })
-            .map((surface) => surface.surfaceId)
-        : [];
+      // Per-surface file presence, not run-level deliverable.valid. A 9/10
+      // landing must complete nine surfaces and fail the missing one. Gating
+      // on the collapsed run validation would fail every claimed id.
+      const completedSurfaceIds = prepared.surfaces
+        .filter((surface) => present.has(designManifestPathIdentity(surface.file)))
+        .map((surface) => surface.surfaceId);
       await designManifestStore.finishClaim(
         { id: project.id, metadata: project.metadata },
         {

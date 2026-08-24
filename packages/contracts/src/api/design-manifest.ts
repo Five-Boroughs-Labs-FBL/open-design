@@ -170,7 +170,7 @@ const manifestSchema = z.object({
 
 const designGenerationTargetSchema = z.object({
   manifestRevision: z.number().int().positive(),
-  surfaceIds: z.array(identifierSchema).min(1).max(3),
+  surfaceIds: z.array(identifierSchema).min(1).max(DESIGN_MANIFEST_MAX_SURFACES),
 }).strict();
 
 export function parseDesignGenerationTarget(input: unknown): DesignGenerationTarget {

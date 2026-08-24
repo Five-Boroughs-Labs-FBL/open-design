@@ -11,6 +11,7 @@ import {
   persistLiveHtmlCanvas,
   persistPlainStreamArtifacts,
   persistPlainStreamArtifactList,
+  artifactMatchesDesignTarget,
   plainStdoutFromRunEvents,
   withoutLiveHtmlCanvasArtifact,
 } from '../../src/runtimes/plain-stream.js';
@@ -559,6 +560,37 @@ describe('plain stream artifact extraction', () => {
       });
       const body = await readFile(path.join(projectsRoot, 'project-1', LIVE_HTML_CANVAS_NAME), 'utf8');
       expect(body).toContain('Name to confirm');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('routes each live artifact to its matching claimed surface, not surfaces[0]', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-per-artifact-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      const targets = [
+        { surfaceId: 'hud', file: 'index.html' },
+        { surfaceId: 'billing', file: 'billing.html' },
+      ];
+      const billing = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="billing" type="text/html"><!doctype html><title>Billing</title></artifact>',
+      )!;
+      expect(artifactMatchesDesignTarget(billing, targets[0]!)).toBe(false);
+      expect(artifactMatchesDesignTarget(billing, targets[1]!)).toBe(true);
+
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: billing,
+        status: 'complete',
+        targets,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe('billing.html');
+      expect(await readFile(path.join(projectDir, 'billing.html'), 'utf8')).toContain('Billing');
+      await expect(readFile(path.join(projectDir, 'index.html'), 'utf8')).rejects.toThrow();
     } finally {
       await rm(projectsRoot, { recursive: true, force: true });
     }

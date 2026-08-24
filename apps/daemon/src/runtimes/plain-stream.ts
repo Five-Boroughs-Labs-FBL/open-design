@@ -33,7 +33,7 @@ export interface DesignGenerationArtifactTarget {
   file: string;
 }
 
-function artifactMatchesDesignTarget(
+export function artifactMatchesDesignTarget(
   artifact: PlainStreamArtifact,
   target: DesignGenerationArtifactTarget,
 ): boolean {
@@ -46,6 +46,14 @@ function artifactMatchesDesignTarget(
       // never claim a secondary surface or overwrite index.html by filename.
       || (artifact.identifier === 'index' && target.file === LIVE_HTML_CANVAS_NAME)
     : (artifact.declaredFileName ?? artifact.fileName) === target.file;
+}
+
+export function resolveDesignGenerationArtifactTarget(
+  artifact: PlainStreamArtifact,
+  targets: readonly DesignGenerationArtifactTarget[] | undefined,
+): DesignGenerationArtifactTarget | undefined {
+  if (!targets?.length) return undefined;
+  return targets.find((target) => artifactMatchesDesignTarget(artifact, target));
 }
 
 interface RunEventLike {
@@ -291,9 +299,17 @@ export async function persistLiveHtmlCanvas(options: {
   writeProjectFile?: OverwriteWriteProjectFile;
   /** Exact manifest claim for a targeted surface; legacy remains index.html. */
   target?: DesignGenerationArtifactTarget;
+  /** Claimed surfaces for this run. Resolves the persist file per artifact. */
+  targets?: readonly DesignGenerationArtifactTarget[];
 }): Promise<PersistedPlainStreamArtifact> {
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
-  const target = options.target;
+  const target = options.target
+    ?? resolveDesignGenerationArtifactTarget(options.artifact, options.targets);
+  if (options.targets?.length && options.artifact.identifier && !target) {
+    throw new Error(
+      `live artifact does not match any claimed surface (${options.targets.map((item) => item.surfaceId).join(', ')})`,
+    );
+  }
   // A targeted run gives otherwise-anonymous thought HTML its authoritative
   // filename. Explicit identifiers remain strict so a model naming the wrong
   // surface can never overwrite the claimed file (especially index.html).
