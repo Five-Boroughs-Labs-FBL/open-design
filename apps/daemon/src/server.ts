@@ -457,6 +457,12 @@ import { runtimeResumesSessionById } from './runtimes/types.js';
 import { adoptGrokSession } from './runtimes/grok-session-adopt.js';
 import { applyAmcGrokHome } from './runtimes/amc-grok.js';
 import {
+  applyAmcCredential,
+  materializeAmcCredential,
+  readAmcCredentialFile,
+  type AmcCredential,
+} from './runtimes/amc-credential.js';
+import {
   createRunLifecycleTracer,
   runLifecycleMarkersForStreamEvent,
 } from './run-lifecycle-tracer.js';
@@ -10492,6 +10498,20 @@ export async function startServer({
         // Follow-up runs still attempt daemon GROK_HOME if metadata is missing.
       }
     }
+    // A studio follow-up creates a run AMC never saw, so it carries no
+    // envelope. Rehydrate the last credential this project was given rather
+    // than silently falling through to the daemon host environment.
+    let amcCredential: AmcCredential | null = run.amcCredential ?? null;
+    if (!amcCredential && run.projectId) {
+      try {
+        const seeded = getProject(db, run.projectId);
+        amcCredential = readAmcCredentialFile(
+          seeded && seeded.metadata && seeded.metadata.amcCredentialPath,
+        );
+      } catch {
+        // No persisted credential: the spawn proceeds without one.
+      }
+    }
     const amcGrokForwarding =
       def.id === 'grok-build' && run.amcGrok && typeof run.amcGrok.grokHome === 'string'
         ? run.amcGrok
@@ -10538,6 +10558,20 @@ export async function startServer({
         });
       } catch {
         // Spawn still receives GROK_HOME on this run.
+      }
+    }
+    if (run.amcCredential && run.projectId) {
+      try {
+        const credentialPath = materializeAmcCredential(RUNTIME_DATA_DIR, run.amcCredential);
+        const current = getProject(db, run.projectId);
+        updateProject(db, run.projectId, {
+          metadata: {
+            ...((current && current.metadata) || {}),
+            amcCredentialPath: credentialPath,
+          },
+        });
+      } catch {
+        // Spawn still receives the credential on this run.
       }
     }
     const forceAmcGrokResume =
@@ -12276,7 +12310,7 @@ export async function startServer({
         }
       : {};
     const configuredAgentSpawnEnv = createDaemonDataDirConfiguredAgentEnv(configuredAgentEnv);
-    const agentSpawnEnv = applyAmcGrokHome(
+    const agentSpawnEnvWithGrok = applyAmcGrokHome(
       spawnEnvForAgent(
         def.id,
         {
@@ -12290,6 +12324,10 @@ export async function startServer({
       ),
       def.id === 'grok-build' ? amcGrokForwarding : null,
     );
+    // AMC-supplied credential wins over the daemon host environment for the
+    // same reason configuredEnv does: it is the explicit instruction for this
+    // run, and an ambient key here would bill the wrong account.
+    const agentSpawnEnv = applyAmcCredential(agentSpawnEnvWithGrok, amcCredential, def.id);
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentSpawnEnv);
       if (!loginStatus.loggedIn) {
