@@ -15,8 +15,7 @@ import {
 import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
-import { validateHtmlArtifact } from '../artifacts/validate';
-import { recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../artifacts/recover';
+import { decideHtmlArtifactPersist, recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../artifacts/recover';
 import { createArtifactParser } from '../artifacts/parser';
 import { useI18n } from '../i18n';
 import {
@@ -3745,13 +3744,28 @@ export function ProjectView({
       // when only Edit-tool changes happened this turn. Without this guard,
       // such content lands as a phantom HTML file in the project panel.
       if (ext === '.html') {
-        const validation = validateHtmlArtifact(artifactToPersist.html);
-        if (!validation.ok) {
+        const decision = decideHtmlArtifactPersist({
+          artifactHtml: artifactToPersist.html,
+          identifier: art.identifier,
+          sourceText,
+          hasPreviousSingleDocument: existing.has(fileName) || Boolean(claimedFileName),
+        });
+        if (decision.action === 'keep-previous') {
+          // Restore is a success: FileViewer must drop the mixed live buffer
+          // and read the turn-start document from disk.
+          setArtifact(null);
+          return { ok: true as const, fileName };
+        }
+        if (decision.action === 'refuse') {
           const message =
             `Refused to save artifact "${art.identifier || art.title || 'untitled'}": ` +
-            validation.reason;
+            decision.reason;
           setError(message);
           return { ok: false as const, error: message };
+        }
+        if (decision.html !== art.html) {
+          artifactToPersist = { ...artifactToPersist, html: decision.html };
+          setArtifact((prev) => (prev ? { ...prev, html: decision.html } : prev));
         }
       }
       if (savedArtifactRef.current === fileName) {

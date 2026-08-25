@@ -10915,7 +10915,7 @@ export async function startServer({
           }
           return true;
         },
-        restoreIfMixed: async (cleanContent) => {
+        restoreIfMixed: async (cleanContent, restore) => {
           if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
           const project = getProject(db, projectId);
           await restoreLiveHtmlCanvasIfMixed({
@@ -10926,6 +10926,7 @@ export async function startServer({
             metadata: project?.metadata,
             writeProjectFile,
             readProjectFile,
+            force: restore?.force,
           });
         },
       });

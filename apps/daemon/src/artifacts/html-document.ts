@@ -46,6 +46,29 @@ export function isSingleHtmlDocument(content: string): boolean {
   return startsLikeHtmlDocument(content) && !isMixedHtmlDocument(content);
 }
 
+const ARTIFACT_OPEN_RE = /<artifact\s[^>]*>/i;
+const ARTIFACT_CLOSE_TAG = '</artifact>';
+
+/**
+ * A later-turn live primary can restart as a single `<artifact>` envelope
+ * after a broken first document (DOCTYPE / html / head, then the tag, then a
+ * second DOCTYPE). Persist the inner page when that inner page is itself a
+ * single HTML document. Do not salvage a nested document from thinking or a
+ * markdown fence — those stay mixed.
+ */
+export function unwrapSingleHtmlArtifactEnvelope(content: string): string | null {
+  if (!content) return null;
+  const openMatch = content.match(ARTIFACT_OPEN_RE);
+  if (!openMatch || openMatch.index == null) return null;
+  const afterOpen = openMatch.index + openMatch[0].length;
+  if (ARTIFACT_OPEN_RE.test(content.slice(afterOpen))) return null;
+  const closeStart = content.indexOf(ARTIFACT_CLOSE_TAG, afterOpen);
+  const inner = (closeStart >= 0
+    ? content.slice(afterOpen, closeStart)
+    : content.slice(afterOpen)).trim();
+  return isSingleHtmlDocument(inner) ? inner : null;
+}
+
 function styleContainsMarkupOrFence(content: string): boolean {
   let searchFrom = 0;
   while (searchFrom < content.length) {

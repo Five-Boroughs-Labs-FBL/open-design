@@ -1,10 +1,54 @@
 import { validateHtmlArtifact } from './validate';
 
-type RecoverHtmlArtifactInput = {
+export type RecoverHtmlArtifactInput = {
   artifactHtml: string;
   identifier?: string;
   sourceText?: string;
+  hasPreviousSingleDocument?: boolean;
 };
+
+const ARTIFACT_OPEN_RE = /<artifact\s[^>]*>/i;
+const ARTIFACT_CLOSE_TAG = '</artifact>';
+
+/**
+ * Later-turn live primary can restart as one `<artifact>` envelope after a
+ * broken first document. Persist only the inner page when that inner page is
+ * itself a single HTML document.
+ */
+export function unwrapSingleHtmlArtifactEnvelope(content: string): string | null {
+  if (!content) return null;
+  const openMatch = content.match(ARTIFACT_OPEN_RE);
+  if (!openMatch || openMatch.index == null) return null;
+  const afterOpen = openMatch.index + openMatch[0].length;
+  if (ARTIFACT_OPEN_RE.test(content.slice(afterOpen))) return null;
+  const closeStart = content.indexOf(ARTIFACT_CLOSE_TAG, afterOpen);
+  const inner = (closeStart >= 0
+    ? content.slice(afterOpen, closeStart)
+    : content.slice(afterOpen)).trim();
+  return validateHtmlArtifact(inner).ok ? inner : null;
+}
+
+export type HtmlArtifactPersistDecision =
+  | { action: 'persist'; html: string }
+  | { action: 'keep-previous' }
+  | { action: 'refuse'; reason: string };
+
+/**
+ * Persist-time decision for a later-turn HTML artifact.
+ * Unwrap a single envelope when the inner page is clean. If the candidate is
+ * still mixed and a previous single document exists, keep that previous file
+ * instead of refusing the run.
+ */
+export function decideHtmlArtifactPersist(
+  input: RecoverHtmlArtifactInput,
+): HtmlArtifactPersistDecision {
+  const html = resolvePersistedArtifactHtml(input);
+  const validation = validateHtmlArtifact(html);
+  if (validation.ok) return { action: 'persist', html };
+  const mixed = /single HTML document/i.test(validation.reason);
+  if (mixed && input.hasPreviousSingleDocument) return { action: 'keep-previous' };
+  return { action: 'refuse', reason: validation.reason };
+}
 
 const HTML_OPEN_RE = /<html\b/gi;
 const HTML_CLOSE_RE = /<\/html\s*>/gi;
@@ -80,7 +124,10 @@ export function recoverHtmlArtifactFromPrecedingDocument({
  * file, so the recovered document persists a second time as a duplicate (#4318).
  */
 export function resolvePersistedArtifactHtml(input: RecoverHtmlArtifactInput): string {
-  return recoverHtmlArtifactFromPrecedingDocument(input) ?? input.artifactHtml;
+  return recoverHtmlArtifactFromPrecedingDocument(input)
+    ?? unwrapSingleHtmlArtifactEnvelope(input.artifactHtml)
+    ?? unwrapSingleHtmlArtifactEnvelope(input.sourceText ?? '')
+    ?? input.artifactHtml;
 }
 
 export function recoverStandaloneHtmlDocument(sourceText: string | null | undefined): string | null {
