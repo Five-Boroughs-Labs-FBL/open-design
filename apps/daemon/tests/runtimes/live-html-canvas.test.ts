@@ -174,6 +174,141 @@ describe('createLiveHtmlCanvasWriter', () => {
     await expect(writer.flush('complete')).rejects.toThrow('draft persist failed');
   });
 
+  it('persists only the inner page from an artifact-envelope + second-doctype stream', async () => {
+    const {
+      ARTIFACT_ENVELOPE_LEAK_OPEN_HTML,
+      CLEAN_LOGIN_HTML,
+      MOBILE_LOGIN_HTML,
+    } = await import('../artifacts/html-document.fixtures.js');
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-envelope-writer-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        persist: (artifact, status) => persistLiveHtmlCanvas({
+          projectsRoot,
+          projectId: 'project-1',
+          artifact,
+          status,
+          previousCleanContent: CLEAN_LOGIN_HTML,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      const prefix = ARTIFACT_ENVELOPE_LEAK_OPEN_HTML.slice(
+        0,
+        ARTIFACT_ENVELOPE_LEAK_OPEN_HTML.indexOf('<artifact'),
+      );
+      writer.note(prefix);
+      await Promise.resolve();
+      writer.note(ARTIFACT_ENVELOPE_LEAK_OPEN_HTML);
+      await expect(writer.flush('complete')).resolves.toBeUndefined();
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(MOBILE_LOGIN_HTML);
+      expect(body).not.toContain('<artifact identifier="login"');
+      expect(body).not.toContain('maximum-scale=1.');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('restores the turn-start snapshot without throwing when unwrap still leaves a mixed dump', async () => {
+    const {
+      ARTIFACT_ENVELOPE_MIXED_INNER_HTML,
+      CLEAN_LOGIN_HTML,
+    } = await import('../artifacts/html-document.fixtures.js');
+    const { restoreLiveHtmlCanvasIfMixed } = await import(
+      '../../src/runtimes/plain-stream.js'
+    );
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-envelope-restore-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), ARTIFACT_ENVELOPE_MIXED_INNER_HTML);
+
+      const persists: string[] = [];
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        persist: async (artifact) => {
+          persists.push(artifact.content);
+        },
+        restoreIfMixed: (cleanContent, restore) => restoreLiveHtmlCanvasIfMixed({
+          projectsRoot,
+          projectId: 'project-1',
+          name: LIVE_HTML_CANVAS_NAME,
+          previousCleanContent: cleanContent,
+          force: restore?.force,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      writer.note(ARTIFACT_ENVELOPE_MIXED_INNER_HTML);
+      await expect(writer.flush('complete')).resolves.toBeUndefined();
+      expect(persists).toEqual([]);
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(CLEAN_LOGIN_HTML);
+      expect(body).not.toContain('<artifact identifier="login"');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('force-restores the turn-start snapshot after a streaming prefix then a mixed envelope', async () => {
+    const {
+      ARTIFACT_ENVELOPE_MIXED_INNER_HTML,
+      CLEAN_LOGIN_HTML,
+    } = await import('../artifacts/html-document.fixtures.js');
+    const { restoreLiveHtmlCanvasIfMixed } = await import(
+      '../../src/runtimes/plain-stream.js'
+    );
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-prefix-restore-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        persist: (artifact, status) => persistLiveHtmlCanvas({
+          projectsRoot,
+          projectId: 'project-1',
+          artifact,
+          status,
+          previousCleanContent: CLEAN_LOGIN_HTML,
+          writeProjectFile: writeProjectFile as any,
+        }),
+        restoreIfMixed: (cleanContent, restore) => restoreLiveHtmlCanvasIfMixed({
+          projectsRoot,
+          projectId: 'project-1',
+          name: LIVE_HTML_CANVAS_NAME,
+          previousCleanContent: cleanContent,
+          force: restore?.force,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      const prefix = ARTIFACT_ENVELOPE_MIXED_INNER_HTML.slice(
+        0,
+        ARTIFACT_ENVELOPE_MIXED_INNER_HTML.indexOf('<artifact'),
+      );
+      writer.note(prefix);
+      writer.note(ARTIFACT_ENVELOPE_MIXED_INNER_HTML);
+      await expect(writer.flush('complete')).resolves.toBeUndefined();
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(CLEAN_LOGIN_HTML);
+      expect(body).not.toContain('<artifact identifier="login"');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('restores the previous clean file when the stream is the leaked mixed dump', async () => {
     const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
       '../artifacts/html-document.fixtures.js'
@@ -196,11 +331,12 @@ describe('createLiveHtmlCanvasWriter', () => {
         persist: async (artifact) => {
           persists.push(artifact.content);
         },
-        restoreIfMixed: (cleanContent) => restoreLiveHtmlCanvasIfMixed({
+        restoreIfMixed: (cleanContent, restore) => restoreLiveHtmlCanvasIfMixed({
           projectsRoot,
           projectId: 'project-1',
           name: LIVE_HTML_CANVAS_NAME,
           previousCleanContent: cleanContent,
+          force: restore?.force,
           writeProjectFile: writeProjectFile as any,
         }),
       });

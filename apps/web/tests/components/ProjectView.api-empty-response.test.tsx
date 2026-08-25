@@ -820,6 +820,100 @@ describe('ProjectView API empty response handling', () => {
     });
   });
 
+  it('unwraps an artifact-envelope leak and persists only the inner login page', async () => {
+    const inner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><title>FRUN Ops HUD - Sign in</title>',
+      '<style>:root{--tap:52px}</style></head>',
+      '<body><h1>Sign in</h1><p>Enough content to look like a real mobile login.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.',
+      '<artifact identifier="index" type="text/html" title="Login">',
+      inner,
+      '</artifact>',
+    ].join('\n');
+    mockedFetchProjectFiles.mockResolvedValue([
+      {
+        name: 'index.html',
+        path: 'index.html',
+        kind: 'html',
+        mime: 'text/html',
+        size: 100,
+        mtime: 1,
+      },
+    ] as never);
+    mockedWriteProjectTextFile.mockResolvedValue({
+      name: 'index.html',
+      path: 'index.html',
+      kind: 'html',
+      mime: 'text/html',
+      size: inner.length,
+      mtime: 2,
+    });
+    mockedStreamViaDaemon.mockImplementation(async (options: DaemonStreamOptions) => {
+      options.handlers.onDelta(leak);
+      options.handlers.onDone('');
+    });
+    renderProjectView();
+
+    await sendTestPrompt();
+
+    await waitFor(() => expect(mockedWriteProjectTextFile).toHaveBeenCalled());
+    expect(mockedWriteProjectTextFile.mock.calls[0]?.slice(0, 3)).toEqual([
+      'project-1',
+      'index.html',
+      inner,
+    ]);
+    expect(screen.queryByText(/Refused to save artifact/i)).toBeNull();
+    expect(screen.queryByText(/Task failed/i)).toBeNull();
+  });
+
+  it('keeps the previous login instead of Task failed when the envelope inner page is still mixed', async () => {
+    const mixedInner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><style>',
+      "@import url('https://fonts.googleapis.I'll read the login page and tighten the mobile layout.",
+      '```html',
+      '<!DOCTYPE html>',
+      '<html><body><p>Enough content to look like a real nested document.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><meta charset="UTF-8">',
+      '<artifact identifier="index" type="text/html" title="Login">',
+      mixedInner,
+      '</artifact>',
+    ].join('\n');
+    mockedFetchProjectFiles.mockResolvedValue([
+      {
+        name: 'index.html',
+        path: 'index.html',
+        kind: 'html',
+        mime: 'text/html',
+        size: 100,
+        mtime: 1,
+      },
+    ] as never);
+    mockedStreamViaDaemon.mockImplementation(async (options: DaemonStreamOptions) => {
+      options.handlers.onDelta(leak);
+      options.handlers.onDone('');
+    });
+    renderProjectView();
+
+    await sendTestPrompt();
+
+    await waitFor(() => {
+      expect(hasSavedAssistantMessage((message) => message.runStatus === 'succeeded')).toBe(true);
+    });
+    expect(mockedWriteProjectTextFile).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Refused to save artifact/i)).toBeNull();
+    expect(screen.queryByText(/Task failed/i)).toBeNull();
+  });
+
   it('refuses invalid HTML instead of overwriting an explicitly identified project file', async () => {
     mockedFetchProjectFiles.mockResolvedValue([
       {

@@ -10,11 +10,11 @@ export function createLiveHtmlCanvasWriter(options: {
     status: LiveHtmlCanvasStatus,
   ) => Promise<unknown | false>;
   /**
-   * Called when extract refuses a mixed dump, or after flush in case a
-   * child Write overwrote the live file. Receives the last known single
-   * document (turn-start snapshot, then each successful persist).
+   * Called when extract cannot unwrap a mixed dump, or after flush in case a
+   * child Write overwrote the live file. Receives the turn-start snapshot
+   * (not a later streaming false-start draft).
    */
-  restoreIfMixed?: (cleanContent: string) => Promise<unknown>;
+  restoreIfMixed?: (cleanContent: string, restore?: { force?: boolean }) => Promise<unknown>;
   previousCleanContent?: string | null;
   delayMs?: number;
 }) {
@@ -28,18 +28,22 @@ export function createLiveHtmlCanvasWriter(options: {
   let lastWriteAt: number | null = null;
   let chain = Promise.resolve();
   let persistError: unknown = null;
-  let cleanToRestore =
+  let streamBroken = false;
+  const turnStartClean =
     options.previousCleanContent && isSingleHtmlDocument(options.previousCleanContent)
       ? options.previousCleanContent
       : null;
+  let cleanToRestore = turnStartClean;
 
-  function enqueueRestore() {
+  function enqueueRestore(force = false) {
     if (!options.restoreIfMixed) return;
     chain = chain
       .then(async () => {
-        const clean = cleanToRestore;
+        const clean = turnStartClean ?? cleanToRestore;
         if (!clean) return;
-        await options.restoreIfMixed?.(clean);
+        await options.restoreIfMixed?.(clean, { force });
+        // A recoverable keep-previous must not fail the run.
+        persistError = null;
       })
       .catch((err) => {
         persistError = err;
@@ -78,7 +82,10 @@ export function createLiveHtmlCanvasWriter(options: {
         // `false` is an ownership no-op, not a successful persistence.
         if (persisted !== false) {
           persistError = null;
-          if (isSingleHtmlDocument(snapshot.content)) {
+          // Do not replace the turn-start snapshot with a streaming draft.
+          // A prefix before an `<artifact>` restart is a single document and
+          // must not become the restore source.
+          if (status === 'complete' && isSingleHtmlDocument(snapshot.content)) {
             cleanToRestore = snapshot.content;
           }
         }
@@ -96,9 +103,14 @@ export function createLiveHtmlCanvasWriter(options: {
       if (sealed) return;
       const artifact = extractLiveHtmlCanvasArtifact(text);
       if (!artifact) {
-        if (liveHtmlSourceIsBroken(text)) enqueueRestore();
+        if (liveHtmlSourceIsBroken(text)) {
+          streamBroken = true;
+          pending = null;
+          enqueueRestore(true);
+        }
         return;
       }
+      streamBroken = false;
       pending = artifact;
       if (!wrote) {
         wrote = true;
@@ -126,8 +138,12 @@ export function createLiveHtmlCanvasWriter(options: {
         clearTimeout(timer);
         timer = null;
       }
-      enqueue(status);
-      enqueueRestore();
+      if (streamBroken) {
+        enqueueRestore(true);
+      } else {
+        enqueue(status);
+        enqueueRestore(false);
+      }
       await chain;
       if (status === 'complete') sealed = true;
       if (persistError) {

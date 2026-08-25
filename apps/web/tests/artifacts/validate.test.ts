@@ -168,6 +168,25 @@ describe('validateHtmlArtifact', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('rejects the artifact-envelope + second-doctype leak until it is unwrapped', () => {
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.',
+      '<artifact identifier="login" type="text/html" title="Login">',
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><title>FRUN Ops HUD - Sign in</title>',
+      '<style>:root{--tap:52px}</style></head>',
+      '<body><h1>Sign in</h1><p>Enough content to look like a real nested document.</p></body></html>',
+      '</artifact>',
+    ].join('\n');
+    expect(leak.length).toBeGreaterThan(64);
+    const result = validateHtmlArtifact(leak);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/single HTML document/i);
+  });
+
   it('rejects the leaked later-turn shape that starts with DOCTYPE but is mixed', () => {
     const leak = [
       '<!DOCTYPE html>',

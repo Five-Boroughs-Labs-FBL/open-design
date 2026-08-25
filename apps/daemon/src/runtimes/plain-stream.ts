@@ -1,7 +1,11 @@
 import { Buffer } from 'node:buffer';
 import type { ProjectFile } from '@open-design/contracts';
 import { createProjectArtifactFile } from '../artifacts/create.js';
-import { isMixedHtmlDocument, isSingleHtmlDocument } from '../artifacts/html-document.js';
+import {
+  isMixedHtmlDocument,
+  isSingleHtmlDocument,
+  unwrapSingleHtmlArtifactEnvelope,
+} from '../artifacts/html-document.js';
 import {
   listFiles as defaultListFiles,
   readProjectFile as defaultReadProjectFile,
@@ -255,7 +259,7 @@ function asSingleLiveHtmlDocument(
   source: PlainStreamArtifact | null,
   content: string,
 ): PlainStreamArtifact | null {
-  const trimmed = trimLiveHtmlDocument(content);
+  const trimmed = trimLiveHtmlDocument(content).trim();
   if (!isSingleHtmlDocument(trimmed)) return null;
   return toLiveHtmlCanvasArtifact(source, trimmed);
 }
@@ -293,10 +297,10 @@ export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifa
     ?? null;
   const closedSingle = closed ? asSingleLiveHtmlDocument(closed, closed.content) : null;
   if (closedSingle) return closedSingle;
-  if (liveHtmlSourceIsBroken(stdout)) return null;
   const open = extractOpenPlainStreamArtifact(stdout);
   const openSingle = open ? asSingleLiveHtmlDocument(open, open.content) : null;
   if (openSingle) return openSingle;
+  if (liveHtmlSourceIsBroken(stdout)) return null;
   const bare = extractLastBareHtmlDocument(stdout);
   if (bare) {
     const bareSingle = asSingleLiveHtmlDocument(closed ?? open, bare);
@@ -379,7 +383,9 @@ export async function persistLiveHtmlCanvas(options: {
     );
   }
   const name = target?.file ?? LIVE_HTML_CANVAS_NAME;
-  if (isMixedHtmlDocument(options.artifact.content)) {
+  const persistable = unwrapSingleHtmlArtifactEnvelope(options.artifact.content)
+    ?? options.artifact.content;
+  if (isMixedHtmlDocument(persistable)) {
     return keepPreviousLiveHtmlDocument({
       ...options,
       name,
@@ -391,7 +397,7 @@ export async function persistLiveHtmlCanvas(options: {
     options.projectsRoot,
     options.projectId,
     name,
-    Buffer.from(options.artifact.content, 'utf8'),
+    Buffer.from(persistable, 'utf8'),
     {
       overwrite: true,
       artifactManifest: artifactManifestFor(options.artifact, name, options.status),
@@ -490,6 +496,12 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
   metadata?: unknown;
   writeProjectFile?: OverwriteWriteProjectFile;
   readProjectFile?: ReadProjectFile;
+  /**
+   * When true, write the turn-start snapshot even if the on-disk file is a
+   * single false-start draft (prefix before an `<artifact>` restart). The
+   * default only restores when disk is already mixed.
+   */
+  force?: boolean;
 }): Promise<boolean> {
   const previous = options.previousCleanContent;
   if (!previous || !isSingleHtmlDocument(previous)) return false;
@@ -502,9 +514,11 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
       options.name,
       options.metadata,
     );
-    if (!isMixedHtmlDocument(existing.buffer.toString('utf8'))) return false;
+    const existingText = existing.buffer.toString('utf8');
+    if (existingText === previous) return false;
+    if (!options.force && !isMixedHtmlDocument(existingText)) return false;
   } catch {
-    return false;
+    if (!options.force) return false;
   }
   await writeProjectFile(
     options.projectsRoot,
@@ -566,7 +580,10 @@ export async function persistPlainStreamArtifactList(options: {
       if (index < 0) continue;
       const [artifact] = remaining.splice(index, 1);
       if (!artifact) continue;
-      if (artifact.extension === '.html' && isMixedHtmlDocument(artifact.content)) {
+      const persistable = artifact.extension === '.html'
+        ? (unwrapSingleHtmlArtifactEnvelope(artifact.content) ?? artifact.content)
+        : artifact.content;
+      if (artifact.extension === '.html' && isMixedHtmlDocument(persistable)) {
         continue;
       }
       const manifest = artifactManifestFor(artifact, target.file);
@@ -574,7 +591,7 @@ export async function persistPlainStreamArtifactList(options: {
         options.projectsRoot,
         options.projectId,
         target.file,
-        Buffer.from(artifact.content, 'utf8'),
+        Buffer.from(persistable, 'utf8'),
         { overwrite: true, artifactManifest: manifest },
         options.metadata,
       );
@@ -595,7 +612,10 @@ export async function persistPlainStreamArtifactList(options: {
   const persisted: PersistedPlainStreamArtifact[] = [];
 
   for (const artifact of artifacts) {
-    if (artifact.extension === '.html' && isMixedHtmlDocument(artifact.content)) {
+    const persistable = artifact.extension === '.html'
+      ? (unwrapSingleHtmlArtifactEnvelope(artifact.content) ?? artifact.content)
+      : artifact.content;
+    if (artifact.extension === '.html' && isMixedHtmlDocument(persistable)) {
       continue;
     }
     const name = reserveUniqueArtifactFileName(artifact.fileName, reservedNames);
@@ -605,7 +625,7 @@ export async function persistPlainStreamArtifactList(options: {
       projectId: options.projectId,
       input: {
         name,
-        content: artifact.content,
+        content: persistable,
         artifactManifest: manifest,
       },
       metadata: options.metadata,

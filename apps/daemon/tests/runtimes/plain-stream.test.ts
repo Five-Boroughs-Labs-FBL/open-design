@@ -648,6 +648,102 @@ describe('plain stream artifact extraction', () => {
     }
   });
 
+  it('unwraps a later-turn artifact envelope and persists only the inner document', async () => {
+    const {
+      ARTIFACT_ENVELOPE_LEAK_HTML,
+      ARTIFACT_ENVELOPE_LEAK_OPEN_HTML,
+      CLEAN_LOGIN_HTML,
+      MOBILE_LOGIN_HTML,
+    } = await import('../artifacts/html-document.fixtures.js');
+    const live = extractLiveHtmlCanvasArtifact(ARTIFACT_ENVELOPE_LEAK_OPEN_HTML);
+    expect(live).not.toBeNull();
+    expect(live?.identifier).toBe('login');
+    expect(live?.content).toBe(MOBILE_LOGIN_HTML);
+    expect(extractLiveHtmlCanvasArtifact(ARTIFACT_ENVELOPE_LEAK_HTML)?.content).toBe(MOBILE_LOGIN_HTML);
+    expect(live?.content).not.toContain('<artifact');
+    expect(live?.content).toContain('--tap:52px');
+
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-envelope-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: live!,
+        status: 'complete',
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe(LIVE_HTML_CANVAS_NAME);
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(MOBILE_LOGIN_HTML);
+      expect(body).not.toContain('<artifact identifier="login"');
+      expect(body).not.toContain('maximum-scale=1.');
+
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: {
+          identifier: 'login',
+          artifactType: 'text/html',
+          title: 'Login',
+          content: ARTIFACT_ENVELOPE_LEAK_HTML,
+          extension: '.html',
+          fileName: LIVE_HTML_CANVAS_NAME,
+        },
+        status: 'complete',
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8'))
+        .toBe(MOBILE_LOGIN_HTML);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('restores the turn-start snapshot when the unwrapped inner page is still mixed', async () => {
+    const {
+      ARTIFACT_ENVELOPE_MIXED_INNER_HTML,
+      CLEAN_LOGIN_HTML,
+    } = await import('../artifacts/html-document.fixtures.js');
+    expect(extractLiveHtmlCanvasArtifact(ARTIFACT_ENVELOPE_MIXED_INNER_HTML)).toBeNull();
+
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-envelope-mixed-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), ARTIFACT_ENVELOPE_MIXED_INNER_HTML);
+      const leaked = {
+        identifier: 'login',
+        artifactType: 'text/html',
+        title: 'Login',
+        content: ARTIFACT_ENVELOPE_MIXED_INNER_HTML,
+        extension: '.html' as const,
+        fileName: LIVE_HTML_CANVAS_NAME,
+      };
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: leaked,
+        status: 'complete',
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe(LIVE_HTML_CANVAS_NAME);
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(CLEAN_LOGIN_HTML);
+      expect(body).not.toContain('<artifact identifier="login"');
+      expect(body).not.toContain('```html');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('does not persist the leaked later-turn shape as index.html', async () => {
     const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
       '../artifacts/html-document.fixtures.js'

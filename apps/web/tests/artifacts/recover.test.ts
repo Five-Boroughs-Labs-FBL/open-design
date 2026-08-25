@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { recoverHtmlArtifactFromPrecedingDocument, recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml } from '../../src/artifacts/recover';
+import { decideHtmlArtifactPersist, recoverHtmlArtifactFromPrecedingDocument, recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument, resolvePersistedArtifactHtml, unwrapSingleHtmlArtifactEnvelope } from '../../src/artifacts/recover';
 
 const completeHtml = '<!doctype html><html><head><title>Demo</title></head><body><main><h1>Recovered artifact</h1></main></body></html>';
 
@@ -110,6 +110,113 @@ describe('resolvePersistedArtifactHtml', () => {
       identifier: 'demo',
       sourceText: `${completeHtml}\nThis is an explanation.\n<artifact identifier="demo">summary only</artifact>`,
     })).toBe('summary only');
+  });
+
+  it('unwraps a later-turn artifact envelope and persists only the inner document', () => {
+    const inner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><title>FRUN Ops HUD - Sign in</title>',
+      '<style>:root{--tap:52px}</style></head>',
+      '<body><h1>Sign in</h1><p>Enough content to look like a real mobile login.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.',
+      '<artifact identifier="login" type="text/html" title="Login">',
+      inner,
+      '</artifact>',
+    ].join('\n');
+    expect(resolvePersistedArtifactHtml({
+      artifactHtml: leak,
+      identifier: 'login',
+      sourceText: leak,
+    })).toBe(inner);
+    expect(unwrapSingleHtmlArtifactEnvelope(leak)).toBe(inner);
+  });
+
+  it('does not unwrap when the inner page is still mixed', () => {
+    const mixedInner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><style>',
+      "@import url('https://fonts.googleapis.I'll read the login page and tighten the mobile layout.",
+      '```html',
+      '<!DOCTYPE html>',
+      '<html><body><p>Enough content to look like a real nested document.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><meta charset="UTF-8">',
+      '<artifact identifier="login" type="text/html" title="Login">',
+      mixedInner,
+      '</artifact>',
+    ].join('\n');
+    expect(unwrapSingleHtmlArtifactEnvelope(leak)).toBeNull();
+    expect(resolvePersistedArtifactHtml({
+      artifactHtml: leak,
+      identifier: 'login',
+      sourceText: leak,
+    })).toBe(leak);
+  });
+});
+
+describe('decideHtmlArtifactPersist', () => {
+  it('persists the unwrapped inner page from an artifact-envelope + second-doctype leak', () => {
+    const inner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><title>FRUN Ops HUD - Sign in</title>',
+      '<style>:root{--tap:52px}</style></head>',
+      '<body><h1>Sign in</h1><p>Enough content to look like a real mobile login.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.',
+      '<artifact identifier="login" type="text/html" title="Login">',
+      inner,
+      '</artifact>',
+    ].join('\n');
+    expect(decideHtmlArtifactPersist({
+      artifactHtml: leak,
+      identifier: 'login',
+      sourceText: leak,
+      hasPreviousSingleDocument: true,
+    })).toEqual({ action: 'persist', html: inner });
+  });
+
+  it('keeps the previous document instead of refusing when the inner page is still mixed', () => {
+    const mixedInner = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><style>',
+      "@import url('https://fonts.googleapis.I'll read the login page and tighten the mobile layout.",
+      '```html',
+      '<!DOCTYPE html>',
+      '<html><body><p>Enough content to look like a real nested document.</p></body></html>',
+    ].join('\n');
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><meta charset="UTF-8">',
+      '<artifact identifier="login" type="text/html" title="Login">',
+      mixedInner,
+      '</artifact>',
+    ].join('\n');
+    expect(decideHtmlArtifactPersist({
+      artifactHtml: leak,
+      identifier: 'login',
+      sourceText: leak,
+      hasPreviousSingleDocument: true,
+    })).toEqual({ action: 'keep-previous' });
+  });
+
+  it('still refuses a prose summary so phantom HTML files cannot land', () => {
+    const decision = decideHtmlArtifactPersist({
+      artifactHtml: 'Summary only. The login page was tightened for mobile tap targets.',
+      identifier: 'login',
+      hasPreviousSingleDocument: true,
+    });
+    expect(decision.action).toBe('refuse');
   });
 });
 
