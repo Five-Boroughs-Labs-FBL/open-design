@@ -259,7 +259,7 @@ function asSingleLiveHtmlDocument(
   source: PlainStreamArtifact | null,
   content: string,
 ): PlainStreamArtifact | null {
-  const trimmed = trimLiveHtmlDocument(content);
+  const trimmed = trimLiveHtmlDocument(content).trim();
   if (!isSingleHtmlDocument(trimmed)) return null;
   return toLiveHtmlCanvasArtifact(source, trimmed);
 }

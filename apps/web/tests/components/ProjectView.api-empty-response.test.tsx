@@ -832,7 +832,7 @@ describe('ProjectView API empty response handling', () => {
       '<html lang="en"><head>',
       '<meta charset="UTF-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.',
-      '<artifact identifier="login" type="text/html" title="Login">',
+      '<artifact identifier="index" type="text/html" title="Login">',
       inner,
       '</artifact>',
     ].join('\n');
@@ -884,7 +884,7 @@ describe('ProjectView API empty response handling', () => {
     const leak = [
       '<!DOCTYPE html>',
       '<html lang="en"><head><meta charset="UTF-8">',
-      '<artifact identifier="login" type="text/html" title="Login">',
+      '<artifact identifier="index" type="text/html" title="Login">',
       mixedInner,
       '</artifact>',
     ].join('\n');

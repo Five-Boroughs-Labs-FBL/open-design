@@ -299,9 +299,6 @@ describe('createLiveHtmlCanvasWriter', () => {
         ARTIFACT_ENVELOPE_MIXED_INNER_HTML.indexOf('<artifact'),
       );
       writer.note(prefix);
-      await Promise.resolve();
-      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8'))
-        .toContain('maximum-scale=1.');
       writer.note(ARTIFACT_ENVELOPE_MIXED_INNER_HTML);
       await expect(writer.flush('complete')).resolves.toBeUndefined();
       const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');

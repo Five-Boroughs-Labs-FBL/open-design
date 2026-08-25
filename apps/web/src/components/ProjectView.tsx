@@ -3691,7 +3691,7 @@ export function ProjectView({
         identifier: art.identifier,
         sourceText,
       });
-      const artifactToPersist = persistedHtml === art.html ? art : { ...art, html: persistedHtml };
+      let artifactToPersist = persistedHtml === art.html ? art : { ...art, html: persistedHtml };
       const baseName = artifactBaseNameFor(art);
       const ext = artifactExtensionFor(art);
       const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
@@ -3748,7 +3748,10 @@ export function ProjectView({
           artifactHtml: artifactToPersist.html,
           identifier: art.identifier,
           sourceText,
-          hasPreviousSingleDocument: existing.has(fileName) || Boolean(claimedFileName),
+          hasPreviousSingleDocument:
+            existing.has(fileName)
+            || existing.has('index.html')
+            || Boolean(claimedFileName),
         });
         if (decision.action === 'keep-previous') {
           // Restore is a success: FileViewer must drop the mixed live buffer
