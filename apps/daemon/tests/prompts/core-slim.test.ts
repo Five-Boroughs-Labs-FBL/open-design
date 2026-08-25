@@ -160,6 +160,8 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     });
     expect(many).toContain('you HAVE filesystem tools');
     expect(many).toContain('identifier MUST equal the surface id');
+    expect(many).toContain('Never Write, Edit, or overwrite the open live primary');
+    expect(many).toContain('Change-turns on that file must re-stream');
     expect(many).not.toContain('no filesystem tools');
     const plain = renderSlimCoreCharter('text_artifact', {
       streamFormat: 'plain',

@@ -38,6 +38,13 @@
 
 const MIN_HTML_LENGTH = 64;
 const STARTS_WITH_DOCUMENT_RE = /^(?:<!doctype\s+html\b|<html\b)/i;
+const DOCTYPE_RE = /<!doctype\s+html\b/gi;
+const NESTED_DOCUMENT_AFTER_FENCE_RE =
+  /```(?:html)?[ \t]*\r?\n[\s\S]*?(?:<!doctype\s+html\b|<html\b)/i;
+const MARKDOWN_HTML_FENCE_RE = /```(?:html)?[ \t]*\r?\n/i;
+const STYLE_OPEN_RE = /<style\b[^>]*>/i;
+const STYLE_CLOSE_RE = /<\/style\s*>/i;
+const STYLE_MARKUP_RE = /<!doctype\s+html\b|<html\b|<\/html\s*>|```/i;
 const RESERVED_PROJECT_PATH_RE = /(?:^|\/|\.\/)(?:\.live-artifacts|\.od|\.tmp)(?=$|[/?#"'`\s>)])/i;
 const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 const URL_ATTRIBUTE_RE =
@@ -65,10 +72,41 @@ export function validateHtmlArtifact(content: string): HtmlArtifactValidationRes
   if (!STARTS_WITH_DOCUMENT_RE.test(trimmed)) {
     return { ok: false, reason: 'content does not start with <!doctype html> or <html — looks like prose, not a complete HTML document' };
   }
+  if (isMixedHtmlDocument(trimmed)) {
+    return { ok: false, reason: 'content is not a single HTML document (second doctype, markdown fence, or markup inside <style>)' };
+  }
   if (referencesReservedProjectPath(trimmed)) {
     return { ok: false, reason: 'content references an internal project storage path such as .live-artifacts, .od, or .tmp' };
   }
   return { ok: true };
+}
+
+function isMixedHtmlDocument(content: string): boolean {
+  const doctypes = content.match(DOCTYPE_RE);
+  if ((doctypes?.length ?? 0) > 1) return true;
+  if (NESTED_DOCUMENT_AFTER_FENCE_RE.test(content)) return true;
+  if (MARKDOWN_HTML_FENCE_RE.test(content) && (doctypes?.length ?? 0) >= 1) return true;
+  return styleContainsMarkupOrFence(content);
+}
+
+function styleContainsMarkupOrFence(content: string): boolean {
+  let searchFrom = 0;
+  while (searchFrom < content.length) {
+    const open = content.slice(searchFrom).search(STYLE_OPEN_RE);
+    if (open < 0) return false;
+    const openAt = searchFrom + open;
+    const openMatch = content.slice(openAt).match(STYLE_OPEN_RE);
+    if (!openMatch) return false;
+    const bodyStart = openAt + openMatch[0].length;
+    const closeRel = content.slice(bodyStart).search(STYLE_CLOSE_RE);
+    const body = closeRel < 0
+      ? content.slice(bodyStart)
+      : content.slice(bodyStart, bodyStart + closeRel);
+    if (STYLE_MARKUP_RE.test(body)) return true;
+    if (closeRel < 0) return false;
+    searchFrom = bodyStart + closeRel + 8;
+  }
+  return false;
 }
 
 function referencesReservedProjectPath(content: string): boolean {

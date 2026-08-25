@@ -1,5 +1,6 @@
+import { isSingleHtmlDocument } from '../artifacts/html-document.js';
 import type { PlainStreamArtifact } from './plain-stream.js';
-import { extractLiveHtmlCanvasArtifact } from './plain-stream.js';
+import { extractLiveHtmlCanvasArtifact, liveHtmlSourceIsBroken } from './plain-stream.js';
 
 export type LiveHtmlCanvasStatus = 'streaming' | 'complete';
 
@@ -8,6 +9,13 @@ export function createLiveHtmlCanvasWriter(options: {
     artifact: PlainStreamArtifact,
     status: LiveHtmlCanvasStatus,
   ) => Promise<unknown | false>;
+  /**
+   * Called when extract refuses a mixed dump, or after flush in case a
+   * child Write overwrote the live file. Receives the last known single
+   * document (turn-start snapshot, then each successful persist).
+   */
+  restoreIfMixed?: (cleanContent: string) => Promise<unknown>;
+  previousCleanContent?: string | null;
   delayMs?: number;
 }) {
   const delayMs = options.delayMs ?? 300;
@@ -20,6 +28,23 @@ export function createLiveHtmlCanvasWriter(options: {
   let lastWriteAt: number | null = null;
   let chain = Promise.resolve();
   let persistError: unknown = null;
+  let cleanToRestore =
+    options.previousCleanContent && isSingleHtmlDocument(options.previousCleanContent)
+      ? options.previousCleanContent
+      : null;
+
+  function enqueueRestore() {
+    if (!options.restoreIfMixed) return;
+    chain = chain
+      .then(async () => {
+        const clean = cleanToRestore;
+        if (!clean) return;
+        await options.restoreIfMixed?.(clean);
+      })
+      .catch((err) => {
+        persistError = err;
+      });
+  }
 
   function enqueue(status: LiveHtmlCanvasStatus) {
     const artifact = pending;
@@ -51,7 +76,12 @@ export function createLiveHtmlCanvasWriter(options: {
         // A later successful snapshot supersedes that recoverable failure;
         // only the most recent unresolved persist error should fail flush().
         // `false` is an ownership no-op, not a successful persistence.
-        if (persisted !== false) persistError = null;
+        if (persisted !== false) {
+          persistError = null;
+          if (isSingleHtmlDocument(snapshot.content)) {
+            cleanToRestore = snapshot.content;
+          }
+        }
       })
       .catch((err) => {
         persistError = err;
@@ -65,7 +95,10 @@ export function createLiveHtmlCanvasWriter(options: {
     note(text: string) {
       if (sealed) return;
       const artifact = extractLiveHtmlCanvasArtifact(text);
-      if (!artifact) return;
+      if (!artifact) {
+        if (liveHtmlSourceIsBroken(text)) enqueueRestore();
+        return;
+      }
       pending = artifact;
       if (!wrote) {
         wrote = true;
@@ -94,6 +127,7 @@ export function createLiveHtmlCanvasWriter(options: {
         timer = null;
       }
       enqueue(status);
+      enqueueRestore();
       await chain;
       if (status === 'complete') sealed = true;
       if (persistError) {

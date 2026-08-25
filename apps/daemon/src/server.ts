@@ -222,11 +222,14 @@ import {
   buildOpenCodeByokProviderConfig,
   BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
 } from './runtimes/byok-opencode.js';
+import { isSingleHtmlDocument } from './artifacts/html-document.js';
 import { createLiveHtmlCanvasWriter } from './runtimes/live-html-canvas.js';
 import {
   extractPlainStreamArtifacts,
+  LIVE_HTML_CANVAS_NAME,
   persistLiveHtmlCanvas,
   persistPlainStreamArtifactList,
+  restoreLiveHtmlCanvasIfMixed,
   plainStdoutFromRunEvents,
   withoutLiveHtmlCanvasArtifact,
 } from './runtimes/plain-stream.js';
@@ -10865,7 +10868,24 @@ export async function startServer({
       projectId
     ) {
       let liveHtmlCanvasAnnounced = false;
+      const livePrimaryName = Array.isArray(designGenerationSurfaces) && designGenerationSurfaces[0]?.file
+        ? designGenerationSurfaces[0].file
+        : LIVE_HTML_CANVAS_NAME;
+      let previousCleanLiveHtml = null;
+      try {
+        const existingLive = await readProjectFile(
+          PROJECTS_DIR,
+          projectId,
+          livePrimaryName,
+          getProject(db, projectId)?.metadata,
+        );
+        const existingText = existingLive.buffer.toString('utf8');
+        if (isSingleHtmlDocument(existingText)) previousCleanLiveHtml = existingText;
+      } catch {
+        // First-run canvas: no previous file to keep.
+      }
       liveHtmlCanvas = createLiveHtmlCanvasWriter({
+        previousCleanContent: previousCleanLiveHtml,
         persist: async (artifact, canvasStatus) => {
           if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return false;
           const project = getProject(db, projectId);
@@ -10876,6 +10896,8 @@ export async function startServer({
             status: canvasStatus,
             metadata: project?.metadata,
             writeProjectFile,
+            readProjectFile,
+            previousCleanContent: previousCleanLiveHtml,
             ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
               ? { targets: designGenerationSurfaces }
               : {}),
@@ -10892,6 +10914,19 @@ export async function startServer({
             });
           }
           return true;
+        },
+        restoreIfMixed: async (cleanContent) => {
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
+          const project = getProject(db, projectId);
+          await restoreLiveHtmlCanvasIfMixed({
+            projectsRoot: PROJECTS_DIR,
+            projectId,
+            name: livePrimaryName,
+            previousCleanContent: cleanContent,
+            metadata: project?.metadata,
+            writeProjectFile,
+            readProjectFile,
+          });
         },
       });
     }

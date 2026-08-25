@@ -173,4 +173,46 @@ describe('createLiveHtmlCanvasWriter', () => {
     await Promise.resolve();
     await expect(writer.flush('complete')).rejects.toThrow('draft persist failed');
   });
+
+  it('restores the previous clean file when the stream is the leaked mixed dump', async () => {
+    const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
+      '../artifacts/html-document.fixtures.js'
+    );
+    const { restoreLiveHtmlCanvasIfMixed } = await import(
+      '../../src/runtimes/plain-stream.js'
+    );
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-restore-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      // Child Write already dumped the mixed document onto the live primary.
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), LIVE_PRIMARY_LEAK_HTML);
+
+      const persists: string[] = [];
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        persist: async (artifact) => {
+          persists.push(artifact.content);
+        },
+        restoreIfMixed: (cleanContent) => restoreLiveHtmlCanvasIfMixed({
+          projectsRoot,
+          projectId: 'project-1',
+          name: LIVE_HTML_CANVAS_NAME,
+          previousCleanContent: cleanContent,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      writer.note(LIVE_PRIMARY_LEAK_HTML);
+      await writer.flush('complete');
+      expect(persists).toEqual([]);
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(CLEAN_LOGIN_HTML);
+      expect(body).not.toContain('```html');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
 });
