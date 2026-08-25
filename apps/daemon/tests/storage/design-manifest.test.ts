@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DesignManifestValidationError } from '@open-design/contracts';
 import {
+  claimedFileCompletedThisRun,
   createDesignManifestStore,
   DesignManifestNotFoundError,
   DesignManifestRevisionConflictError,
@@ -547,5 +548,15 @@ describe('design manifest store', () => {
       runId: 'run-1',
       updatedAt: '2026-08-22T01:00:00.000Z',
     })).rejects.toThrow('directionStatus must be locked');
+  });
+});
+
+describe('claimedFileCompletedThisRun', () => {
+  it('requires both presence and a this-run touch', () => {
+    const present = new Set(['index.html', 'billing.html']);
+    const touched = new Set(['billing.html']);
+    expect(claimedFileCompletedThisRun('index.html', present, touched)).toBe(false);
+    expect(claimedFileCompletedThisRun('billing.html', present, touched)).toBe(true);
+    expect(claimedFileCompletedThisRun('settings.html', present, touched)).toBe(false);
   });
 });

@@ -90,6 +90,7 @@ import {
   SandboxImportedProjectError,
 } from '../projects.js';
 import {
+  claimedFileCompletedThisRun,
   createDesignManifestStore,
   DesignManifestNotFoundError,
   DesignManifestRevisionConflictError,
@@ -1217,12 +1218,19 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       }
       const files = await listFiles(PROJECTS_DIR, project.id, { metadata: project.metadata });
       const present = new Set(files.map((file) => designManifestPathIdentity(file.path || file.name)));
-      // Per-surface file presence, not run-level deliverable.valid. A 9/10
-      // landing must complete nine surfaces and fail the missing one. Gating
-      // on the collapsed run validation would fail every claimed id.
-      const completedSurfaceIds = prepared.surfaces
-        .filter((surface) => present.has(designManifestPathIdentity(surface.file)))
-        .map((surface) => surface.surfaceId);
+      // Per-surface: this run must have touched the claimed file. Presence
+      // alone would complete stale files left by the last design on regenerate.
+      // unexpected_artifact stays a hard failure below — unclaimed HTML must
+      // not stamp the claim green.
+      const touched = new Set(
+        (Array.isArray(run.artifactPaths) ? run.artifactPaths : []).map(designManifestPathIdentity),
+      );
+      const unexpectedArtifact = deliverable.validation === 'unexpected_artifact';
+      const completedSurfaceIds = unexpectedArtifact
+        ? []
+        : prepared.surfaces
+          .filter((surface) => claimedFileCompletedThisRun(surface.file, present, touched))
+          .map((surface) => surface.surfaceId);
       await designManifestStore.finishClaim(
         { id: project.id, metadata: project.metadata },
         {

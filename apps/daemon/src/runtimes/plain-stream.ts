@@ -53,7 +53,13 @@ export function resolveDesignGenerationArtifactTarget(
   targets: readonly DesignGenerationArtifactTarget[] | undefined,
 ): DesignGenerationArtifactTarget | undefined {
   if (!targets?.length) return undefined;
-  return targets.find((target) => artifactMatchesDesignTarget(artifact, target));
+  const matched = targets.find((target) => artifactMatchesDesignTarget(artifact, target));
+  if (matched) return matched;
+  // A one-surface claim still binds otherwise-anonymous thought HTML to the
+  // only claimed file. Multi-surface claims stay strict so a stub cannot
+  // overwrite index.html or another screen.
+  if (targets.length === 1 && !artifact.identifier) return targets[0];
+  return undefined;
 }
 
 interface RunEventLike {
@@ -305,14 +311,14 @@ export async function persistLiveHtmlCanvas(options: {
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
   const target = options.target
     ?? resolveDesignGenerationArtifactTarget(options.artifact, options.targets);
-  if (options.targets?.length && options.artifact.identifier && !target) {
+  if (options.targets?.length && !target) {
     throw new Error(
       `live artifact does not match any claimed surface (${options.targets.map((item) => item.surfaceId).join(', ')})`,
     );
   }
-  // A targeted run gives otherwise-anonymous thought HTML its authoritative
-  // filename. Explicit identifiers remain strict so a model naming the wrong
-  // surface can never overwrite the claimed file (especially index.html).
+  // A one-surface claim gives otherwise-anonymous thought HTML its
+  // authoritative filename. Explicit identifiers remain strict so a model
+  // naming the wrong surface can never overwrite the claimed file.
   if (
     target
     && options.artifact.identifier

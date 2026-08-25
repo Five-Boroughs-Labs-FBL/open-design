@@ -227,7 +227,6 @@ import {
   extractPlainStreamArtifacts,
   persistLiveHtmlCanvas,
   persistPlainStreamArtifactList,
-  artifactMatchesDesignTarget,
   plainStdoutFromRunEvents,
   withoutLiveHtmlCanvasArtifact,
 } from './runtimes/plain-stream.js';
@@ -10870,9 +10869,6 @@ export async function startServer({
         persist: async (artifact, canvasStatus) => {
           if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return false;
           const project = getProject(db, projectId);
-          const matchingTarget = Array.isArray(designGenerationSurfaces)
-            ? designGenerationSurfaces.find((surface) => artifactMatchesDesignTarget(artifact, surface))
-            : undefined;
           const persisted = await persistLiveHtmlCanvas({
             projectsRoot: PROJECTS_DIR,
             projectId,
@@ -10880,11 +10876,9 @@ export async function startServer({
             status: canvasStatus,
             metadata: project?.metadata,
             writeProjectFile,
-            ...(matchingTarget
-              ? { target: matchingTarget }
-              : Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
-                ? { targets: designGenerationSurfaces }
-                : {}),
+            ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
+              ? { targets: designGenerationSurfaces }
+              : {}),
           });
           if (!liveHtmlCanvasAnnounced) {
             liveHtmlCanvasAnnounced = true;
