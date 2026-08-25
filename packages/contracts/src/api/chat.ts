@@ -340,6 +340,15 @@ export interface ChatRunCreateRequest extends ChatRequest {
     apiKey?: string;
     authJson?: string;
   };
+  /**
+   * AMC Design gate, non-Grok families: AMC resolved the credential from its
+   * own vault and sends only the values. Open Design validates the family and
+   * injects an allowlisted set of environment variables into that run.
+   */
+  amcCredential?: {
+    family: string;
+    env: Record<string, string>;
+  };
 }
 
 /**
@@ -384,6 +393,15 @@ export interface McpRunCreateRequest {
     sourceCwd?: string;
     apiKey?: string;
     authJson?: string;
+  };
+  /**
+   * AMC Design gate, non-Grok families: AMC resolved the credential from its
+   * own vault and sends only the values. Open Design validates the family and
+   * injects an allowlisted set of environment variables into that run.
+   */
+  amcCredential?: {
+    family: string;
+    env: Record<string, string>;
   };
 }
 

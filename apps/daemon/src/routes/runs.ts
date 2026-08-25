@@ -41,6 +41,10 @@ import {
   materializeAmcGrokHome,
   type AmcGrokForwarding,
 } from '../runtimes/amc-grok.js';
+import {
+  parseAmcCredentialBlock,
+  type AmcCredential,
+} from '../runtimes/amc-credential.js';
 import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
 import { agentCliEnvForAgent, readAppConfig } from '../app-config.js';
 import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
@@ -395,6 +399,7 @@ interface ChatRun {
     changedSections?: string[] | null;
   };
   amcGrok?: AmcGrokForwarding | null;
+  amcCredential?: AmcCredential | null;
 }
 
 interface RunCreateMeta extends JsonRecord {
@@ -830,6 +835,7 @@ function withoutSensitiveRunInput(body: JsonRecord): JsonRecord {
   delete sanitized.byokProfileId;
   delete sanitized.apiKey;
   delete sanitized.amcGrok;
+  delete sanitized.amcCredential;
   delete sanitized.rechargeResumeCapability;
   // Workspace scope is a server-issued authorization fact, not a request option.
   delete sanitized.workspaceScope;
@@ -1553,6 +1559,31 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         );
       }
     }
+    // Generic AMC credential handoff (non-Grok families). Same server-token
+    // gate as amcGrok: a caller that can set a run's spawn environment must
+    // prove it is AMC, not an arbitrary studio client.
+    let parsedAmcCredential: AmcCredential | null = null;
+    if (requestBody.amcCredential != null) {
+      const apiToken = apiTokenFromEnv();
+      if (!apiToken || !apiTokenAuthorizationMatches(req.headers.authorization, apiToken)) {
+        return sendApiError(
+          res,
+          403,
+          'FORBIDDEN',
+          'amcCredential requires the Open Design server API token',
+        );
+      }
+      try {
+        parsedAmcCredential = parseAmcCredentialBlock(requestBody.amcCredential);
+      } catch (err) {
+        return sendApiError(
+          res,
+          400,
+          'BAD_REQUEST',
+          err instanceof Error ? err.message : 'invalid amcCredential',
+        );
+      }
+    }
     const requestAnalyticsContext = readAnalyticsContext(req);
     const mediaExecution = parseMediaExecutionPolicyInput(requestBody.mediaExecution);
     if (!mediaExecution.ok) {
@@ -2182,6 +2213,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     if (parsedAmcGrok) {
       run.amcGrok = parsedAmcGrok;
+      run.amcCredential = parsedAmcCredential;
     }
     const analyticsAttributionMismatch =
       creation.kind === 'reused'
