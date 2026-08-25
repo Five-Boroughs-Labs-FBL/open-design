@@ -4,11 +4,23 @@ import path from 'node:path';
 import {
   DESIGN_MANIFEST_FILENAME,
   DESIGN_MANIFEST_MAX_BYTES,
+  DESIGN_MANIFEST_MAX_SURFACES,
   designManifestPathIdentity,
   DesignManifestValidationError,
   parseDesignManifestV2,
   type DesignManifestV2,
 } from '@open-design/contracts';
+
+/** True when this run both created/updated the claimed file and it is on disk.
+ *  Presence alone is not enough — a regenerate leaves last design's files. */
+export function claimedFileCompletedThisRun(
+  file: string,
+  present: ReadonlySet<string>,
+  touched: ReadonlySet<string>,
+): boolean {
+  const identity = designManifestPathIdentity(file);
+  return present.has(identity) && touched.has(identity);
+}
 
 export class DesignManifestNotFoundError extends Error {
   readonly code = 'DESIGN_MANIFEST_NOT_FOUND';
@@ -356,7 +368,7 @@ export function createDesignManifestStore(
           'expectedRevision must be a positive integer',
         ]);
       }
-      if (!options.runId || !options.updatedAt || options.surfaceIds.length < 1 || options.surfaceIds.length > 3) {
+      if (!options.runId || !options.updatedAt || options.surfaceIds.length < 1 || options.surfaceIds.length > DESIGN_MANIFEST_MAX_SURFACES) {
         throw new DesignManifestValidationError(['invalid design generation claim']);
       }
       const filePath = manifestPath(project);
@@ -471,10 +483,10 @@ export function createDesignManifestStore(
             const touched = new Set(
               (runState?.artifactPaths ?? []).map(designManifestPathIdentity),
             );
-            const completed = runState?.succeeded === true
-              && runState.exactOutputValidated === true
-              && surface.filePresent
-              && touched.has(designManifestPathIdentity(surface.file));
+            const present = new Set(
+              surface.filePresent ? [designManifestPathIdentity(surface.file)] : [],
+            );
+            const completed = claimedFileCompletedThisRun(surface.file, present, touched);
             return {
               ...surface,
               status: completed ? 'complete' as const : 'failed' as const,

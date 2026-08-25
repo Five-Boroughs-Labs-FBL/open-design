@@ -572,6 +572,14 @@ describe('isAgentResumeFailure dispatch', () => {
     ).toBe(false);
   });
 
+  it('routes grok-build resume misses on stderr only', () => {
+    expect(isAgentResumeFailure('grok-build', 'Error: session not found', '')).toBe(true);
+    expect(isAgentResumeFailure('grok-build', 'unable to resume session abc', '')).toBe(true);
+    expect(
+      isAgentResumeFailure('grok-build', '', 'The previous session was not found in the list'),
+    ).toBe(false);
+  });
+
   it('never reports a failure for empty output', () => {
     expect(isAgentResumeFailure('codex', '')).toBe(false);
     expect(isAgentResumeFailure('claude', '')).toBe(false);

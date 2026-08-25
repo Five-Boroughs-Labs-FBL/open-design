@@ -11,6 +11,7 @@ import {
   persistLiveHtmlCanvas,
   persistPlainStreamArtifacts,
   persistPlainStreamArtifactList,
+  artifactMatchesDesignTarget,
   plainStdoutFromRunEvents,
   withoutLiveHtmlCanvasArtifact,
 } from '../../src/runtimes/plain-stream.js';
@@ -559,6 +560,87 @@ describe('plain stream artifact extraction', () => {
       });
       const body = await readFile(path.join(projectsRoot, 'project-1', LIVE_HTML_CANVAS_NAME), 'utf8');
       expect(body).toContain('Name to confirm');
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('routes each live artifact to its matching claimed surface, not surfaces[0]', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-per-artifact-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      const targets = [
+        { surfaceId: 'hud', file: 'index.html' },
+        { surfaceId: 'billing', file: 'billing.html' },
+      ];
+      const billing = extractLiveHtmlCanvasArtifact(
+        '<artifact identifier="billing" type="text/html"><!doctype html><title>Billing</title></artifact>',
+      )!;
+      expect(artifactMatchesDesignTarget(billing, targets[0]!)).toBe(false);
+      expect(artifactMatchesDesignTarget(billing, targets[1]!)).toBe(true);
+
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: billing,
+        status: 'complete',
+        targets,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe('billing.html');
+      expect(await readFile(path.join(projectDir, 'billing.html'), 'utf8')).toContain('Billing');
+      await expect(readFile(path.join(projectDir, 'index.html'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('binds identifier-less thought HTML to the only claimed surface', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-anon-one-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      const artifact = extractLiveHtmlCanvasArtifact(
+        'Thinking...<!doctype html><html><title>HUD</title></html>',
+      )!;
+      expect(artifact.identifier).toBe('');
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'streaming',
+        targets: [{ surfaceId: 'hud', file: 'design/prototypes/hud.html' }],
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe('design/prototypes/hud.html');
+      expect(await readFile(path.join(projectDir, 'design', 'prototypes', 'hud.html'), 'utf8'))
+        .toContain('HUD');
+      await expect(readFile(path.join(projectDir, 'index.html'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses identifier-less thought HTML when more than one surface is claimed', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-anon-multi-'));
+    try {
+      const artifact = extractLiveHtmlCanvasArtifact(
+        'Thinking...<!doctype html><html><title>Draft</title></html>',
+      )!;
+      expect(artifact.identifier).toBe('');
+      await expect(persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact,
+        status: 'streaming',
+        targets: [
+          { surfaceId: 'hud', file: 'design/prototypes/hud.html' },
+          { surfaceId: 'billing', file: 'billing.html' },
+        ],
+        writeProjectFile: writeProjectFile as any,
+      })).rejects.toThrow('does not match any claimed surface');
+      await expect(readFile(path.join(projectsRoot, 'project-1', 'index.html'), 'utf8')).rejects.toThrow();
     } finally {
       await rm(projectsRoot, { recursive: true, force: true });
     }

@@ -17,7 +17,7 @@ import { splitResearchSubcommand } from './research/cli-args.js';
 import { resolveDaemonUrl } from './daemon-url.js';
 import { requestJsonIpc } from '@open-design/sidecar';
 import { SIDECAR_ENV, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
-import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS } from '@open-design/contracts';
+import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, DESIGN_MANIFEST_MAX_SURFACES } from '@open-design/contracts';
 import type { ArtifactLintFinding, LintArtifactCliResultEnvelope, LintArtifactResponse, LintFailOn } from '@open-design/contracts';
 import { buildExportCliRequestBody, buildExportCliResultEnvelope, resolveExportCliDeckMode } from './export-cli-request.js';
 import { exportRoutePath } from './export-cli-routing.js';
@@ -7821,12 +7821,12 @@ Common options:
         const manifestRevision = Number(flags['expected-revision']);
         if (
           surfaceIds.length < 1
-          || surfaceIds.length > 3
+          || surfaceIds.length > DESIGN_MANIFEST_MAX_SURFACES
           || new Set(surfaceIds).size !== surfaceIds.length
           || !Number.isInteger(manifestRevision)
           || manifestRevision < 1
         ) {
-          console.error('--surface-ids requires 1-3 unique comma-separated ids and --expected-revision requires a positive integer');
+          console.error(`--surface-ids requires 1-${DESIGN_MANIFEST_MAX_SURFACES} unique comma-separated ids and --expected-revision requires a positive integer`);
           process.exit(2);
         }
         body.designGeneration = { manifestRevision, surfaceIds };

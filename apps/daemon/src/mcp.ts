@@ -34,6 +34,7 @@ import {
   ANALYTICS_HEADER_SESSION_ID,
   buildProjectRawFileUrl,
   parseDesignGenerationTarget,
+  DESIGN_MANIFEST_MAX_SURFACES,
   type McpAnalyticsContextResponse,
   type WorkspaceProjectsResponse,
 } from '@open-design/contracts';
@@ -797,7 +798,7 @@ export const TOOL_DEFS = [
             surfaceIds: {
               type: 'array',
               minItems: 1,
-              maxItems: 3,
+              maxItems: DESIGN_MANIFEST_MAX_SURFACES,
               uniqueItems: true,
               items: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
             },

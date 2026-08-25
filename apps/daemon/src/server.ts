@@ -8813,6 +8813,7 @@ export async function startServer({
     freeformDeckSignal,
     mediaHintSignal,
     platformHintSignal,
+    claimedDesignSurfaceCount,
   }) => {
     const project =
       typeof projectId === 'string' && projectId
@@ -9511,6 +9512,7 @@ export async function startServer({
       freeformDeckSignal,
       mediaHintSignal,
       platformHintSignal,
+      claimedDesignSurfaceCount,
       // VALIDATION DEFAULT — feat/system-prompt integration branch only.
       // Slim is the default here so packaged beta builds exercise the
       // rewritten charter without env plumbing (the packaged sidecar env
@@ -10102,6 +10104,9 @@ export async function startServer({
         freeformDeckSignal: intentSignals.deck,
         mediaHintSignal: intentSignals.media,
         platformHintSignal: intentSignals.platform,
+        claimedDesignSurfaceCount: Array.isArray(designGenerationSurfaces)
+          ? designGenerationSurfaces.length
+          : 0,
       });
 
     run.designSystemId = designSystemSelection?.id ?? null;
@@ -10871,8 +10876,8 @@ export async function startServer({
             status: canvasStatus,
             metadata: project?.metadata,
             writeProjectFile,
-            ...(designGenerationSurfaces[0]?.file
-              ? { target: designGenerationSurfaces[0] }
+            ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
+              ? { targets: designGenerationSurfaces }
               : {}),
           });
           if (!liveHtmlCanvasAnnounced) {

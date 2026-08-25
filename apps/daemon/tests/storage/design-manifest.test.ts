@@ -2,7 +2,9 @@ import { copyFile, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { DesignManifestValidationError } from '@open-design/contracts';
 import {
+  claimedFileCompletedThisRun,
   createDesignManifestStore,
   DesignManifestNotFoundError,
   DesignManifestRevisionConflictError,
@@ -387,7 +389,7 @@ describe('design manifest store', () => {
     });
   });
 
-  it('fails closed after restart when a successful run lacks durable exact-output proof', async () => {
+  it('completes a touched present file even when run-level exactOutputValidated is false', async () => {
     const { projectDir, store, project } = await setup();
     await store.put(project, { expectedRevision: 0, manifest: input(1, 'queued') });
     await store.claim(project, {
@@ -409,20 +411,47 @@ describe('design manifest store', () => {
     });
     expect(recovered).toMatchObject({
       revision: 3,
-      surfaces: [{ status: 'failed', filePresent: true }],
+      surfaces: [{ status: 'complete', filePresent: true }],
     });
   });
 
-  it('keeps a touched streaming draft failed when its run did not succeed', async () => {
+  it('completes only the surfaces whose files are present after a partial run', async () => {
     const { projectDir, store, project } = await setup();
-    await store.put(project, { expectedRevision: 0, manifest: input(1, 'queued') });
+    const surfaces = [
+      {
+        id: 'dashboard',
+        title: 'Dashboard',
+        file: 'index.html',
+        status: 'queued',
+        required: true,
+        states: [],
+        formFactors: ['desktop'],
+        latestRunId: null,
+        updatedAt: null,
+      },
+      {
+        id: 'billing',
+        title: 'Billing',
+        file: 'billing.html',
+        status: 'queued',
+        required: true,
+        states: [],
+        formFactors: ['desktop'],
+        latestRunId: null,
+        updatedAt: null,
+      },
+    ];
+    await store.put(project, {
+      expectedRevision: 0,
+      manifest: { ...input(1, 'queued'), entrySurfaceId: 'dashboard', surfaces },
+    });
     await store.claim(project, {
       expectedRevision: 1,
-      surfaceIds: ['dashboard'],
-      runId: 'run-failed-after-draft',
+      surfaceIds: ['dashboard', 'billing'],
+      runId: 'run-partial',
       updatedAt: '2026-08-22T01:00:00.000Z',
     });
-    await writeFile(path.join(projectDir, 'index.html'), '<!doctype html><p>partial');
+    await writeFile(path.join(projectDir, 'index.html'), '<!doctype html>');
 
     const recovered = await store.recoverStaleClaims(project, {
       runState: () => ({
@@ -433,9 +462,66 @@ describe('design manifest store', () => {
       }),
       updatedAt: '2026-08-22T01:03:00.000Z',
     });
+    expect(recovered.surfaces.map((surface) => [surface.id, surface.status])).toEqual([
+      ['dashboard', 'complete'],
+      ['billing', 'failed'],
+    ]);
+  });
+
+  it('claims ten surfaces in one writer lock', async () => {
+    const { store, project } = await setup();
+    const surfaces = Array.from({ length: 10 }, (_, index) => ({
+      id: index === 0 ? 'dashboard' : `screen-${index + 1}`,
+      title: index === 0 ? 'Dashboard' : `Screen ${index + 1}`,
+      file: index === 0 ? 'index.html' : `screen-${index + 1}.html`,
+      status: 'queued',
+      required: true,
+      states: [],
+      formFactors: ['desktop'],
+      latestRunId: null,
+      updatedAt: null,
+    }));
+    await store.put(project, {
+      expectedRevision: 0,
+      manifest: { ...input(1, 'queued'), surfaces },
+    });
+    const claimed = await store.claim(project, {
+      expectedRevision: 1,
+      surfaceIds: surfaces.map((surface) => surface.id),
+      runId: 'run-ten',
+      updatedAt: '2026-08-22T01:00:00.000Z',
+    });
+    expect(claimed.surfaces.every((surface) => surface.status === 'generating')).toBe(true);
+    await expect(store.claim(project, {
+      expectedRevision: 2,
+      surfaceIds: Array.from({ length: 61 }, (_, index) => `s-${index + 1}`),
+      runId: 'run-too-many',
+      updatedAt: '2026-08-22T01:01:00.000Z',
+    })).rejects.toBeInstanceOf(DesignManifestValidationError);
+  });
+
+  it('fails a stale claim whose file is missing even if the run succeeded', async () => {
+    const { store, project } = await setup();
+    await store.put(project, { expectedRevision: 0, manifest: input(1, 'queued') });
+    await store.claim(project, {
+      expectedRevision: 1,
+      surfaceIds: ['dashboard'],
+      runId: 'run-missing-file',
+      updatedAt: '2026-08-22T01:00:00.000Z',
+    });
+
+    const recovered = await store.recoverStaleClaims(project, {
+      runState: () => ({
+        active: false,
+        succeeded: true,
+        exactOutputValidated: true,
+        artifactPaths: ['index.html'],
+      }),
+      updatedAt: '2026-08-22T01:03:00.000Z',
+    });
     expect(recovered).toMatchObject({
       revision: 3,
-      surfaces: [{ status: 'failed', filePresent: true }],
+      surfaces: [{ status: 'failed', filePresent: false }],
     });
   });
 
@@ -462,5 +548,15 @@ describe('design manifest store', () => {
       runId: 'run-1',
       updatedAt: '2026-08-22T01:00:00.000Z',
     })).rejects.toThrow('directionStatus must be locked');
+  });
+});
+
+describe('claimedFileCompletedThisRun', () => {
+  it('requires both presence and a this-run touch', () => {
+    const present = new Set(['index.html', 'billing.html']);
+    const touched = new Set(['billing.html']);
+    expect(claimedFileCompletedThisRun('index.html', present, touched)).toBe(false);
+    expect(claimedFileCompletedThisRun('billing.html', present, touched)).toBe(true);
+    expect(claimedFileCompletedThisRun('settings.html', present, touched)).toBe(false);
   });
 });

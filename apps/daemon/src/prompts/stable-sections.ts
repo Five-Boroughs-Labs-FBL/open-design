@@ -47,6 +47,7 @@ const SECTION_INPUTS = {
     'freeformDeckSignal',
     'mediaHintSignal',
     'platformHintSignal',
+    'claimedDesignSurfaceCount',
   ],
   // Per-conversation mode (design/plan/chat) and the handoff profile.
   mode: ['sessionMode', 'executionProfile', 'streamFormat'],

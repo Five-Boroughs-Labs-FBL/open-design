@@ -290,6 +290,19 @@ export function isOpencodeResumeFailure(text: string): boolean {
   return OPENCODE_RESUME_FAILURE_PATTERNS.some((re) => re.test(text));
 }
 
+const GROK_RESUME_FAILURE_PATTERNS: RegExp[] = [
+  /session not found/i,
+  /unable to resume session/i,
+  /no session (?:found|with)/i,
+  /failed to (?:load|resume) session/i,
+];
+
+/** True when Grok CLI output indicates a `--resume` target session is missing. */
+export function isGrokResumeFailure(text: string): boolean {
+  if (!text) return false;
+  return GROK_RESUME_FAILURE_PATTERNS.some((re) => re.test(text));
+}
+
 /**
  * Per-agent dispatch for "the session/thread I asked to resume is gone".
  * Generalizes resume-fallback classification so every native-resume adapter
@@ -312,6 +325,9 @@ export function isAgentResumeFailure(
   }
   if (agentId === 'codex') return isCodexResumeFailure(stderr);
   if (agentId === 'opencode') return isOpencodeResumeFailure(stderr);
+  if (agentId === 'grok-build' || agentId === 'grok') {
+    return isGrokResumeFailure(stderr);
+  }
   if (agentId === 'amr') {
     return (
       isAmrResumeFailure(stdout) ||

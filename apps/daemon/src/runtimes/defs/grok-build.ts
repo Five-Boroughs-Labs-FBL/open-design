@@ -90,6 +90,7 @@ export const grokBuildAgentDef = {
   promptViaFile: true,
   promptViaStdin: false,
   resumesSessionViaCli: true,
+  capturesSessionIdFromStream: true,
   streamFormat: 'json-event-stream',
   eventParser: 'grok',
   // JSON streaming is a transport. Keep the Claude Design handoff: one

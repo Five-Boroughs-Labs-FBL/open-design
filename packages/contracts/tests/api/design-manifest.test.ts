@@ -178,17 +178,22 @@ describe('parseDesignManifestV2', () => {
 });
 
 describe('parseDesignGenerationTarget', () => {
-  it('accepts one to three exact unique surface ids', () => {
+  it('accepts one to sixty exact unique surface ids', () => {
     expect(parseDesignGenerationTarget({
       manifestRevision: 4,
       surfaceIds: ['dashboard', 'billing'],
     })).toEqual({ manifestRevision: 4, surfaceIds: ['dashboard', 'billing'] });
+    const ten = Array.from({ length: 10 }, (_, index) => `screen-${index + 1}`);
+    expect(parseDesignGenerationTarget({
+      manifestRevision: 1,
+      surfaceIds: ten,
+    })).toEqual({ manifestRevision: 1, surfaceIds: ten });
   });
 
   it.each([
     { manifestRevision: 0, surfaceIds: ['dashboard'] },
     { manifestRevision: 1, surfaceIds: [] },
-    { manifestRevision: 1, surfaceIds: ['a', 'b', 'c', 'd'] },
+    { manifestRevision: 1, surfaceIds: Array.from({ length: 61 }, (_, index) => `s-${index + 1}`) },
     { manifestRevision: 1, surfaceIds: ['dashboard', 'dashboard'] },
     { manifestRevision: 1, surfaceIds: ['Not Safe'] },
   ])('rejects an invalid bounded target %#', (target) => {

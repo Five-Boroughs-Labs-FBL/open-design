@@ -143,6 +143,29 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     const textArtifact = renderSlimCoreCharter('text_artifact');
     expect(textArtifact).toContain('<artifact identifier="kebab-slug" type="text/html"');
     expect(textArtifact).not.toContain('Project files are the source of truth');
+    expect(textArtifact).toContain('no filesystem tools');
+    expect(textArtifact).not.toContain('you HAVE filesystem tools');
+  });
+
+  it('unlocks tools on a multi-surface grok json-event-stream claim', () => {
+    const one = renderSlimCoreCharter('text_artifact', {
+      streamFormat: 'json-event-stream',
+      claimedDesignSurfaceCount: 1,
+    });
+    expect(one).toContain('no filesystem tools');
+    expect(one).not.toContain('you HAVE filesystem tools');
+    const many = renderSlimCoreCharter('text_artifact', {
+      streamFormat: 'json-event-stream',
+      claimedDesignSurfaceCount: 6,
+    });
+    expect(many).toContain('you HAVE filesystem tools');
+    expect(many).toContain('identifier MUST equal the surface id');
+    expect(many).not.toContain('no filesystem tools');
+    const plain = renderSlimCoreCharter('text_artifact', {
+      streamFormat: 'plain',
+      claimedDesignSurfaceCount: 6,
+    });
+    expect(plain).toContain('no filesystem tools');
   });
 });
 
@@ -312,11 +335,11 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
       activeStageBlocks: [stageBlock],
     });
 
-    expect(out).toContain(
+    expect(out.replace(/\r\n/g, '\n')).toContain(
       'The presence of this atom or the `plan` stage does not trigger a picker',
     );
-    expect(out).toContain('Do not\nemit direction cards proactively');
-    expect(out).toContain(
+    expect(out.replace(/\r\n/g, '\n')).toContain('Do not\nemit direction cards proactively');
+    expect(out.replace(/\r\n/g, '\n')).toContain(
       'When the user has not explicitly requested\noptions, infer a fitting direction',
     );
     expect(out).not.toContain(

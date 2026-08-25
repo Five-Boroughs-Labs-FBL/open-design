@@ -35,6 +35,7 @@ import {
   PLATFORM_CONTRACTS_BLOCK,
   PROMPT_INJECTION_RESISTANCE,
   renderSlimCoreCharter,
+  textArtifactAllowsFilesystemTools,
   SLIM_V2_ROLE_BOUNDARY_GUARD,
 } from './core-slim.js';
 import { renderDirectionIndexBlock, renderDirectionSpecBlock } from './directions.js';
@@ -838,6 +839,10 @@ export interface ComposeInput {
   // `detectPlatformIntentSignal`). ORed with the metadata-based platform
   // gate for PLATFORM_CONTRACTS_BLOCK under slim; absent = metadata only.
   platformHintSignal?: boolean | undefined;
+  // Number of durable design-generation surfaces claimed for this run.
+  // Grok json-event-stream + more than one surface unlocks filesystem tools
+  // in the text_artifact charter so sub-agents can cover remaining screens.
+  claimedDesignSurfaceCount?: number | undefined;
 }
 
 export function composeSystemPrompt({
@@ -879,6 +884,7 @@ export function composeSystemPrompt({
   promptCoreVariant,
   mediaHintSignal,
   platformHintSignal,
+  claimedDesignSurfaceCount,
 }: ComposeInput): string {
   // Slim core collapses the discovery layer + designer charter + their tail
   // overrides into one charter document; the classic stack keeps the legacy
@@ -923,6 +929,7 @@ export function composeSystemPrompt({
         ...(streamFormat === 'plain' ? [API_MODE_OVERRIDE, '\n\n---\n\n'] : []),
         renderSlimCoreCharter(
           executionProfile ?? executionProfileFromStreamFormat(streamFormat),
+          { streamFormat, claimedDesignSurfaceCount },
         ),
         '\n\n---\n\n',
       ]
@@ -1033,7 +1040,10 @@ export function composeSystemPrompt({
 
   if (!isMediaSurfaceEarly && !isAskMode) {
     if (!isSlimCore) {
-      parts.push(renderDiscoveryAndPhilosophy(resolvedExecutionProfile), '\n\n---\n\n');
+      parts.push(renderDiscoveryAndPhilosophy(resolvedExecutionProfile, {
+        streamFormat,
+        claimedDesignSurfaceCount,
+      }), '\n\n---\n\n');
     }
     // Direction library is only useful when the agent must pick a visual
     // direction itself. When an active design system is present it is the
@@ -1049,7 +1059,12 @@ export function composeSystemPrompt({
       // tools to dereference the index, so they keep the full inline library
       // like classic; anything less tells them to bind palettes they cannot
       // fetch. Classic keeps the inline full library everywhere.
-      const canPullDirections = resolvedExecutionProfile !== 'text_artifact';
+      const canPullDirections = resolvedExecutionProfile !== 'text_artifact'
+        || textArtifactAllowsFilesystemTools({
+          executionProfile: resolvedExecutionProfile,
+          streamFormat,
+          claimedDesignSurfaceCount,
+        });
       parts.push(
         isSlimCore && canPullDirections
           ? renderDirectionIndexBlock()
@@ -1102,6 +1117,8 @@ export function composeSystemPrompt({
         // see WEB_CLONE_COPYRIGHT_GUARDRAIL_BULLET. Stable per project, so
         // the stable-prompt fingerprint stays cacheable.
         webCloneFidelity: metadata?.intent === 'web-clone',
+        streamFormat,
+        claimedDesignSurfaceCount,
       }),
     );
   }
