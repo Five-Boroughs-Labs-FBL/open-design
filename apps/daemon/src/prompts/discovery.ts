@@ -267,7 +267,7 @@ Stream each claimed surface as \`<artifact identifier="<surfaceId>" type="text/h
 
 export function renderDiscoveryAndPhilosophy(
   executionProfile: ExecutionProfile = 'filesystem',
-  options: { streamFormat?: string; claimedDesignSurfaceCount?: number } = {},
+  options: { streamFormat?: string | undefined; claimedDesignSurfaceCount?: number | undefined } = {},
 ): string {
   const multiSurfaceCli = executionProfile === 'text_artifact'
     && options.streamFormat === 'json-event-stream'

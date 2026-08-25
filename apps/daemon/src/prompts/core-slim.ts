@@ -69,8 +69,8 @@ This is a multi-surface Grok CLI run. The live canvas still paints from \`<artif
 - Do not emit HTML for unclaimed surfaces. Do not stop after the primary artifact.`;
 
 export interface SlimCharterOptions {
-  streamFormat?: string;
-  claimedDesignSurfaceCount?: number;
+  streamFormat?: string | undefined;
+  claimedDesignSurfaceCount?: number | undefined;
 }
 
 export function textArtifactAllowsFilesystemTools(options: SlimCharterOptions & {

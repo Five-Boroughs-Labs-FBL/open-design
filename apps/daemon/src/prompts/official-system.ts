@@ -187,8 +187,8 @@ export const WEB_CLONE_COPYRIGHT_GUARDRAIL_BULLET =
 export interface RenderOfficialDesignerPromptOptions {
   // True for runs whose project metadata carries `intent: 'web-clone'`.
   webCloneFidelity?: boolean;
-  streamFormat?: string;
-  claimedDesignSurfaceCount?: number;
+  streamFormat?: string | undefined;
+  claimedDesignSurfaceCount?: number | undefined;
 }
 
 export function renderOfficialDesignerPrompt(
