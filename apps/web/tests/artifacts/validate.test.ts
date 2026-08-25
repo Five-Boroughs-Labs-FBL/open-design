@@ -167,4 +167,19 @@ describe('validateHtmlArtifact', () => {
     const result = validateHtmlArtifact(html);
     expect(result.ok).toBe(true);
   });
+
+  it('rejects the leaked later-turn shape that starts with DOCTYPE but is mixed', () => {
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head><style>',
+      "@import url('https://fonts.googleapis.I'll read the login page and tighten the mobile layout.",
+      '```html',
+      '<!DOCTYPE html>',
+      '<html><body><p>Enough content to look like a real nested document.</p></body></html>',
+    ].join('\n');
+    expect(leak.length).toBeGreaterThan(64);
+    const result = validateHtmlArtifact(leak);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/single HTML document/i);
+  });
 });

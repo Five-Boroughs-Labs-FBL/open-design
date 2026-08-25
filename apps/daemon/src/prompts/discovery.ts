@@ -261,7 +261,7 @@ This run has no filesystem tools. When the brief is ready to deliver, emit exact
 
 const TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF_INVARIANT = `## Text-artifact handoff with filesystem tools (multi-surface Grok CLI)
 
-Stream each claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`. After the primary artifact you HAVE filesystem tools and may spawn sub-agents. Identifier must equal the surface id. Do not emit unclaimed HTML. Do not stop after the first screen.
+Stream each claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`. Never Write or Edit the open live primary; change-turns on that file must re-stream \`<artifact>\`. After the primary artifact you HAVE filesystem tools for remaining claimed surfaces only. Identifier must equal the surface id. Do not emit unclaimed HTML. Do not stop after the first screen.
 
 ---`;
 

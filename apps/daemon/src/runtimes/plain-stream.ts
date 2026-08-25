@@ -1,8 +1,10 @@
 import { Buffer } from 'node:buffer';
 import type { ProjectFile } from '@open-design/contracts';
 import { createProjectArtifactFile } from '../artifacts/create.js';
+import { isMixedHtmlDocument, isSingleHtmlDocument } from '../artifacts/html-document.js';
 import {
   listFiles as defaultListFiles,
+  readProjectFile as defaultReadProjectFile,
   writeProjectFile as defaultWriteProjectFile,
 } from '../projects.js';
 
@@ -249,25 +251,58 @@ function toLiveHtmlCanvasArtifact(
   };
 }
 
+function asSingleLiveHtmlDocument(
+  source: PlainStreamArtifact | null,
+  content: string,
+): PlainStreamArtifact | null {
+  const trimmed = trimLiveHtmlDocument(content);
+  if (!isSingleHtmlDocument(trimmed)) return null;
+  return toLiveHtmlCanvasArtifact(source, trimmed);
+}
+
+/**
+ * True when the first HTML-looking region is already a mixed dump (thinking
+ * inside `<style>`, a markdown fence, or a second DOCTYPE before `</html>`).
+ * Two complete documents in one turn are not this — those still prefer the
+ * last closed page.
+ */
+export function liveHtmlSourceIsBroken(stdout: string): boolean {
+  const start = stdout.search(/<!doctype\s+html\b|<html\b/i);
+  if (start < 0) return isMixedHtmlDocument(stdout);
+  const rest = stdout.slice(start);
+  const fence = rest.search(/```(?:html)?[ \t]*\r?\n/i);
+  const close = rest.search(/<\/html\s*>/i);
+  const secondDoctypeRel = rest.slice(10).search(/<!doctype\s+html\b/i);
+  const secondDoctype = secondDoctypeRel >= 0 ? secondDoctypeRel + 10 : -1;
+  if (fence >= 0 && (close < 0 || fence < close)) return true;
+  if (secondDoctype >= 0 && (close < 0 || secondDoctype < close)) return true;
+  const firstDoc = close >= 0 ? rest.slice(0, close + 7) : rest;
+  return isMixedHtmlDocument(firstDoc);
+}
+
 /**
  * Closed tagged HTML wins once it exists. Bare/thought HTML is only the
  * pre-wrapper and open-stream fallback. Always named index.html.
+ *
+ * A mixed dump is not a live-canvas candidate. Do not salvage a nested
+ * document from thinking + ```html + a second DOCTYPE — persist keeps the
+ * previous clean file.
  */
 export function extractLiveHtmlCanvasArtifact(stdout: string): PlainStreamArtifact | null {
   const closed = extractPlainStreamArtifacts(stdout).find((artifact) => artifact.extension === '.html')
     ?? null;
-  if (closed && looksLikeHtmlDocument(closed.content)) {
-    return toLiveHtmlCanvasArtifact(closed, trimLiveHtmlDocument(closed.content));
-  }
+  const closedSingle = closed ? asSingleLiveHtmlDocument(closed, closed.content) : null;
+  if (closedSingle) return closedSingle;
+  if (liveHtmlSourceIsBroken(stdout)) return null;
   const open = extractOpenPlainStreamArtifact(stdout);
-  if (open && looksLikeHtmlDocument(open.content)) {
-    return toLiveHtmlCanvasArtifact(open, trimLiveHtmlDocument(open.content));
-  }
+  const openSingle = open ? asSingleLiveHtmlDocument(open, open.content) : null;
+  if (openSingle) return openSingle;
   const bare = extractLastBareHtmlDocument(stdout);
-  if (bare && /<!doctype\s+html|<html[\s>]/i.test(bare)) {
-    return toLiveHtmlCanvasArtifact(closed ?? open, bare);
+  if (bare) {
+    const bareSingle = asSingleLiveHtmlDocument(closed ?? open, bare);
+    if (bareSingle) return bareSingle;
   }
-  return closed ?? open;
+  return null;
 }
 
 /**
@@ -296,6 +331,13 @@ type OverwriteWriteProjectFile = (
   metadata?: unknown,
 ) => Promise<unknown>;
 
+type ReadProjectFile = (
+  projectsRoot: string,
+  projectId: string,
+  name: string,
+  metadata?: unknown,
+) => Promise<{ buffer: Buffer; name: string; path: string }>;
+
 export async function persistLiveHtmlCanvas(options: {
   projectsRoot: string;
   projectId: string;
@@ -303,12 +345,20 @@ export async function persistLiveHtmlCanvas(options: {
   status: 'streaming' | 'complete';
   metadata?: unknown;
   writeProjectFile?: OverwriteWriteProjectFile;
+  readProjectFile?: ReadProjectFile;
   /** Exact manifest claim for a targeted surface; legacy remains index.html. */
   target?: DesignGenerationArtifactTarget;
   /** Claimed surfaces for this run. Resolves the persist file per artifact. */
   targets?: readonly DesignGenerationArtifactTarget[];
+  /**
+   * Last known single HTML document for the live file, captured before this
+   * turn's child can Write. Mixed candidates restore this instead of
+   * overwriting.
+   */
+  previousCleanContent?: string | null;
 }): Promise<PersistedPlainStreamArtifact> {
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
+  const readProjectFile = options.readProjectFile ?? defaultReadProjectFile as ReadProjectFile;
   const target = options.target
     ?? resolveDesignGenerationArtifactTarget(options.artifact, options.targets);
   if (options.targets?.length && !target) {
@@ -329,6 +379,14 @@ export async function persistLiveHtmlCanvas(options: {
     );
   }
   const name = target?.file ?? LIVE_HTML_CANVAS_NAME;
+  if (isMixedHtmlDocument(options.artifact.content)) {
+    return keepPreviousLiveHtmlDocument({
+      ...options,
+      name,
+      writeProjectFile,
+      readProjectFile,
+    });
+  }
   const file = await writeProjectFile(
     options.projectsRoot,
     options.projectId,
@@ -348,6 +406,123 @@ export async function persistLiveHtmlCanvas(options: {
     name,
     file,
   };
+}
+
+/**
+ * Mixed HTML must not replace a clean live file. Restore the turn-start
+ * snapshot when present; otherwise keep the on-disk single document.
+ */
+export async function keepPreviousLiveHtmlDocument(options: {
+  projectsRoot: string;
+  projectId: string;
+  artifact: PlainStreamArtifact;
+  status: 'streaming' | 'complete';
+  name: string;
+  metadata?: unknown;
+  writeProjectFile: OverwriteWriteProjectFile;
+  readProjectFile: ReadProjectFile;
+  previousCleanContent?: string | null;
+}): Promise<PersistedPlainStreamArtifact> {
+  const previous = options.previousCleanContent;
+  if (previous && isSingleHtmlDocument(previous)) {
+    const file = await options.writeProjectFile(
+      options.projectsRoot,
+      options.projectId,
+      options.name,
+      Buffer.from(previous, 'utf8'),
+      {
+        overwrite: true,
+        artifactManifest: artifactManifestFor(options.artifact, options.name, options.status),
+        skipArtifactGuards: options.status === 'streaming',
+      },
+      options.metadata,
+    );
+    return {
+      identifier: options.artifact.identifier,
+      artifactType: options.artifact.artifactType,
+      title: options.artifact.title,
+      name: options.name,
+      file,
+    };
+  }
+  try {
+    const existing = await options.readProjectFile(
+      options.projectsRoot,
+      options.projectId,
+      options.name,
+      options.metadata,
+    );
+    const existingText = existing.buffer.toString('utf8');
+    if (isSingleHtmlDocument(existingText)) {
+      return {
+        identifier: options.artifact.identifier,
+        artifactType: options.artifact.artifactType,
+        title: options.artifact.title,
+        name: options.name,
+        file: existing,
+      };
+    }
+  } catch {
+    // No previous file.
+  }
+  if (options.status === 'streaming') {
+    return {
+      identifier: options.artifact.identifier,
+      artifactType: options.artifact.artifactType,
+      title: options.artifact.title,
+      name: options.name,
+      file: { name: options.name, skipped: true },
+    };
+  }
+  throw new Error('refused to persist a mixed HTML document');
+}
+
+/**
+ * Child Write can dump a mixed document onto the live primary after extract
+ * has already refused it. Restore the last known single document so
+ * FileViewer never keeps the dump.
+ */
+export async function restoreLiveHtmlCanvasIfMixed(options: {
+  projectsRoot: string;
+  projectId: string;
+  name: string;
+  previousCleanContent?: string | null;
+  metadata?: unknown;
+  writeProjectFile?: OverwriteWriteProjectFile;
+  readProjectFile?: ReadProjectFile;
+}): Promise<boolean> {
+  const previous = options.previousCleanContent;
+  if (!previous || !isSingleHtmlDocument(previous)) return false;
+  const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
+  const readProjectFile = options.readProjectFile ?? defaultReadProjectFile as ReadProjectFile;
+  try {
+    const existing = await readProjectFile(
+      options.projectsRoot,
+      options.projectId,
+      options.name,
+      options.metadata,
+    );
+    if (!isMixedHtmlDocument(existing.buffer.toString('utf8'))) return false;
+  } catch {
+    return false;
+  }
+  await writeProjectFile(
+    options.projectsRoot,
+    options.projectId,
+    options.name,
+    Buffer.from(previous, 'utf8'),
+    {
+      overwrite: true,
+      artifactManifest: {
+        kind: 'html',
+        title: options.name,
+        streaming: true,
+      },
+      skipArtifactGuards: true,
+    },
+    options.metadata,
+  );
+  return true;
 }
 
 export async function persistPlainStreamArtifacts(options: {
@@ -391,6 +566,9 @@ export async function persistPlainStreamArtifactList(options: {
       if (index < 0) continue;
       const [artifact] = remaining.splice(index, 1);
       if (!artifact) continue;
+      if (artifact.extension === '.html' && isMixedHtmlDocument(artifact.content)) {
+        continue;
+      }
       const manifest = artifactManifestFor(artifact, target.file);
       const file = await (writeProjectFile as OverwriteWriteProjectFile)(
         options.projectsRoot,
@@ -417,6 +595,9 @@ export async function persistPlainStreamArtifactList(options: {
   const persisted: PersistedPlainStreamArtifact[] = [];
 
   for (const artifact of artifacts) {
+    if (artifact.extension === '.html' && isMixedHtmlDocument(artifact.content)) {
+      continue;
+    }
     const name = reserveUniqueArtifactFileName(artifact.fileName, reservedNames);
     const manifest = artifactManifestFor(artifact, name);
     const file = await createProjectArtifactFile({

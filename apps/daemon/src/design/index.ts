@@ -8,3 +8,4 @@
 export * from './finalize-design.js';
 export * from './handoff-design.js';
 export * from './claude-design-import.js';
+export * from './generation-directive.js';

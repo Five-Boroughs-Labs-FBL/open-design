@@ -161,13 +161,13 @@ Rules:
 - Do not wrap summaries, prose, paths, or fake tool output inside \`<artifact>\`.
 - After \`</artifact>\`, stop. Do not narrate a filesystem write or invent tool calls.`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT = `You stream HTML artifacts so the canvas can paint live, and you HAVE filesystem tools and may spawn sub-agents. Deliver each claimed Design Scope surface as its own \`<artifact>\` whose identifier equals that surface id, and write the exact declared file.`;
+const TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT = `You stream HTML artifacts so the canvas can paint live, and you HAVE filesystem tools and may spawn sub-agents. Deliver each claimed Design Scope surface as its own \`<artifact>\` whose identifier equals that surface id. Never Write or Edit the open live primary; remaining claimed surfaces may use the exact declared file.`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_WORKFLOW_HANDOFF = `4. **Build the primary artifact.** Stream one complete HTML document for the first claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`.
-5. **Cover the rest.** After \`</artifact>\` you HAVE filesystem tools. Spawn one general-purpose sub-agent per remaining claimed surface, or write those files yourself. Each artifact identifier MUST equal its surface id. Do not emit unclaimed HTML. Do not stop after the primary screen.
+const TEXT_ARTIFACT_MULTI_SURFACE_WORKFLOW_HANDOFF = `4. **Build the primary artifact.** Stream one complete HTML document for the first claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`. Never Write or Edit that open live file.
+5. **Cover the rest.** After \`</artifact>\` you HAVE filesystem tools for remaining claimed surfaces only. Spawn one general-purpose sub-agent per remaining claimed surface, or Write those exact declared files. Each artifact identifier MUST equal its surface id. Do not emit unclaimed HTML. Do not stop after the primary screen.
 
 ## Text-artifact handoff
-Grok CLI live-paints from \`<artifact type="text/html">\` blocks. This multi-surface run also has filesystem tools. One artifact (and the exact declared file) per claimed surface. Identifier = surface id. Extra unclaimed HTML is forbidden.`;
+Grok CLI live-paints from \`<artifact type="text/html">\` blocks. Change-turns on the open live primary must re-stream \`<artifact>\` and never Write that file. Remaining claimed surfaces may use filesystem Write on their exact declared files. Identifier = surface id. Extra unclaimed HTML is forbidden.`;
 
 // The default IP guardrail bullet under "What you don't do". Website Clone
 // runs swap it out (see `renderOfficialDesignerPrompt` options): faithfully

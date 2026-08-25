@@ -27,6 +27,7 @@ import {
   assertArtifactPublicationAllowed,
   isPublicationGuardedArtifactKind,
 } from './artifacts/publication-guard.js';
+import { isMixedHtmlDocument, isSingleHtmlDocument } from './artifacts/html-document.js';
 import { normalizeArtifactRuntimeImports } from './artifacts/runtime-compat.js';
 import { isIgnoredProjectDirName } from './project-ignored-dirs.js';
 import {
@@ -856,6 +857,35 @@ export async function writeProjectFile(
     }
   }
   await mkdir(path.dirname(target), { recursive: true });
+  if (overwrite && /\.html?$/i.test(safeName)) {
+    const incoming = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
+    if (isMixedHtmlDocument(incoming)) {
+      try {
+        const existing = await readFile(target);
+        const existingText = existing.toString('utf8');
+        if (isSingleHtmlDocument(existingText)) {
+          const st = await stat(target);
+          const persistedManifest = await readManifestForPath(dir, safeName);
+          return {
+            name: safeName,
+            path: safeName,
+            size: st.size,
+            mtime: st.mtimeMs,
+            kind: kindFor(safeName),
+            mime: mimeFor(safeName),
+            artifactKind: persistedManifest?.kind,
+            artifactManifest: persistedManifest,
+          };
+        }
+      } catch (err) {
+        if (err && (err as { code?: string }).code === 'MIXED_HTML_DOCUMENT') throw err;
+        // No previous file, or the existing file is also mixed.
+      }
+      const mixed = new Error('refused to persist a mixed HTML document');
+      mixed.code = 'MIXED_HTML_DOCUMENT';
+      throw mixed;
+    }
+  }
   let stubGuardWarning = null;
   let validatedManifest = null;
   if (artifactManifest && typeof artifactManifest === 'object') {

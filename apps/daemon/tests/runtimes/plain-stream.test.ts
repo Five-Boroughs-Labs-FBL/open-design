@@ -8,8 +8,10 @@ import {
   extractLiveHtmlCanvasArtifact,
   extractOpenPlainStreamArtifact,
   extractPlainStreamArtifacts,
+  liveHtmlSourceIsBroken,
   persistLiveHtmlCanvas,
   persistPlainStreamArtifacts,
+  restoreLiveHtmlCanvasIfMixed,
   persistPlainStreamArtifactList,
   artifactMatchesDesignTarget,
   plainStdoutFromRunEvents,
@@ -641,6 +643,71 @@ describe('plain stream artifact extraction', () => {
         writeProjectFile: writeProjectFile as any,
       })).rejects.toThrow('does not match any claimed surface');
       await expect(readFile(path.join(projectsRoot, 'project-1', 'index.html'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not persist the leaked later-turn shape as index.html', async () => {
+    const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
+      '../artifacts/html-document.fixtures.js'
+    );
+    expect(liveHtmlSourceIsBroken(LIVE_PRIMARY_LEAK_HTML)).toBe(true);
+    expect(extractLiveHtmlCanvasArtifact(LIVE_PRIMARY_LEAK_HTML)).toBeNull();
+    expect(extractLiveHtmlCanvasArtifact(
+      `<artifact identifier="index" type="text/html">\n${LIVE_PRIMARY_LEAK_HTML}\n</artifact>`,
+    )).toBeNull();
+
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-leak-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      const leaked = {
+        identifier: 'index',
+        artifactType: 'text/html',
+        title: 'Login',
+        content: LIVE_PRIMARY_LEAK_HTML,
+        extension: '.html' as const,
+        fileName: LIVE_HTML_CANVAS_NAME,
+      };
+      const written = await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: leaked,
+        status: 'complete',
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(written.name).toBe(LIVE_HTML_CANVAS_NAME);
+      const body = await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8');
+      expect(body).toBe(CLEAN_LOGIN_HTML);
+      expect(body).not.toContain('```html');
+      expect(body).not.toContain("I'll read the login page");
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('restores the snapshot when a child Write already dumped the leak', async () => {
+    const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
+      '../artifacts/html-document.fixtures.js'
+    );
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-restore-write-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), LIVE_PRIMARY_LEAK_HTML);
+      const restored = await restoreLiveHtmlCanvasIfMixed({
+        projectsRoot,
+        projectId: 'project-1',
+        name: LIVE_HTML_CANVAS_NAME,
+        previousCleanContent: CLEAN_LOGIN_HTML,
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(restored).toBe(true);
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8'))
+        .toBe(CLEAN_LOGIN_HTML);
     } finally {
       await rm(projectsRoot, { recursive: true, force: true });
     }
