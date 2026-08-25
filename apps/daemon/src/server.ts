@@ -14030,9 +14030,11 @@ export async function startServer({
               writeProjectFile,
               ...(Array.isArray(designGenerationSurfaces) && designGenerationSurfaces.length > 0
                 ? {
-                    targets: liveHtmlCanvas?.wrote
-                      ? designGenerationSurfaces.slice(1)
-                      : designGenerationSurfaces,
+                    // Pass the full claimed set. withoutLiveHtmlCanvasArtifact
+                    // already dropped the streamed HTML; slice(1) assumed the
+                    // live write was surfaces[0] and dropped the real first
+                    // claimed file when a later surface streamed first.
+                    targets: designGenerationSurfaces,
                   }
                 : {}),
             });
