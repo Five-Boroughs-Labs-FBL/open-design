@@ -230,6 +230,7 @@ import {
   persistLiveHtmlCanvas,
   persistPlainStreamArtifactList,
   restoreLiveHtmlCanvasIfMixed,
+  sealLiveHtmlCanvasStatus,
   plainStdoutFromRunEvents,
   withoutLiveHtmlCanvasArtifact,
 } from './runtimes/plain-stream.js';
@@ -10961,6 +10962,19 @@ export async function startServer({
             writeProjectFile,
             readProjectFile,
             force: restore?.force,
+            ...(restore?.status ? { status: restore.status } : {}),
+          });
+        },
+        sealStatus: async (canvasStatus) => {
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
+          const project = getProject(db, projectId);
+          await sealLiveHtmlCanvasStatus({
+            projectsRoot: PROJECTS_DIR,
+            projectId,
+            name: livePrimaryName,
+            status: canvasStatus,
+            metadata: project?.metadata,
+            readProjectFile,
           });
         },
       });

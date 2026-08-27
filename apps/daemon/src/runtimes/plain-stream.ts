@@ -9,6 +9,7 @@ import {
 import {
   listFiles as defaultListFiles,
   readProjectFile as defaultReadProjectFile,
+  setArtifactManifestStatus as defaultSetArtifactManifestStatus,
   writeProjectFile as defaultWriteProjectFile,
 } from '../projects.js';
 
@@ -342,6 +343,16 @@ type ReadProjectFile = (
   metadata?: unknown,
 ) => Promise<{ buffer: Buffer; name: string; path: string }>;
 
+export type LiveHtmlCanvasPersistStatus = 'streaming' | 'complete';
+
+type SetArtifactManifestStatus = (
+  projectsRoot: string,
+  projectId: string,
+  name: string,
+  status: LiveHtmlCanvasPersistStatus,
+  metadata?: unknown,
+) => Promise<boolean>;
+
 export async function persistLiveHtmlCanvas(options: {
   projectsRoot: string;
   projectId: string;
@@ -502,9 +513,12 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
    * default only restores when disk is already mixed.
    */
   force?: boolean;
+  /** Terminal status to stamp. A restore at end-of-turn is not a draft. */
+  status?: LiveHtmlCanvasPersistStatus;
 }): Promise<boolean> {
   const previous = options.previousCleanContent;
   if (!previous || !isSingleHtmlDocument(previous)) return false;
+  const status = options.status ?? 'streaming';
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
   const readProjectFile = options.readProjectFile ?? defaultReadProjectFile as ReadProjectFile;
   try {
@@ -527,16 +541,82 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
     Buffer.from(previous, 'utf8'),
     {
       overwrite: true,
-      artifactManifest: {
-        kind: 'html',
-        title: options.name,
-        streaming: true,
-      },
+      // `{ streaming: true }` was not a manifest — `validateArtifactManifestInput`
+      // requires `renderer` and a non-empty `exports`, and has no `streaming`
+      // field at all, so writeProjectFile silently dropped it and left the
+      // previous status on disk. A restore is the last write of the turn, so
+      // it must carry the turn's terminal status or the tile spins forever.
+      artifactManifest: liveHtmlCanvasManifestFor(options.name, status),
       skipArtifactGuards: true,
     },
     options.metadata,
   );
   return true;
+}
+
+/**
+ * Minimal valid manifest for a live-canvas HTML file. Content-restoring paths
+ * have no `PlainStreamArtifact` to describe, so they cannot use
+ * `artifactManifestFor`.
+ */
+function liveHtmlCanvasManifestFor(
+  entry: string,
+  status: LiveHtmlCanvasPersistStatus,
+): JsonRecord {
+  return {
+    kind: 'html',
+    title: entry,
+    entry,
+    renderer: 'html',
+    status,
+    exports: ['html', 'pdf', 'zip'],
+  };
+}
+
+/**
+ * Stamp a terminal status onto the live primary when no `complete` body write
+ * ever happened.
+ *
+ * A stream that ends mixed clears the writer's pending artifact, so `flush`
+ * has nothing to persist and the file keeps the status of the last streaming
+ * draft. The bytes are the last good document — only the status is stale.
+ * Sealing is refused unless the file on disk really is one HTML document, so
+ * a genuinely broken page is never presented as finished.
+ */
+export async function sealLiveHtmlCanvasStatus(options: {
+  projectsRoot: string;
+  projectId: string;
+  name: string;
+  status: LiveHtmlCanvasPersistStatus;
+  metadata?: unknown;
+  readProjectFile?: ReadProjectFile;
+  setArtifactManifestStatus?: SetArtifactManifestStatus;
+}): Promise<boolean> {
+  const readProjectFile = options.readProjectFile ?? defaultReadProjectFile as ReadProjectFile;
+  const setStatus = options.setArtifactManifestStatus
+    ?? defaultSetArtifactManifestStatus as SetArtifactManifestStatus;
+  let existingText: string;
+  try {
+    const existing = await readProjectFile(
+      options.projectsRoot,
+      options.projectId,
+      options.name,
+      options.metadata,
+    );
+    existingText = existing.buffer.toString('utf8');
+  } catch {
+    return false;
+  }
+  if (!isSingleHtmlDocument(existingText)) return false;
+  return Boolean(
+    await setStatus(
+      options.projectsRoot,
+      options.projectId,
+      options.name,
+      options.status,
+      options.metadata,
+    ),
+  );
 }
 
 export async function persistPlainStreamArtifacts(options: {
