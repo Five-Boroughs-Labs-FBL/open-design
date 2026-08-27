@@ -8,6 +8,7 @@ import {
 } from '../artifacts/html-document.js';
 import {
   listFiles as defaultListFiles,
+  readArtifactManifest as defaultReadArtifactManifest,
   readProjectFile as defaultReadProjectFile,
   setArtifactManifestStatus as defaultSetArtifactManifestStatus,
   writeProjectFile as defaultWriteProjectFile,
@@ -345,6 +346,13 @@ type ReadProjectFile = (
 
 export type LiveHtmlCanvasPersistStatus = 'streaming' | 'complete';
 
+type ReadArtifactManifest = (
+  projectsRoot: string,
+  projectId: string,
+  name: string,
+  metadata?: unknown,
+) => Promise<JsonRecord | null>;
+
 type SetArtifactManifestStatus = (
   projectsRoot: string,
   projectId: string,
@@ -515,10 +523,13 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
   force?: boolean;
   /** Terminal status to stamp. A restore at end-of-turn is not a draft. */
   status?: LiveHtmlCanvasPersistStatus;
+  readArtifactManifest?: ReadArtifactManifest;
 }): Promise<boolean> {
   const previous = options.previousCleanContent;
   if (!previous || !isSingleHtmlDocument(previous)) return false;
   const status = options.status ?? 'streaming';
+  const readArtifactManifest = options.readArtifactManifest
+    ?? defaultReadArtifactManifest as ReadArtifactManifest;
   const writeProjectFile = options.writeProjectFile ?? defaultWriteProjectFile as OverwriteWriteProjectFile;
   const readProjectFile = options.readProjectFile ?? defaultReadProjectFile as ReadProjectFile;
   try {
@@ -534,6 +545,12 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
   } catch {
     if (!options.force) return false;
   }
+  const existingManifest = await readArtifactManifest(
+    options.projectsRoot,
+    options.projectId,
+    options.name,
+    options.metadata,
+  ).catch(() => null);
   await writeProjectFile(
     options.projectsRoot,
     options.projectId,
@@ -546,7 +563,15 @@ export async function restoreLiveHtmlCanvasIfMixed(options: {
       // field at all, so writeProjectFile silently dropped it and left the
       // previous status on disk. A restore is the last write of the turn, so
       // it must carry the turn's terminal status or the tile spins forever.
-      artifactManifest: liveHtmlCanvasManifestFor(options.name, status),
+      //
+      // Merge onto the sidecar already there rather than minting a fresh one:
+      // writeProjectFile REPLACES the sidecar, and a minimal manifest would
+      // drop `primary: true` (so another surface becomes the project's primary
+      // file) and `metadata.identifier` (so artifact recovery and the stub
+      // guard lose the live primary's lineage).
+      artifactManifest: existingManifest
+        ? { ...existingManifest, status }
+        : liveHtmlCanvasManifestFor(options.name, status),
       skipArtifactGuards: true,
     },
     options.metadata,

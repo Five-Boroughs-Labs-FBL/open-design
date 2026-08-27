@@ -974,6 +974,23 @@ function artifactManifestNameFor(name) {
 }
 
 /**
+ * The artifact manifest already on disk for `name`, or null. Callers that
+ * rewrite a file's body but not its identity need this: `writeProjectFile`
+ * REPLACES the sidecar wholesale, so passing a freshly-built minimal manifest
+ * silently drops `primary`, `metadata.identifier` and the real title.
+ */
+export async function readArtifactManifest(projectsRoot, projectId, name, metadata?) {
+  const dir = resolveProjectDir(projectsRoot, projectId, metadata);
+  const safeName = validateProjectPath(name);
+  if (containsIgnoredProjectDirSegment(safeName)) return null;
+  try {
+    return await readManifestForPath(dir, safeName);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Stamp a terminal status onto an existing artifact manifest without touching
  * the file body.
  *
@@ -1015,7 +1032,14 @@ export async function setArtifactManifestStatus(
     throw err;
   }
   const parsed = parseManifest(raw);
-  if (!parsed) return false;
+  if (!parsed) {
+    // Same silent-drop class this function exists to close: an unparsable
+    // sidecar would make the seal a no-op with no trace.
+    console.warn(
+      `[artifact-manifest] cannot stamp ${status} on ${safeName}: sidecar did not parse`,
+    );
+    return false;
+  }
   if (parsed.status === status) return false;
 
   const validated = validateArtifactManifestInput(

@@ -10951,9 +10951,10 @@ export async function startServer({
           return true;
         },
         restoreIfMixed: async (cleanContent, restore) => {
-          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return;
+          if (liveHtmlCanvasChild && run.child !== liveHtmlCanvasChild) return false;
           const project = getProject(db, projectId);
-          await restoreLiveHtmlCanvasIfMixed({
+          // The writer only forgives a persist error when this actually wrote.
+          return await restoreLiveHtmlCanvasIfMixed({
             projectsRoot: PROJECTS_DIR,
             projectId,
             name: livePrimaryName,

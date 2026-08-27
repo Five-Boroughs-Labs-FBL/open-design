@@ -50,9 +50,13 @@ export function createLiveHtmlCanvasWriter(options: {
       .then(async () => {
         const clean = turnStartClean ?? cleanToRestore;
         if (!clean) return;
-        await options.restoreIfMixed?.(clean, { force, status });
-        // A recoverable keep-previous must not fail the run.
-        persistError = null;
+        const restored = await options.restoreIfMixed?.(clean, { force, status });
+        // A recoverable keep-previous must not fail the run -- but only when
+        // it actually kept something. Clearing unconditionally laundered a
+        // failed terminal persist (a publication-guard or stub-guard refusal)
+        // into a successful flush, and then let the seal stamp `complete`
+        // over the draft that was refused.
+        if (restored) persistError = null;
       })
       .catch((err) => {
         persistError = err;
@@ -175,9 +179,14 @@ export function createLiveHtmlCanvasWriter(options: {
         enqueueRestore(false, status);
       }
       // Idempotent: a no-op when a `complete` body write already landed.
-      if (status === 'complete') enqueueSeal(status);
+      if (status === 'complete') {
+        enqueueSeal(status);
+        // Seal the writer BEFORE awaiting. `note()` returns early once sealed,
+        // so a late token cannot append a `streaming` persist to a fresh chain
+        // that runs after the seal and undoes it.
+        sealed = true;
+      }
       await chain;
-      if (status === 'complete') sealed = true;
       if (persistError) {
         const err = persistError;
         persistError = null;

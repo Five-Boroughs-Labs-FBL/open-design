@@ -162,6 +162,100 @@ describe('sealing the live HTML canvas status', () => {
     await expect(writer.flush('complete')).rejects.toThrow('terminal persist failed');
     expect(sealed).toEqual([]);
   });
+
+  it('does not seal when a restore that kept nothing followed the failed persist', async () => {
+    // Production ALWAYS wires `restoreIfMixed`, and on a later turn there is a
+    // turn-start snapshot, so the restore runs. It returns false when disk is
+    // already a single document -- it kept nothing. Clearing the persist error
+    // there would launder a publication- or stub-guard refusal into a green
+    // flush, and then let the seal stamp `complete` over the refused draft.
+    const sealed: string[] = [];
+    let attempts = 0;
+    const writer = createLiveHtmlCanvasWriter({
+      delayMs: 0,
+      previousCleanContent: CLEAN_LOGIN_HTML,
+      persist: async () => {
+        attempts += 1;
+        if (attempts > 1) throw new Error('publication guard refused the page');
+      },
+      restoreIfMixed: async () => false,
+      sealStatus: async (status) => {
+        sealed.push(status);
+      },
+    });
+
+    writer.note(CLEAN_LOGIN_HTML);
+    await Promise.resolve();
+    await expect(writer.flush('complete')).rejects.toThrow('publication guard refused');
+    expect(sealed).toEqual([]);
+  });
+
+  it('still forgives a persist error when the restore actually kept the previous page', async () => {
+    let attempts = 0;
+    const writer = createLiveHtmlCanvasWriter({
+      delayMs: 0,
+      previousCleanContent: CLEAN_LOGIN_HTML,
+      persist: async () => {
+        attempts += 1;
+        if (attempts > 1) throw new Error('mixed document refused');
+      },
+      restoreIfMixed: async () => true,
+      sealStatus: async () => undefined,
+    });
+
+    writer.note(CLEAN_LOGIN_HTML);
+    await Promise.resolve();
+    await expect(writer.flush('complete')).resolves.toBeUndefined();
+  });
+
+  it('seals on the real two-flush close sequence', async () => {
+    // The daemon flushes `streaming` on child close and `complete` in the
+    // finally. On the second pass the restore short-circuits (disk already
+    // equals the snapshot), so the seal is the only thing left that can move
+    // the status off `streaming`.
+    await withProject(async ({ projectsRoot, projectDir }) => {
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: null,
+        persist: (artifact, status) => persistLiveHtmlCanvas({
+          projectsRoot,
+          projectId: PROJECT_ID,
+          artifact,
+          status,
+          writeProjectFile: writeProjectFile as any,
+        }),
+        restoreIfMixed: (cleanContent, restore) => restoreLiveHtmlCanvasIfMixed({
+          projectsRoot,
+          projectId: PROJECT_ID,
+          name: LIVE_HTML_CANVAS_NAME,
+          previousCleanContent: cleanContent,
+          force: restore?.force,
+          ...(restore?.status ? { status: restore.status } : {}),
+          writeProjectFile: writeProjectFile as any,
+          readProjectFile: readProjectFile as any,
+        }),
+        sealStatus: (status) => sealLiveHtmlCanvasStatus({
+          projectsRoot,
+          projectId: PROJECT_ID,
+          name: LIVE_HTML_CANVAS_NAME,
+          status,
+          readProjectFile: readProjectFile as any,
+        }),
+      });
+
+      writer.note(CLEAN_LOGIN_HTML);
+      expect((await waitForManifest(projectDir))?.status).toBe('streaming');
+      writer.note(LIVE_PRIMARY_LEAK_HTML);
+
+      await writer.flush('streaming');
+      expect((await readManifest(projectDir))?.status).toBe('streaming');
+
+      await writer.flush('complete');
+      expect((await readManifest(projectDir))?.status).toBe('complete');
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8'))
+        .toBe(CLEAN_LOGIN_HTML);
+    });
+  });
 });
 
 describe('restoreLiveHtmlCanvasIfMixed manifest', () => {
@@ -174,12 +268,15 @@ describe('restoreLiveHtmlCanvasIfMixed manifest', () => {
       await writeFile(
         path.join(projectDir, MANIFEST_NAME),
         JSON.stringify({
+          version: 1,
           kind: 'html',
-          title: LIVE_HTML_CANVAS_NAME,
+          title: 'Login',
           entry: LIVE_HTML_CANVAS_NAME,
           renderer: 'html',
           status: 'streaming',
           exports: ['html', 'pdf', 'zip'],
+          primary: true,
+          metadata: { identifier: 'login', artifactType: 'text/html', inferred: false },
         }),
       );
 
@@ -198,6 +295,13 @@ describe('restoreLiveHtmlCanvasIfMixed manifest', () => {
       const manifest = await readManifest(projectDir);
       expect(manifest?.status).toBe('complete');
       expect(manifest?.renderer).toBe('html');
+      // writeProjectFile REPLACES the sidecar. Minting a fresh minimal manifest
+      // here would drop `primary` -- flipping the project's primary file to
+      // another surface -- and `metadata.identifier`, which artifact recovery
+      // and the stub guard both match on.
+      expect(manifest?.primary).toBe(true);
+      expect((manifest?.metadata as Record<string, unknown>)?.identifier).toBe('login');
+      expect(manifest?.title).toBe('Login');
     });
   });
 
