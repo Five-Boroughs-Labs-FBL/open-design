@@ -25,14 +25,8 @@ async function withProject(
     await mkdir(projectDir, { recursive: true });
     await run({ projectsRoot, projectDir });
   } finally {
-    await rm(projectsRoot, { recursive: true, force: true });
-  }
-}
-
-/** The writer persists on an internal promise chain; let real fs writes land. */
-async function settle(): Promise<void> {
-  for (let i = 0; i < 5; i += 1) {
-    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    // Windows can still hold a handle from the write chain for a tick.
+    await rm(projectsRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 25 });
   }
 }
 
@@ -42,6 +36,20 @@ async function readManifest(projectDir: string): Promise<Record<string, unknown>
   } catch {
     return null;
   }
+}
+
+/**
+ * The writer persists on an internal promise chain, so a draft lands a tick or
+ * more after `note`. Poll rather than counting ticks -- a fixed tick count is
+ * a Windows flake waiting to happen.
+ */
+async function waitForManifest(projectDir: string): Promise<Record<string, unknown> | null> {
+  for (let i = 0; i < 100; i += 1) {
+    const manifest = await readManifest(projectDir);
+    if (manifest) return manifest;
+    await new Promise((resolve) => { setTimeout(resolve, 10); });
+  }
+  return null;
 }
 
 describe('sealing the live HTML canvas status', () => {
@@ -71,8 +79,7 @@ describe('sealing the live HTML canvas status', () => {
       });
 
       writer.note(CLEAN_LOGIN_HTML);
-      await settle();
-      expect((await readManifest(projectDir))?.status).toBe('streaming');
+      expect((await waitForManifest(projectDir))?.status).toBe('streaming');
 
       writer.note(LIVE_PRIMARY_LEAK_HTML);
       await expect(writer.flush('complete')).resolves.toBeUndefined();
