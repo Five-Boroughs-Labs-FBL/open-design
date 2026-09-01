@@ -191,6 +191,7 @@ describe('DesignSurfaceCanvas', () => {
     expect(document).toContain('<base href="https://open-design.test/api/projects/p1/files/">');
     expect(document).toContain('img-src data: blob: https://open-design.test');
     expect(document).not.toContain('img-src data: blob: https://attacker');
+  });
 
   it('preserves the historical Grid thumbnail defaults outside the canvas', async () => {
     const { container } = render(
