@@ -51,7 +51,7 @@ const FILESYSTEM_HANDOFF = `## Delivery
 
 Project files are the source of truth. Write or update the files first, then briefly summarize which files changed, the result, and any open issues. Do not send an \`<artifact>\` block containing source code.
 
-The main HTML file must be a complete document. Write photos as sibling files under \`assets/\` (for example \`assets/hero.png\`) and reference them with relative \`src\`. Do not inline images as \`data:\` URLs. For a multi-file project, use \`index.html\` as the entry point.`;
+The main HTML file must be a complete document and self-contained except photos, which must be sibling files under \`assets/\` (for example \`assets/hero.png\`) with relative \`src\`. Do not inline images as \`data:\` URLs. For a multi-file project, use \`index.html\` as the entry point.`;
 
 const TEXT_ARTIFACT_HANDOFF = `## Delivery
 

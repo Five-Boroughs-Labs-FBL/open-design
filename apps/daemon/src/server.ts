@@ -2662,9 +2662,10 @@ export async function startServer({
   // photo blows the global 4mb cap (PayloadTooLargeError before the route).
   // Exact POST /files only — a prefix mount would also raise rename / GET /
   // preview. Do not raise the rest of the API.
+  const filesJsonParser = jsonParser('32mb');
   app.use((req, res, next) => {
     if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/files\/?$/.test(req.path)) {
-      return jsonParser('32mb')(req, res, next);
+      return filesJsonParser(req, res, next);
     }
     return next();
   });

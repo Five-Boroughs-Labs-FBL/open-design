@@ -74,7 +74,8 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
 
   it('tells filesystem runs to write photos as sibling files', () => {
     expect(charter).toContain('Write photos as sibling files under `assets/`');
-    expect(charter).not.toContain('the main HTML file must be complete and self-contained');
+    expect(charter).toContain('self-contained except photos');
+    expect(charter).not.toContain('the main HTML file must be complete and self-contained.');
   });
 
   it('requires a recommended default prefill on every form question', () => {

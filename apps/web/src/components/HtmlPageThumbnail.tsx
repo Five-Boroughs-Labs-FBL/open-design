@@ -18,19 +18,33 @@ import {
 } from './html-thumbnail-source-cache';
 
 const HTML_THUMBNAIL_INLINE_MAX_BYTES = 512 * 1024;
-const STATIC_THUMBNAIL_CSP = [
-  "default-src 'none'",
-  "script-src 'none'",
-  "style-src 'unsafe-inline'",
-  'img-src data: blob:',
-  'font-src data:',
-  'media-src data: blob:',
-  "connect-src 'none'",
-  "frame-src 'none'",
-  "object-src 'none'",
-  "form-action 'none'",
-  "base-uri 'none'",
-].join('; ');
+
+function staticThumbnailCsp(baseHref: string): string {
+  let imgSrc = 'img-src data: blob:';
+  let baseUri = "base-uri 'none'";
+  try {
+    const url = new URL(baseHref);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      imgSrc = `img-src data: blob: ${url.origin}`;
+      baseUri = `base-uri ${url.origin}`;
+    }
+  } catch {
+    // Keep the offline lock when the raw-file origin is missing or invalid.
+  }
+  return [
+    "default-src 'none'",
+    "script-src 'none'",
+    "style-src 'unsafe-inline'",
+    imgSrc,
+    'font-src data:',
+    'media-src data: blob:',
+    "connect-src 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "form-action 'none'",
+    baseUri,
+  ].join('; ');
+}
 
 // At most this many thumbnail source fetches run concurrently. This pool is
 // shared by the Design Files grid and manifest canvas so opening a canvas does
@@ -120,9 +134,9 @@ export interface HtmlPageThumbnailProps {
  * activity. Removing common active markup keeps the document static and
  * avoids needless parsing/work in a large overview.
  */
-export function buildStaticHtmlThumbnailDocument(source: string, _baseHref: string): string {
-  const csp = `<meta http-equiv="Content-Security-Policy" content="${STATIC_THUMBNAIL_CSP}">`;
-  const sanitized = buildSrcdoc(source, { freezeMotion: true })
+export function buildStaticHtmlThumbnailDocument(source: string, baseHref: string): string {
+  const csp = `<meta http-equiv="Content-Security-Policy" content="${staticThumbnailCsp(baseHref)}">`;
+  const sanitized = buildSrcdoc(source, { freezeMotion: true, baseHref: baseHref || undefined })
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<script\b[^>]*\/?\s*>/gi, '')
     .replace(/<meta\b(?=[^>]*\bhttp-equiv\s*=\s*(?:["']\s*refresh\s*["']|refresh\b))[^>]*>/gi, '')
