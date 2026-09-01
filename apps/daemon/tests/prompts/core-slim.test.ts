@@ -72,6 +72,12 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     expect(charter).toContain('allowCustom');
   });
 
+  it('tells filesystem runs to write photos as sibling files', () => {
+    expect(charter).toContain('Write photos as sibling files under `assets/`');
+    expect(charter).toContain('self-contained except photos');
+    expect(charter).not.toContain('the main HTML file must be complete and self-contained.');
+  });
+
   it('requires a recommended default prefill on every form question', () => {
     expect(charter).toContain('provide a sensible default for each question');
     expect(charter).toContain('Use `defaultValue` to preselect an answer');
@@ -162,6 +168,7 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     expect(many).toContain('identifier MUST equal the surface id');
     expect(many).toContain('Never Write, Edit, or overwrite the open live primary');
     expect(many).toContain('Change-turns on that file must re-stream');
+    expect(many).toContain('Write photos as sibling files under `assets/`');
     expect(many).not.toContain('no filesystem tools');
     const plain = renderSlimCoreCharter('text_artifact', {
       streamFormat: 'plain',

@@ -159,6 +159,8 @@ describe('DesignSurfaceCanvas', () => {
     expect(document).toContain('Content-Security-Policy');
     expect(document).toContain("default-src 'none'");
     expect(document).toContain("script-src 'none'");
+    expect(document).toContain('img-src data: blob: https://open-design.test');
+    expect(document).toContain('<base href="https://open-design.test/project/raw/">');
     expect(document).not.toMatch(/<script\b/i);
     expect(document).not.toMatch(/http-equiv=["']refresh/i);
     expect(document).not.toMatch(/<iframe\b/i);
@@ -174,8 +176,21 @@ describe('DesignSurfaceCanvas', () => {
     );
 
     expect(document).toMatch(/^<!doctype html><meta http-equiv="Content-Security-Policy"/i);
-    expect(document).toContain("img-src data: blob:");
-    expect(document).not.toContain('<base ');
+    expect(document).toContain('img-src data: blob: https://open-design.test');
+    expect(document).toContain('<base href="https://open-design.test/project/raw/">');
+    expect(document).toContain('src="https://attacker.example/tracker.png"');
+    expect(document).not.toContain('img-src data: blob: https://attacker');
+  });
+
+  it('keeps a relative photo src in canvas thumbnails', () => {
+    const document = buildStaticHtmlThumbnailDocument(
+      '<!doctype html><html><body><img src="assets/hero.png" alt=""></body></html>',
+      'https://open-design.test/api/projects/p1/files/',
+    );
+    expect(document).toContain('src="assets/hero.png"');
+    expect(document).toContain('<base href="https://open-design.test/api/projects/p1/files/">');
+    expect(document).toContain('img-src data: blob: https://open-design.test');
+    expect(document).not.toContain('img-src data: blob: https://attacker');
   });
 
   it('preserves the historical Grid thumbnail defaults outside the canvas', async () => {

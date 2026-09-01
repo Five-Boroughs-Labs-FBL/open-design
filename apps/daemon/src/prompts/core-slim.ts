@@ -51,7 +51,7 @@ const FILESYSTEM_HANDOFF = `## Delivery
 
 Project files are the source of truth. Write or update the files first, then briefly summarize which files changed, the result, and any open issues. Do not send an \`<artifact>\` block containing source code.
 
-Unless the user explicitly requests multiple files, the main HTML file must be complete and self-contained. For a multi-file project, use \`index.html\` as the entry point.`;
+The main HTML file must be a complete document and self-contained except photos, which must be sibling files under \`assets/\` (for example \`assets/hero.png\`) with relative \`src\`. Do not inline images as \`data:\` URLs. For a multi-file project, use \`index.html\` as the entry point.`;
 
 const TEXT_ARTIFACT_HANDOFF = `## Delivery
 
@@ -67,7 +67,8 @@ This is a multi-surface Grok CLI run. The live canvas still paints from \`<artif
 - Never Write, Edit, or overwrite the open live primary file (the first claimed surface, usually \`index.html\`). Change-turns on that file must re-stream \`<artifact>\` — do not Write it.
 - After \`</artifact>\`, you HAVE filesystem tools for remaining claimed surfaces only. Spawn one general-purpose sub-agent per remaining claimed surface (shared workspace, no git worktrees), or Write those exact declared files.
 - Each remaining surface: artifact identifier MUST equal the surface id (never \`screen-2\`, never a reused \`index\`) and the file must be the exact declared filename.
-- Do not emit HTML for unclaimed surfaces. Do not stop after the primary artifact.`;
+- Do not emit HTML for unclaimed surfaces. Do not stop after the primary artifact.
+- Write photos as sibling files under \`assets/\` with relative \`src\`. Do not inline images as \`data:\` URLs.`;
 
 export interface SlimCharterOptions {
   streamFormat?: string | undefined;

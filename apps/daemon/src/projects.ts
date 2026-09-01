@@ -28,6 +28,7 @@ import {
   isPublicationGuardedArtifactKind,
 } from './artifacts/publication-guard.js';
 import { isMixedHtmlDocument, isSingleHtmlDocument } from './artifacts/html-document.js';
+import { extractDataUrlImages } from './extract-data-url-images.js';
 import { normalizeArtifactRuntimeImports } from './artifacts/runtime-compat.js';
 import { isIgnoredProjectDirName } from './project-ignored-dirs.js';
 import {
@@ -886,6 +887,20 @@ export async function writeProjectFile(
       throw mixed;
     }
   }
+  let extractedFiles = [];
+  const originalHtmlBytes = /\.html?$/i.test(safeName)
+    ? (Buffer.isBuffer(body) ? body.length : Buffer.byteLength(String(body)))
+    : null;
+  // Streaming live-canvas ticks pass skipArtifactGuards. Do not split a
+  // half-written data URL into a corrupt sibling PNG on every autosave.
+  if (/\.html?$/i.test(safeName) && !skipArtifactGuards) {
+    const htmlBody = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
+    if (/data:image\//i.test(htmlBody)) {
+      const extracted = extractDataUrlImages(htmlBody, { htmlFileName: safeName });
+      extractedFiles = extracted.files;
+      body = Buffer.from(extracted.html, 'utf8');
+    }
+  }
   let stubGuardWarning = null;
   let validatedManifest = null;
   if (artifactManifest && typeof artifactManifest === 'object') {
@@ -920,7 +935,7 @@ export async function writeProjectFile(
         const guard = await evaluateArtifactStubGuard({
           scanDir: path.dirname(target),
           identifier,
-          newSize: Buffer.byteLength(body),
+          newSize: originalHtmlBytes != null ? originalHtmlBytes : Buffer.byteLength(body),
           config: readArtifactStubGuardConfigFromEnv(),
         });
         if ((guard.outcome === 'reject' || guard.outcome === 'warn') && guard.warning) {
@@ -945,6 +960,20 @@ export async function writeProjectFile(
         }
       }
     }
+  }
+  if (extractedFiles.length) {
+    let htmlOut = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
+    for (const file of extractedFiles) {
+      try {
+        const assetTarget = await resolveSafeReal(dir, file.name);
+        await mkdir(path.dirname(assetTarget), { recursive: true });
+        await writeFile(assetTarget, file.buffer);
+      } catch {
+        const href = file.href || file.name;
+        if (file.dataUrl && href) htmlOut = htmlOut.split(href).join(file.dataUrl);
+      }
+    }
+    body = Buffer.from(htmlOut, 'utf8');
   }
   await writeFile(target, body);
   await projectFileWriteTestHooks.afterCommit?.({ safeName, target, body });
