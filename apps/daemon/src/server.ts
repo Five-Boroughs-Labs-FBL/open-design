@@ -2660,8 +2660,14 @@ export async function startServer({
   app.use('/api/brands/:id/extract-from-html', jsonParser('32mb'));
   // Studio / Grok Write POSTs HTML as JSON { name, content }. One inlined
   // photo blows the global 4mb cap (PayloadTooLargeError before the route).
-  // Claim this path first; do not raise the rest of the API.
-  app.use('/api/projects/:id/files', jsonParser('32mb'));
+  // Exact POST /files only — a prefix mount would also raise rename / GET /
+  // preview. Do not raise the rest of the API.
+  app.use((req, res, next) => {
+    if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/files\/?$/.test(req.path)) {
+      return jsonParser('32mb')(req, res, next);
+    }
+    return next();
+  });
   app.use(jsonParser('4mb'));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
 

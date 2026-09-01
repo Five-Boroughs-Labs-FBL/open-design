@@ -17,10 +17,18 @@ function jsonParser(limit: string) {
 describe('project file JSON limit is route-specific', () => {
   it('accepts a 5mb JSON body on POST /api/projects/:id/files and still 413s other JSON at 4mb', async () => {
     const app = express();
-    app.use('/api/projects/:id/files', jsonParser('32mb'));
+    app.use((req, res, next) => {
+      if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/files\/?$/.test(req.path)) {
+        return jsonParser('32mb')(req, res, next);
+      }
+      return next();
+    });
     app.use(jsonParser('4mb'));
     app.post('/api/projects/:id/files', (req, res) => {
       res.json({ ok: true, bytes: Buffer.byteLength(JSON.stringify(req.body)) });
+    });
+    app.post('/api/projects/:id/files/rename', (req, res) => {
+      res.json({ ok: true });
     });
     app.post('/api/other', (req, res) => {
       res.json({ ok: true });
@@ -37,6 +45,13 @@ describe('project file JSON limit is route-specific', () => {
         body: JSON.stringify({ name: 'index.html', content: fat }),
       });
       expect(filesRes.status).toBe(200);
+
+      const renameRes = await fetch(`http://127.0.0.1:${port}/api/projects/p1/files/rename`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: fat }),
+      });
+      expect(renameRes.status).toBe(413);
 
       const otherRes = await fetch(`http://127.0.0.1:${port}/api/other`, {
         method: 'POST',
