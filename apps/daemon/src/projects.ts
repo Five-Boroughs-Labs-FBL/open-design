@@ -28,6 +28,7 @@ import {
   isPublicationGuardedArtifactKind,
 } from './artifacts/publication-guard.js';
 import { isMixedHtmlDocument, isSingleHtmlDocument } from './artifacts/html-document.js';
+import { extractDataUrlImages } from './extract-data-url-images.js';
 import { normalizeArtifactRuntimeImports } from './artifacts/runtime-compat.js';
 import { isIgnoredProjectDirName } from './project-ignored-dirs.js';
 import {
@@ -884,6 +885,18 @@ export async function writeProjectFile(
       const mixed = new Error('refused to persist a mixed HTML document');
       mixed.code = 'MIXED_HTML_DOCUMENT';
       throw mixed;
+    }
+  }
+  if (/\.html?$/i.test(safeName)) {
+    const htmlBody = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
+    if (/data:image\//i.test(htmlBody)) {
+      const extracted = extractDataUrlImages(htmlBody, { htmlFileName: safeName });
+      body = Buffer.from(extracted.html, 'utf8');
+      for (const file of extracted.files) {
+        const assetTarget = await resolveSafeReal(dir, file.name);
+        await mkdir(path.dirname(assetTarget), { recursive: true });
+        await writeFile(assetTarget, file.buffer);
+      }
     }
   }
   let stubGuardWarning = null;

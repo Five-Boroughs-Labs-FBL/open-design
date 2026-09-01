@@ -5072,7 +5072,8 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   // The design-token suggestion route reads the design-system roots to resolve
   // a project's tokens, so this scope needs them alongside PROJECTS_DIR.
   const { PROJECTS_DIR, DESIGN_SYSTEMS_DIR, USER_DESIGN_SYSTEMS_DIR } = ctx.paths;
-  const { upload } = ctx.uploads;
+  const { upload, projectFileUpload } = ctx.uploads;
+  const fileUpload = projectFileUpload || upload;
   const { fs } = ctx.node;
   const { getProject, getWorkspaceProject, getWorkspaceProjectByProjectId } = ctx.projectStore;
   const authorizeProjectRequest =
@@ -6709,7 +6710,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   app.post(
     '/api/projects/:id/files',
     (req, res, next) => {
-      upload.single('file')(req, res, (err: any) => {
+      fileUpload.single('file')(req, res, (err: any) => {
         if (err) return sendMulterError(res, err);
         next();
       });

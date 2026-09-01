@@ -2314,6 +2314,23 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+// Project file JSON/multipart saves (I'll-design-it HTML + sidecar PNG).
+// Dedicated instance so raising this cap does not enlarge /api/upload.
+const projectFileUpload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOAD_DIR,
+    filename: (_req, file, cb) => {
+      file.originalname = decodeMultipartFilename(file.originalname);
+      const safe = sanitizeName(file.originalname);
+      cb(
+        null,
+        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`,
+      );
+    },
+  }),
+  limits: { fileSize: 32 * 1024 * 1024 },
+});
+
 const importUpload = multer({
   storage: multer.diskStorage({
     destination: UPLOAD_DIR,
@@ -2624,13 +2641,28 @@ export async function startServer({
   // API stays at the conservative 4mb. Registered first so this parser claims
   // the ingest body before the global one (express.json is a no-op once a body
   // has already been read).
-  app.use('/api/library/ingest', express.json({ limit: '128mb' }));
+  const jsonParser = (limit) => {
+    const parser = express.json({ limit });
+    return (req, res, next) => {
+      parser(req, res, (err) => {
+        if (err && (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413)) {
+          return sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', 'request body too large');
+        }
+        return next(err);
+      });
+    };
+  };
+  app.use('/api/library/ingest', jsonParser('128mb'));
   // Brand extract-from-html carries the full rendered page DOM (+ collected CSS)
   // the web read out of the in-app browser tab after the user cleared an anti-bot
   // wall — well past 4mb for image/markup-heavy sites. Give it a dedicated limit
   // (registered before the global parser so it claims the body first).
-  app.use('/api/brands/:id/extract-from-html', express.json({ limit: '32mb' }));
-  app.use(express.json({ limit: '4mb' }));
+  app.use('/api/brands/:id/extract-from-html', jsonParser('32mb'));
+  // Studio / Grok Write POSTs HTML as JSON { name, content }. One inlined
+  // photo blows the global 4mb cap (PayloadTooLargeError before the route).
+  // Claim this path first; do not raise the rest of the API.
+  app.use('/api/projects/:id/files', jsonParser('32mb'));
+  app.use(jsonParser('4mb'));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
 
   // Plan §3.K1 — API-token middleware.
@@ -7397,7 +7429,7 @@ export async function startServer({
 
   const nodeDeps = { fs, path };
   const idDeps = { randomId, randomUUID };
-  const uploadDeps = { upload, importUpload, handleProjectUpload };
+  const uploadDeps = { upload, projectFileUpload, importUpload, handleProjectUpload };
   const projectStoreDeps = {
     getProject,
     findTeamWorkspaceIdForProject,
