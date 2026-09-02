@@ -126,6 +126,29 @@ export function parseAmcCredentialBlock(raw: unknown): AmcCredential | null {
   return { family, env };
 }
 
+/**
+ * Attach AMC handoff blocks independently.
+ *
+ * A Cursor-only AMC Design POST sends `amcCredential` without `amcGrok`.
+ * Credential attach must not be nested under the Grok check — that drops
+ * the key and spawn fails Cursor-auth against the daemon host environment.
+ */
+export function attachAmcRunHandoff<T extends {
+  amcGrok?: unknown;
+  amcCredential?: AmcCredential | null;
+}>(
+  run: T,
+  parsedAmcGrok: NonNullable<T['amcGrok']> | null | undefined,
+  parsedAmcCredential: AmcCredential | null | undefined,
+): void {
+  if (parsedAmcGrok) {
+    run.amcGrok = parsedAmcGrok;
+  }
+  if (parsedAmcCredential) {
+    run.amcCredential = parsedAmcCredential;
+  }
+}
+
 /** Is this credential permitted to drive this agent? */
 export function amcCredentialMatchesAgent(
   credential: AmcCredential | null | undefined,

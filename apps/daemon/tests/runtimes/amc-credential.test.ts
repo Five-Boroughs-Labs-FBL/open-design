@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amcCredentialMatchesAgent,
   applyAmcCredential,
+  attachAmcRunHandoff,
   materializeAmcCredential,
   parseAmcCredentialBlock,
   readAmcCredentialFile,
@@ -68,6 +69,31 @@ describe('parseAmcCredentialBlock', () => {
     expect(() => parseAmcCredentialBlock('nope')).toThrow(/must be an object/);
     expect(() => parseAmcCredentialBlock({ env: {} })).toThrow(/requires family/);
     expect(() => parseAmcCredentialBlock({ family: 'cursor' })).toThrow(/env must be an object/);
+  });
+});
+
+describe('attachAmcRunHandoff', () => {
+  it('stores a cursor credential without requiring amcGrok', () => {
+    const run: { amcGrok?: unknown; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunHandoff(run, null, CURSOR);
+    expect(run.amcCredential).toEqual(CURSOR);
+    expect(run.amcGrok).toBeUndefined();
+  });
+
+  it('still attaches grok when present', () => {
+    const grok = { sessionId: 'sess-1', grokHome: '/grok-home' };
+    const run: { amcGrok?: typeof grok; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunHandoff(run, grok, null);
+    expect(run.amcGrok).toEqual(grok);
+    expect(run.amcCredential).toBeUndefined();
+  });
+
+  it('attaches both independently when both are present', () => {
+    const grok = { sessionId: 'sess-1', grokHome: '/grok-home' };
+    const run: { amcGrok?: typeof grok; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunHandoff(run, grok, CURSOR);
+    expect(run.amcGrok).toEqual(grok);
+    expect(run.amcCredential).toEqual(CURSOR);
   });
 });
 
