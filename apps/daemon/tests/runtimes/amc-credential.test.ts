@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amcCredentialMatchesAgent,
   applyAmcCredential,
+  attachAmcRunCredentials,
   materializeAmcCredential,
   parseAmcCredentialBlock,
   readAmcCredentialFile,
@@ -133,6 +134,31 @@ describe('credential persistence for studio follow-ups', () => {
 
   it('requires an absolute data dir', () => {
     expect(() => materializeAmcCredential('relative', CURSOR)).toThrow(/absolute dataDir/);
+  });
+});
+
+describe('attachAmcRunCredentials', () => {
+  it('attaches a cursor credential when there is no SuperGrok block', () => {
+    const run: { amcGrok?: unknown; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunCredentials(run, { amcCredential: CURSOR, amcGrok: null });
+    expect(run.amcCredential).toEqual(CURSOR);
+    expect(run.amcGrok).toBeUndefined();
+  });
+
+  it('attaches SuperGrok without requiring a generic envelope', () => {
+    const grok = { grokHome: '/tmp/grok', authJson: '{"refresh_token":"r"}' };
+    const run: { amcGrok?: unknown; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunCredentials(run, { amcGrok: grok });
+    expect(run.amcGrok).toEqual(grok);
+    expect(run.amcCredential).toBeUndefined();
+  });
+
+  it('can attach both when a caller actually sent both', () => {
+    const grok = { grokHome: '/tmp/grok' };
+    const run: { amcGrok?: unknown; amcCredential?: typeof CURSOR | null } = {};
+    attachAmcRunCredentials(run, { amcGrok: grok, amcCredential: CURSOR });
+    expect(run.amcGrok).toEqual(grok);
+    expect(run.amcCredential).toEqual(CURSOR);
   });
 });
 
