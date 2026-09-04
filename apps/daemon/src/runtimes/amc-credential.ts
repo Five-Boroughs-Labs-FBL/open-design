@@ -155,6 +155,29 @@ export function applyAmcCredential(
   return { ...env, ...(credential as AmcCredential).env };
 }
 
+/**
+ * Attach AMC-forwarded credentials onto a newly created run.
+ *
+ * These two blocks are independent on purpose. Grok travels as `amcGrok`
+ * (a packed auth.json, no env key). Cursor travels as `amcCredential` and
+ * never sends `amcGrok`. Nesting the generic envelope under `parsedAmcGrok`
+ * discarded every Cursor key and let the spawn fall through to the daemon's
+ * ambient environment.
+ */
+export function attachAmcRunCredentials<
+  T extends { amcGrok?: unknown; amcCredential?: AmcCredential | null },
+>(
+  run: T,
+  blocks: {
+    amcGrok?: unknown | null;
+    amcCredential?: AmcCredential | null;
+  },
+): T {
+  if (blocks.amcGrok) run.amcGrok = blocks.amcGrok;
+  if (blocks.amcCredential) run.amcCredential = blocks.amcCredential;
+  return run;
+}
+
 
 /**
  * Persist a credential for later turns of the same project.

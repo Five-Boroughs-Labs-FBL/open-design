@@ -42,6 +42,7 @@ import {
   type AmcGrokForwarding,
 } from '../runtimes/amc-grok.js';
 import {
+  attachAmcRunCredentials,
   parseAmcCredentialBlock,
   type AmcCredential,
 } from '../runtimes/amc-credential.js';
@@ -2211,10 +2212,10 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         return;
       }
     }
-    if (parsedAmcGrok) {
-      run.amcGrok = parsedAmcGrok;
-      run.amcCredential = parsedAmcCredential;
-    }
+    attachAmcRunCredentials(run, {
+      amcGrok: parsedAmcGrok,
+      amcCredential: parsedAmcCredential,
+    });
     const analyticsAttributionMismatch =
       creation.kind === 'reused'
       && externalPluginAttributionMismatch(
