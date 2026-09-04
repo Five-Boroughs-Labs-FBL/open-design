@@ -14,7 +14,16 @@ export function createLiveHtmlCanvasWriter(options: {
    * child Write overwrote the live file. Receives the turn-start snapshot
    * (not a later streaming false-start draft).
    */
-  restoreIfMixed?: (cleanContent: string, restore?: { force?: boolean }) => Promise<unknown>;
+  restoreIfMixed?: (
+    cleanContent: string,
+    restore?: { force?: boolean; status?: LiveHtmlCanvasStatus },
+  ) => Promise<unknown>;
+  /**
+   * Stamp a terminal status on the live primary already on disk, without
+   * rewriting its body. Called on a `complete` flush so a turn that never
+   * produced a `complete` body write still leaves a finished file.
+   */
+  sealStatus?: (status: LiveHtmlCanvasStatus) => Promise<unknown>;
   previousCleanContent?: string | null;
   delayMs?: number;
 }) {
@@ -35,15 +44,40 @@ export function createLiveHtmlCanvasWriter(options: {
       : null;
   let cleanToRestore = turnStartClean;
 
-  function enqueueRestore(force = false) {
+  function enqueueRestore(force: boolean, status: LiveHtmlCanvasStatus) {
     if (!options.restoreIfMixed) return;
     chain = chain
       .then(async () => {
         const clean = turnStartClean ?? cleanToRestore;
         if (!clean) return;
-        await options.restoreIfMixed?.(clean, { force });
-        // A recoverable keep-previous must not fail the run.
-        persistError = null;
+        const restored = await options.restoreIfMixed?.(clean, { force, status });
+        // A recoverable keep-previous must not fail the run -- but only when
+        // it actually kept something. Clearing unconditionally laundered a
+        // failed terminal persist (a publication-guard or stub-guard refusal)
+        // into a successful flush, and then let the seal stamp `complete`
+        // over the draft that was refused.
+        if (restored) persistError = null;
+      })
+      .catch((err) => {
+        persistError = err;
+      });
+  }
+
+  /**
+   * A stream that ends mixed clears `pending`, so `flush` has no body to
+   * persist and the file keeps the status of the last streaming draft — a
+   * tile that renders as "still working" for good. Restore cannot cover this:
+   * on a first run there is no turn-start snapshot to restore, so it no-ops
+   * and writes nothing at all. Sealing works from what is already on disk and
+   * is refused unless that really is one HTML document.
+   */
+  function enqueueSeal(status: LiveHtmlCanvasStatus) {
+    if (!options.sealStatus) return;
+    chain = chain
+      .then(async () => {
+        // A failed persist is about to reject flush(); do not call that done.
+        if (persistError) return;
+        await options.sealStatus?.(status);
       })
       .catch((err) => {
         persistError = err;
@@ -106,7 +140,7 @@ export function createLiveHtmlCanvasWriter(options: {
         if (liveHtmlSourceIsBroken(text)) {
           streamBroken = true;
           pending = null;
-          enqueueRestore(true);
+          enqueueRestore(true, 'streaming');
         }
         return;
       }
@@ -139,13 +173,20 @@ export function createLiveHtmlCanvasWriter(options: {
         timer = null;
       }
       if (streamBroken) {
-        enqueueRestore(true);
+        enqueueRestore(true, status);
       } else {
         enqueue(status);
-        enqueueRestore(false);
+        enqueueRestore(false, status);
+      }
+      // Idempotent: a no-op when a `complete` body write already landed.
+      if (status === 'complete') {
+        enqueueSeal(status);
+        // Seal the writer BEFORE awaiting. `note()` returns early once sealed,
+        // so a late token cannot append a `streaming` persist to a fresh chain
+        // that runs after the seal and undoes it.
+        sealed = true;
       }
       await chain;
-      if (status === 'complete') sealed = true;
       if (persistError) {
         const err = persistError;
         persistError = null;
