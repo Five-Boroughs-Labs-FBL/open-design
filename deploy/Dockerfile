@@ -89,27 +89,7 @@ ARG GROK_VERSION=1.0.4
 RUN curl -fsSL -o /usr/local/bin/grok \
       "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${GROK_VERSION}-linux-x86_64" && \
     chmod 0755 /usr/local/bin/grok && \
-    /usr/local/bin/grok --version
-
-# Cursor Agent CLI. AMC Design=Cursor sends CURSOR_API_KEY as amcCredential
-# and agentId=cursor-agent; without this binary the spawn is "not found" and
-# the studio looks like a mute prompt bar. Install into a world-readable
-# prefix — the runtime user is not root, and /root is mode 700.
-# gcompat covers a glibc agent on alpine.
-RUN apk add --no-cache libstdc++ gcompat bash && \
-    mkdir -p /opt/cursor-home && \
-    curl -fsSL https://cursor.com/install | HOME=/opt/cursor-home bash && \
-    test -x /opt/cursor-home/.local/bin/agent -o -x /opt/cursor-home/.local/bin/cursor-agent && \
-    if [ -x /opt/cursor-home/.local/bin/agent ]; then \
-      ln -sf /opt/cursor-home/.local/bin/agent /usr/local/bin/agent; \
-    fi && \
-    if [ -x /opt/cursor-home/.local/bin/cursor-agent ]; then \
-      ln -sf /opt/cursor-home/.local/bin/cursor-agent /usr/local/bin/cursor-agent; \
-    else \
-      ln -sf /usr/local/bin/agent /usr/local/bin/cursor-agent; \
-    fi && \
-    chmod -R a+rX /opt/cursor-home && \
-    HOME=/opt/cursor-home /usr/local/bin/cursor-agent --version && \
+    /usr/local/bin/grok --version && \
     apk del curl
 
 WORKDIR /app
@@ -136,8 +116,6 @@ ENV NODE_OPTIONS=--max-old-space-size=192
 ENV OD_BIND_HOST=0.0.0.0
 ENV OD_PORT=7456
 ENV OD_DATA_DIR=/app/.od
-ENV HOME=/opt/cursor-home
-ENV PATH="/usr/local/bin:/opt/cursor-home/.local/bin:${PATH}"
 
 EXPOSE 7456
 
