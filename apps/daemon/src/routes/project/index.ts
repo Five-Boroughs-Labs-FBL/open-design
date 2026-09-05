@@ -92,6 +92,7 @@ import {
 } from '../../plugins/index.js';
 import { connectorService } from '../../connectors/service.js';
 import type { RouteDeps } from '../../server-context.js';
+import { filterProjectsForEmbedGrant, stampCatalogOwnerMetadata } from '../../embed-grants.js';
 import { listSkills } from '../../skills.js';
 import { isSafeId } from '../../projects.js';
 import {
@@ -3254,7 +3255,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     }
   });
 
-  app.get('/api/projects', async (_req, res) => {
+  app.get('/api/projects', async (req, res) => {
     try {
       const locations = await configuredProjectLocations();
       const latestRunStatuses = listLatestProjectRunStatuses(db);
@@ -3287,23 +3288,28 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       // construction, unbound — so `workspaceId` is always `null`; no binding
       // lookup needed (a `listWorkspaceProjectBindings` scan here would only
       // ever resolve to misses).
+      // Embed-grant principals still see this catalog shape, but only the
+      // single project named by the grant (`filterProjectsForEmbedGrant`).
       /** @type {import('@open-design/contracts').ProjectsResponse} */
       const body = {
-        projects: listUnboundProjects(db)
-          .filter((project: any) => projectVisibleForLocations(project, locations))
-          .map((project: any) => ({
-            ...project,
-            workspaceId: null,
-            status: brandAwareProjectStatus(
-              project,
-              composeProjectDisplayStatus(
-                activeRunStatuses.get(project.id) ??
-                  latestRunStatuses.get(project.id) ?? { value: 'not_started' },
-                awaitingInputProjects,
-                project.id,
+        projects: filterProjectsForEmbedGrant(
+          req.embedGrant,
+          listUnboundProjects(db)
+            .filter((project: any) => projectVisibleForLocations(project, locations))
+            .map((project: any) => ({
+              ...project,
+              workspaceId: null,
+              status: brandAwareProjectStatus(
+                project,
+                composeProjectDisplayStatus(
+                  activeRunStatuses.get(project.id) ??
+                    latestRunStatuses.get(project.id) ?? { value: 'not_started' },
+                  awaitingInputProjects,
+                  project.id,
+                ),
               ),
-            ),
-          })),
+            })),
+        ),
       };
       res.json(body);
     } catch (err: any) {
@@ -4160,15 +4166,18 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           'automaticStrategyTaskProfile does not match this automatic Design route',
         );
       }
-      const projectMetadata = automaticStrategyBinding || exampleBinding
-        ? {
-            ...(baseProjectMetadata ?? {}),
-            ...(automaticStrategyBinding
-              ? { strategyBinding: automaticStrategyBinding }
-              : {}),
-            ...(exampleBinding ? { exampleBinding } : {}),
-          }
-        : baseProjectMetadata;
+      const projectMetadata = stampCatalogOwnerMetadata(
+        automaticStrategyBinding || exampleBinding
+          ? {
+              ...(baseProjectMetadata ?? {}),
+              ...(automaticStrategyBinding
+                ? { strategyBinding: automaticStrategyBinding }
+                : {}),
+              ...(exampleBinding ? { exampleBinding } : {}),
+            }
+          : baseProjectMetadata,
+        req.embedGrant,
+      );
       const defaultScenarioPluginId = defaultScenarioPluginIdForProjectMetadata(
         projectMetadata && typeof projectMetadata.kind === 'string'
           ? projectMetadata as Parameters<

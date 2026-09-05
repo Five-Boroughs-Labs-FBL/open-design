@@ -14,7 +14,12 @@ import {
 import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
-import { isAmcEmbedActive } from './amc-embed';
+import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
+import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
+export {
+  shouldBounceCloudHomeToOnboarding,
+  shouldForceCloudOnboarding,
+} from './onboarding/cloud-onboarding-gate';
 import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
   stashOnboardingEntryForProject,
@@ -154,6 +159,7 @@ import {
 import { goBack, navigate, useRoute, type Route } from './router';
 import {
   fetchDaemonConfig,
+  fetchPublicRuntime,
   DEFAULT_CONFIG,
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PET,
@@ -297,8 +303,10 @@ const AGENT_FOCUS_REFRESH_THROTTLE_MS = 10_000;
 export function shouldRouteToFirstRunOnboarding(
   config: AppConfig,
   pathname: string,
+  options?: { embedSession?: boolean },
 ): boolean {
   if (config.onboardingCompleted === true) return false;
+  if (options?.embedSession) return false;
   if (
     pathname.startsWith('/projects/')
     || pathname.startsWith('/collab-demo')
@@ -1294,6 +1302,7 @@ function AppInner() {
   // gate silent-update default seeding: a failed/null fetch must not be treated
   // as "no preference yet" or we would overwrite a daemon-backed opt-out.
   const [daemonAppConfigReady, setDaemonAppConfigReady] = useState(false);
+  const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
   // Narrower flag dedicated to the Composio API key hydration. The key is
   // persisted by the daemon (and only reflected back via apiKeyConfigured
   // + apiKeyTail), so after a dev-server restart there is a window where
@@ -1970,9 +1979,19 @@ function AppInner() {
       );
     if (!cloudIdentityRejected) return;
     if (route.kind === 'home' && route.view === 'onboarding') return;
+    const amcEmbed = typeof window !== 'undefined' && isAmcEmbedActive(window);
+    const embedSession = typeof window !== 'undefined' && rememberEmbedGrantSession(window);
+    if (!shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      embedSession,
+      routeKind: route.kind,
+    })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
   }, [
     amrLoginStatus,
+    acpSsoUrl,
     config.agentId,
     config.mode,
     route,
@@ -2142,14 +2161,17 @@ function AppInner() {
       // before daemon overrides it.
       void Promise.all([
         fetchDaemonConfig(),
+        fetchPublicRuntime(),
         fetchComposioConfigFromDaemon(),
         fetchMediaProvidersFromDaemon(),
       ]).then(async ([
         daemonConfig,
+        publicRuntime,
         daemonComposioConfig,
         daemonMediaProvidersResult,
       ]) => {
         if (cancelled) return;
+        setAcpSsoUrl(publicRuntime.acpSsoUrl);
         const daemonMediaProvidersLoaded =
           daemonMediaProvidersResult.status === 'ok'
             ? daemonMediaProvidersResult.providers
@@ -2221,7 +2243,9 @@ function AppInner() {
         // banner keys off `privacyDecisionAt`. They may coexist on the
         // first launch; the banner sits above the modal layer so it
         // stays actionable regardless of the active view.
-        if (shouldRouteToFirstRunOnboarding(next, window.location.pathname)) {
+        const embedSession = rememberEmbedGrantSession(window)
+          || (publicRuntime.acpSsoUrl != null && daemonConfig != null);
+        if (shouldRouteToFirstRunOnboarding(next, window.location.pathname, { embedSession })) {
           navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
         }
         setDaemonConfigLoaded(true);

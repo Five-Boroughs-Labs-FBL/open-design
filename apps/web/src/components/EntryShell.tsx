@@ -108,6 +108,7 @@ import {
 import {
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
+  shouldShowCloudSignInTip,
 } from './entry-rail-account-state';
 import { LibrarySection } from './LibrarySection';
 import { UpdaterPopup } from './UpdaterPopup';
@@ -205,7 +206,9 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
-import { defaultKnownProviderModel, KNOWN_PROVIDERS } from '../state/config';
+import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
+import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
+import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testAgent, testApiProvider } from '../providers/connection-test';
 import { fetchProviderModels } from '../providers/provider-models';
@@ -649,6 +652,19 @@ export function EntryShell({
   // view from the route rather than keeping it in component state.
   const route = useRoute();
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
+  const [acpSsoResolved, setAcpSsoResolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicRuntime().then((runtime) => {
+      if (cancelled) return;
+      setAcpSsoUrl(runtime.acpSsoUrl);
+      setAcpSsoResolved(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // The one shared workspace context. Any non-null context is a real workspace
   // (personal or team); workspace surfaces gate on B's permission bits, not on
   // workspaceType.
@@ -677,16 +693,32 @@ export function EntryShell({
     // status and a definitive credential rejection return to the existing
     // Cloud identity gate. Passive reauthentication preserves the saved model
     // source and Home's locally persisted, not-yet-sent draft.
-    const selectedCloudIdentityRejected = usesOpenDesignCloud && amrLoggedIn === false;
-    if ((!selectedCloudIdentityRejected && !amrAuthRequired) || view === 'onboarding') return;
+    // Hosted ACP SSO / catalog grants are identity — do not treat a missing
+    // OpenDesign Cloud AMR session as a bounce back to Sign in with ACP.
+    const embedSession = rememberEmbedGrantSession(window);
+    const amcEmbed = isAmcEmbedActive(window);
+    if (!acpSsoResolved && !embedSession && !amcEmbed) return;
+    if (!shouldBounceCloudHomeToOnboarding({
+      view,
+      usesOpenDesignCloud,
+      amrLoggedIn,
+      amrAuthRequired,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      embedSession,
+      amcEmbed,
+    })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-  }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view]);
+  }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view, acpSsoUrl, acpSsoResolved]);
   let accountFooterNotice: ReactNode = null;
   if (accountFooterState === 'syncing') {
     accountFooterNotice = <RailAccountSyncTip />;
   } else if (accountFooterState === 'recovering') {
     accountFooterNotice = <RailAccountRecoveryTip />;
-  } else if (accountFooterState === 'sign-in') {
+  } else if (shouldShowCloudSignInTip({
+    accountFooterState,
+    acpSsoResolved,
+    acpSsoUrl,
+  })) {
     accountFooterNotice = <CloudSignInTip />;
   }
   const workspaceContextRef = useRef(workspaceContext);
@@ -2147,6 +2179,8 @@ function OnboardingView({
   // cloud landing uses this to avoid flashing "Sign in" before flipping to
   // "Continue" for already-authenticated users.
   const [amrStatusResolved, setAmrStatusResolved] = useState(false);
+  const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
+  const [acpSsoResolved, setAcpSsoResolved] = useState(false);
   const [amrLoginPending, setAmrLoginPending] = useState(false);
   const [amrLoginCancelPending, setAmrLoginCancelPending] = useState(false);
   const passiveReauthCompletedRef = useRef(false);
@@ -2159,6 +2193,18 @@ function OnboardingView({
   useEffect(() => {
     if (!amrLoginPending) setActivationHintClosed(false);
   }, [amrLoginPending]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicRuntime().then((runtime) => {
+      if (cancelled) return;
+      setAcpSsoUrl(runtime.acpSsoUrl);
+      setAcpSsoResolved(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [visibleAgentIds, setVisibleAgentIds] = useState<string[]>([]);
   const [dshSetup, setDshSetup] = useState<{ busy: boolean; error: string | null } | null>(null);
   const [providerTestState, setProviderTestState] =
@@ -2955,7 +3001,16 @@ function OnboardingView({
   // Cloud login establishes identity only. The model source is deliberately
   // chosen on the following screen so signing in never overwrites a restored
   // Local/BYOK configuration.
+  function handleAcpSignIn() {
+    if (!acpSsoUrl) return;
+    window.location.assign(acpSsoStartUrl(acpSsoUrl, `${window.location.origin}/`));
+  }
+
   async function handleCloudSignIn() {
+    if (acpSsoUrl) {
+      handleAcpSignIn();
+      return;
+    }
     if (amrLoginBusy || amrLoginCancelPending) return;
     const cardAttribution = recordAmrEntry(
       analytics.track,
@@ -3555,8 +3610,10 @@ function OnboardingView({
   // Cloud remains the primary identity path. Local CLI and BYOK are independent
   // direct setup paths; authenticated users keep the full source chooser.
   if (step === 0) {
-    const cloudBusy = amrLoginBusy;
-    const amrStatusResolving = !amrStatusResolved;
+    const acpSso = Boolean(acpSsoUrl);
+    const cloudBusy = acpSso ? false : amrLoginBusy;
+    const amrStatusResolving = acpSso ? !acpSsoResolved : !amrStatusResolved;
+    const acpSsoResolving = !acpSsoResolved;
     return (
       <section
         className="onboarding-view onboarding-view--cloud"
@@ -3564,12 +3621,21 @@ function OnboardingView({
       >
         <div className="onboarding-cloud__pane">
           <div className="onboarding-cloud__center">
-            <h1 className="onboarding-cloud__title">{t('settings.onboardingCloudTitle')}</h1>
-            <p className="onboarding-cloud__body">{t('settings.onboardingCloudBody')}</p>
+            <h1 className="onboarding-cloud__title">
+              {acpSso ? t('settings.onboardingAcpTitle') : t('settings.onboardingCloudTitle')}
+            </h1>
+            <p className="onboarding-cloud__body">
+              {acpSso ? t('settings.onboardingAcpBody') : t('settings.onboardingCloudBody')}
+            </p>
             <button
               type="button"
               className="onboarding-cloud__primary"
               onClick={() => {
+                if (acpSsoResolving) return;
+                if (acpSso) {
+                  handleAcpSignIn();
+                  return;
+                }
                 if (amrStatusResolving) return;
                 if (amrSignedIn) {
                   recordAmrEntry(analytics.track, 'onboarding_amr_card', new Date(), {
@@ -3589,18 +3655,20 @@ function OnboardingView({
                 }
                 void handleCloudSignIn();
               }}
-              disabled={cloudBusy || amrLoginCancelPending || amrStatusResolving}
-              aria-busy={cloudBusy || amrStatusResolving ? true : undefined}
+              disabled={cloudBusy || amrLoginCancelPending || acpSsoResolving || (!acpSso && amrStatusResolving)}
+              aria-busy={cloudBusy || acpSsoResolving || (!acpSso && amrStatusResolving) ? true : undefined}
             >
               <Icon name="log-in" size={17} />
               <span>
-                {cloudBusy
-                  ? t('settings.amrSigningIn')
-                  : amrStatusResolving
-                    ? t('common.loading')
-                    : amrSignedIn
-                      ? t('settings.onboardingCloudContinue')
-                      : t('settings.onboardingCloudSignIn')}
+                {acpSso
+                  ? (acpSsoResolving ? t('common.loading') : t('settings.onboardingAcpSignIn'))
+                  : cloudBusy
+                    ? t('settings.amrSigningIn')
+                    : amrStatusResolving
+                      ? t('common.loading')
+                      : amrSignedIn
+                        ? t('settings.onboardingCloudContinue')
+                        : t('settings.onboardingCloudSignIn')}
               </span>
             </button>
             {amrLoginError ? (
