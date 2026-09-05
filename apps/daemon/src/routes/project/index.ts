@@ -92,7 +92,7 @@ import {
 } from '../../plugins/index.js';
 import { connectorService } from '../../connectors/service.js';
 import type { RouteDeps } from '../../server-context.js';
-import { filterProjectsForEmbedGrant } from '../../embed-grants.js';
+import { filterProjectsForEmbedGrant, stampCatalogOwnerMetadata } from '../../embed-grants.js';
 import { listSkills } from '../../skills.js';
 import { isSafeId } from '../../projects.js';
 import {
@@ -4166,15 +4166,18 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
           'automaticStrategyTaskProfile does not match this automatic Design route',
         );
       }
-      const projectMetadata = automaticStrategyBinding || exampleBinding
-        ? {
-            ...(baseProjectMetadata ?? {}),
-            ...(automaticStrategyBinding
-              ? { strategyBinding: automaticStrategyBinding }
-              : {}),
-            ...(exampleBinding ? { exampleBinding } : {}),
-          }
-        : baseProjectMetadata;
+      const projectMetadata = stampCatalogOwnerMetadata(
+        automaticStrategyBinding || exampleBinding
+          ? {
+              ...(baseProjectMetadata ?? {}),
+              ...(automaticStrategyBinding
+                ? { strategyBinding: automaticStrategyBinding }
+                : {}),
+              ...(exampleBinding ? { exampleBinding } : {}),
+            }
+          : baseProjectMetadata,
+        req.embedGrant,
+      );
       const defaultScenarioPluginId = defaultScenarioPluginIdForProjectMetadata(
         projectMetadata && typeof projectMetadata.kind === 'string'
           ? projectMetadata as Parameters<

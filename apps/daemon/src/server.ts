@@ -1143,6 +1143,7 @@ import {
   isApiAuthDisabled,
   isApiTokenMiddlewareEnabled,
 } from './api-token-auth.js';
+import { isAcpSsoConfigured } from './acp-sso.js';
 import {
   applyVerifiedEmbedGrant,
   embedGrantForbidsRequest,
@@ -2988,6 +2989,9 @@ export async function startServer({
   });
   app.use(jsonParser('4mb'));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
+  const embedGrantProjectLookup = {
+    current: null,
+  };
 
   // Plan §3.K1 — API-token middleware.
   //
@@ -3011,6 +3015,8 @@ export async function startServer({
       '/api/ready',
       '/version',
       '/api/version',
+      '/public-runtime',
+      '/api/public-runtime',
     ]);
     app.use('/api', (req, res, next) => {
       if (openProbePaths.has(req.path)) return next();
@@ -3041,7 +3047,7 @@ export async function startServer({
       }
       const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
       if (embedGrant) {
-        if (embedGrantForbidsRequest(embedGrant, req)) {
+        if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
           return sendApiError(
             res,
             403,
@@ -3072,7 +3078,7 @@ export async function startServer({
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
       const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
       if (embedGrant) {
-        if (embedGrantForbidsRequest(embedGrant, req)) {
+        if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
           return sendApiError(
             res,
             403,
@@ -3080,6 +3086,14 @@ export async function startServer({
             'embed grant does not allow this path',
           );
         }
+        return next();
+      }
+
+      // Hosted ACP SSO needs the sign-in page itself. APIs stay grant/token gated.
+      if (
+        isAcpSsoConfigured()
+        && (req.method === 'GET' || req.method === 'HEAD')
+      ) {
         return next();
       }
 
@@ -3274,6 +3288,7 @@ export async function startServer({
     next();
   });
   const db = openDatabase(PROJECT_ROOT, { dataDir: RUNTIME_DATA_DIR });
+  embedGrantProjectLookup.current = (projectId) => getProject(db, projectId);
   const amrTerminalReportOutbox = createAmrTerminalReportOutboxStore(db);
   const amrTerminalReportDelivery = createAmrTerminalReportDeliveryService({
     store: amrTerminalReportOutbox,

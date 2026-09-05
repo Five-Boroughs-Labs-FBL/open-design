@@ -2,11 +2,18 @@ import type { Express, Request, Response } from 'express';
 import type {
   ApiError,
   ApiErrorCode,
+  CreateCatalogEmbedGrantResponse,
   CreateProjectEmbedGrantResponse,
 } from '@open-design/contracts';
 
+import { acpSsoUrlFromEnv } from '../acp-sso.js';
 import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
-import { EMBED_GRANT_TTL_MS, mintEmbedGrant } from '../embed-grants.js';
+import {
+  CATALOG_EMBED_GRANT_PID,
+  EMBED_GRANT_TTL_MS,
+  mintEmbedGrant,
+  normalizeEmbedGrantProjectIds,
+} from '../embed-grants.js';
 import { isLoopbackPeerAddress } from '../http/local-daemon-request.js';
 
 const EMBED_GRANT_TTL_SEC_DEFAULT = Math.floor(EMBED_GRANT_TTL_MS / 1000);
@@ -70,6 +77,59 @@ function authorizeMint(req: EmbedGrantMintRequest): 'ok' | 'forbidden' | 'unauth
 }
 
 export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantRoutesDeps): void {
+  app.get('/api/public-runtime', (_req, res) => {
+    res.json({ acpSsoUrl: acpSsoUrlFromEnv() });
+  });
+
+  app.post('/api/embed-grants', (req, res) => {
+    const decision = authorizeMint(req);
+    if (decision === 'forbidden') {
+      return deps.sendApiError(
+        res,
+        403,
+        'EMBED_GRANT_SCOPE',
+        'embed grant cannot mint embed grants',
+      );
+    }
+    if (decision === 'unauthorized') {
+      return deps.sendApiError(
+        res,
+        401,
+        'UNAUTHORIZED',
+        'Authorization: Bearer <OD_API_TOKEN> required to mint embed grants',
+      );
+    }
+
+    const body = jsonObject(req.body);
+    const userId = readUserId(body);
+    if (!userId) {
+      return deps.sendApiError(res, 400, 'BAD_REQUEST', 'userId is required');
+    }
+    const ttlSec = readTtlSec(body.ttlSec);
+    if (!ttlSec.ok) {
+      return deps.sendApiError(res, 400, 'BAD_REQUEST', 'ttlSec must be a number');
+    }
+    if (body.projectIds != null && !Array.isArray(body.projectIds)) {
+      return deps.sendApiError(res, 400, 'BAD_REQUEST', 'projectIds must be an array of strings');
+    }
+    const projectIds = normalizeEmbedGrantProjectIds(body.projectIds);
+    const apiToken = apiTokenFromEnv();
+    const minted = mintEmbedGrant(apiToken, {
+      projectId: CATALOG_EMBED_GRANT_PID,
+      projectIds,
+      ttlMs: ttlSec.value * 1000,
+      userId,
+    });
+    const payload: CreateCatalogEmbedGrantResponse = {
+      projectId: CATALOG_EMBED_GRANT_PID,
+      projectIds,
+      userId,
+      token: minted.token,
+      expiresAt: minted.expiresAt.toISOString(),
+    };
+    return res.json(payload);
+  });
+
   app.post('/api/projects/:id/embed-grants', (req, res) => {
     const decision = authorizeMint(req);
     if (decision === 'forbidden') {

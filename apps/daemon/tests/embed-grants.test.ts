@@ -2,19 +2,24 @@ import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CATALOG_EMBED_GRANT_PID,
   EMBED_GRANT_COOKIE,
   EMBED_GRANT_QUERY,
   EMBED_GRANT_TTL_MS,
   applyVerifiedEmbedGrant,
   embedGrantAllowsPath,
   embedGrantAllowsProjectId,
+  embedGrantAllowsProjectRecord,
   embedGrantCookieShouldBeSecure,
   embedGrantForbidsRequest,
   filterProjectsForEmbedGrant,
+  isCatalogEmbedGrant,
   isEmbedGrantDeferredRunLookupPath,
   mintEmbedGrant,
+  projectAcpUserId,
   readEmbedGrantFromRequest,
   setEmbedGrantCookie,
+  stampCatalogOwnerMetadata,
   verifyEmbedGrant,
   type EmbedGrantPayload,
 } from '../src/embed-grants.js';
@@ -152,6 +157,18 @@ describe('mintEmbedGrant / verifyEmbedGrant', () => {
     expect(verifyEmbedGrant(API_TOKEN, token, FIXED_NOW)).toBeNull();
   });
 
+  it('round-trips a catalog grant with legacy project ids', () => {
+    const minted = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      projectIds: ['legacy-1', 'legacy-1', 'legacy-2'],
+      userId: USER_ID,
+    });
+    expect(minted.payload.pid).toBe('*');
+    expect(minted.payload.pids).toEqual(['legacy-1', 'legacy-2']);
+    expect(verifyEmbedGrant(API_TOKEN, minted.token, FIXED_NOW)).toEqual(minted.payload);
+  });
+
   it('rejects a payload with a bad version', () => {
     const payload = {
       v: 2,
@@ -256,6 +273,7 @@ describe('embedGrantAllowsPath', () => {
     ['GET', '/assets/logo.svg', {}],
     ['GET', '/automations', {}],
     ['GET', '/api/app-config', {}],
+    ['GET', '/api/public-runtime', {}],
     ['GET', '/api/agents', {}],
     ['GET', '/api/agents?stream=1', {}],
     ['HEAD', '/api/agents', {}],
@@ -278,6 +296,7 @@ describe('embedGrantAllowsPath', () => {
   });
 
   it.each([
+    ['POST', '/api/embed-grants', {}],
     ['POST', '/api/projects', {}],
     ['GET', '/api/projects/proj_other/files', {}],
     ['GET', '/projects/proj_other', {}],
@@ -349,6 +368,53 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsProjectId(undefined, 'proj_other')).toBe(true);
     expect(embedGrantAllowsProjectId(g, PROJECT_ID)).toBe(true);
     expect(embedGrantAllowsProjectId(g, 'proj_other')).toBe(false);
+  });
+
+  it('filters a catalog grant to ACP-owned and allowlisted projects', () => {
+    const catalog = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      projectIds: ['legacy-1'],
+      userId: USER_ID,
+    }).payload;
+    expect(isCatalogEmbedGrant(catalog)).toBe(true);
+    const projects = [
+      { id: 'legacy-1', metadata: {} },
+      { id: 'owned-2', metadata: { acpUserId: USER_ID } },
+      { id: 'other-3', metadata: { acpUserId: 'someone-else' } },
+    ];
+    expect(filterProjectsForEmbedGrant(catalog, projects).map((p) => p.id)).toEqual([
+      'legacy-1',
+      'owned-2',
+    ]);
+    expect(embedGrantAllowsProjectRecord(catalog, projects[1])).toBe(true);
+    expect(embedGrantAllowsProjectRecord(catalog, projects[2])).toBe(false);
+    expect(projectAcpUserId(projects[1])).toBe(USER_ID);
+    expect(stampCatalogOwnerMetadata({ kind: 'other' }, catalog)).toEqual({
+      kind: 'other',
+      acpUserId: USER_ID,
+      acp: true,
+    });
+  });
+
+  it('lets a catalog grant create projects and denies minting more grants', () => {
+    const catalog = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: USER_ID,
+    }).payload;
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/projects')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/projects')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/public-runtime')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/embed-grants')).toBe(false);
+    expect(embedGrantForbidsRequest(catalog, {
+      method: 'GET',
+      originalUrl: '/api/projects/owned-2',
+    }, (id) => (id === 'owned-2' ? { id, metadata: { acpUserId: USER_ID } } : null))).toBe(false);
+    expect(embedGrantForbidsRequest(catalog, {
+      method: 'GET',
+      originalUrl: '/api/projects/other-3',
+    }, (id) => (id === 'other-3' ? { id, metadata: { acpUserId: 'nope' } } : null))).toBe(true);
   });
 
   it('sets Secure from req.secure or x-forwarded-proto=https', () => {

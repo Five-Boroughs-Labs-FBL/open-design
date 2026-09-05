@@ -25,6 +25,7 @@ import { startServer } from '../src/server.js';
 const PREVIOUS_TOKEN = process.env.OD_API_TOKEN;
 const PREVIOUS_HOST  = process.env.OD_BIND_HOST;
 const PREVIOUS_DISABLE_API_AUTH = process.env.OD_DISABLE_API_AUTH;
+const PREVIOUS_ACP_SSO_URL = process.env.OD_ACP_SSO_URL;
 
 let server: Server | undefined;
 let baseUrl = '';
@@ -83,6 +84,8 @@ afterEach(async () => {
   else process.env.OD_BIND_HOST = PREVIOUS_HOST;
   if (PREVIOUS_DISABLE_API_AUTH === undefined) delete process.env.OD_DISABLE_API_AUTH;
   else process.env.OD_DISABLE_API_AUTH = PREVIOUS_DISABLE_API_AUTH;
+  if (PREVIOUS_ACP_SSO_URL === undefined) delete process.env.OD_ACP_SSO_URL;
+  else process.env.OD_ACP_SSO_URL = PREVIOUS_ACP_SSO_URL;
 });
 
 describe('bound-API-token guard', () => {
@@ -378,6 +381,40 @@ describe('embed grant middleware for non-loopback Studio', () => {
     expect(await spa.text()).not.toContain('studio embed shell');
   });
 
+  it('serves the SPA without Basic when ACP SSO is configured, but keeps APIs gated', async () => {
+    await Promise.resolve(shutdown?.());
+    if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+    process.env.OD_ACP_SSO_URL = 'https://dev.agentcontrolpanel.dev/open-design/sso';
+    const started = (await startServer({
+      port: 0,
+      host: '127.0.0.1',
+      returnServer: true,
+      staticDir,
+    })) as {
+      url: string;
+      server: Server;
+      shutdown?: () => Promise<void> | void;
+    };
+    baseUrl = started.url;
+    server = started.server;
+    shutdown = started.shutdown;
+    makeConnectionsAppearNonLoopback(server);
+
+    const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
+    expect(spa.status).toBe(200);
+    expect(await spa.text()).toContain('studio embed shell');
+
+    const runtime = await jsonRequest(`${baseUrl}/api/public-runtime`);
+    expect(runtime.status).toBe(200);
+    expect(runtime.body).toEqual({
+      acpSsoUrl: 'https://dev.agentcontrolpanel.dev/open-design/sso',
+    });
+
+    const projects = await jsonRequest(`${baseUrl}/api/projects`);
+    expect(projects.status).toBe(401);
+    expect(errorCode(projects.body)).toBe('API_TOKEN_REQUIRED');
+  });
+
   it('lets a matching API token list every project', async () => {
     const pid = await createTestProject(baseUrl, authorization, 'Grant project');
     const otherPid = await createTestProject(baseUrl, authorization, 'Other project');
@@ -457,6 +494,54 @@ describe('embed grant middleware for non-loopback Studio', () => {
     });
     expect(foreignRunCreate.status).toBe(403);
     expect(errorCode(foreignRunCreate.body)).toBe('EMBED_GRANT_SCOPE');
+  });
+
+  it('scopes a catalog grant to ACP-owned projects', async () => {
+    const ownedPid = `proj_${randomUUID()}`;
+    const otherPid = await createTestProject(baseUrl, authorization, 'Other account');
+    const owned = await jsonRequest(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: ownedPid,
+        name: 'Owned',
+        metadata: { kind: 'prototype', acpUserId: 'acp-user-1' },
+        skipDiscoveryBrief: true,
+        skipDefaultScenario: true,
+      }),
+    });
+    expect(owned.status).toBe(200);
+
+    const minted = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'acp-user-1', projectIds: [] }),
+    });
+    expect(minted.status).toBe(200);
+    const token = (minted.body as { token?: string }).token;
+    expect(typeof token).toBe('string');
+    const cookie = { cookie: `${EMBED_GRANT_COOKIE}=${token}` };
+
+    const list = await jsonRequest(`${baseUrl}/api/projects`, { headers: cookie });
+    expect(list.status).toBe(200);
+    expect(projectIdsFromList(list.body)).toEqual([ownedPid]);
+
+    const ownProject = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(ownedPid)}`, {
+      headers: cookie,
+    });
+    expect(ownProject.status).toBe(200);
+
+    const other = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(otherPid)}`, {
+      headers: cookie,
+    });
+    expect(other.status).toBe(403);
+    expect(errorCode(other.body)).toBe('EMBED_GRANT_SCOPE');
   });
 });
 
