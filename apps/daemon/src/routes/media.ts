@@ -587,7 +587,13 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     }
     try {
       const config = await readAppConfig(RUNTIME_DATA_DIR);
-      res.json({ config });
+      const grant = req.embedGrant;
+      res.json({
+        config,
+        embedGrant: grant
+          ? { uid: grant.uid, catalog: grant.pid === '*' }
+          : null,
+      });
     } catch (err: any) {
       res
         .status(500)

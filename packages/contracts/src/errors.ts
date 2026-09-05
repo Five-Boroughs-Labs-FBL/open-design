@@ -164,6 +164,8 @@ export const API_ERROR_CODES = [
   // so a client can attach to it instead of starting another. Not retryable
   // while that run is active; ordinary chat turns are never gated by this.
   'DESIGN_SYSTEM_ENRICHMENT_IN_PROGRESS',
+  'EMBED_GRANT_REQUIRED',
+  'EMBED_GRANT_SCOPE',
   'INTERNAL_ERROR',
 ] as const;
 
