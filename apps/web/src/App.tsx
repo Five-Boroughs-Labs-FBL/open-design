@@ -15,6 +15,11 @@ import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
+import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
+export {
+  shouldBounceCloudHomeToOnboarding,
+  shouldForceCloudOnboarding,
+} from './onboarding/cloud-onboarding-gate';
 import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
   stashOnboardingEntryForProject,
@@ -309,28 +314,6 @@ export function shouldRouteToFirstRunOnboarding(
   ) {
     return false;
   }
-  return true;
-}
-
-/**
- * Cloud-session expiry can bounce the SPA to the sign-in onboarding view.
- * ACP Design iframes a project conversation with chrome hidden, so that bounce
- * would trap the embed on "Sign in to OpenDesign" and drop `?t=` / `acpEmbed`.
- * Hosted ACP SSO is the identity path — do not bounce to OpenDesign Cloud AMR.
- * Project deep links follow the same rule as first-run onboarding: do not hijack.
- */
-export function shouldForceCloudOnboarding(input: {
-  cloudIdentityRejected: boolean;
-  amcEmbed: boolean;
-  routeKind: string;
-  acpSsoConfigured?: boolean;
-  embedSession?: boolean;
-}): boolean {
-  if (!input.cloudIdentityRejected) return false;
-  if (input.amcEmbed) return false;
-  if (input.acpSsoConfigured) return false;
-  if (input.embedSession) return false;
-  if (input.routeKind === 'project') return false;
   return true;
 }
 

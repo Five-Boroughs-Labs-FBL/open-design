@@ -205,6 +205,8 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
+import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
+import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
 import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testAgent, testApiProvider } from '../providers/connection-test';
@@ -649,6 +651,19 @@ export function EntryShell({
   // view from the route rather than keeping it in component state.
   const route = useRoute();
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
+  const [acpSsoResolved, setAcpSsoResolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicRuntime().then((runtime) => {
+      if (cancelled) return;
+      setAcpSsoUrl(runtime.acpSsoUrl);
+      setAcpSsoResolved(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // The one shared workspace context. Any non-null context is a real workspace
   // (personal or team); workspace surfaces gate on B's permission bits, not on
   // workspaceType.
@@ -677,10 +692,22 @@ export function EntryShell({
     // status and a definitive credential rejection return to the existing
     // Cloud identity gate. Passive reauthentication preserves the saved model
     // source and Home's locally persisted, not-yet-sent draft.
-    const selectedCloudIdentityRejected = usesOpenDesignCloud && amrLoggedIn === false;
-    if ((!selectedCloudIdentityRejected && !amrAuthRequired) || view === 'onboarding') return;
+    // Hosted ACP SSO / catalog grants are identity — do not treat a missing
+    // OpenDesign Cloud AMR session as a bounce back to Sign in with ACP.
+    const embedSession = rememberEmbedGrantSession(window);
+    const amcEmbed = isAmcEmbedActive(window);
+    if (!acpSsoResolved && !embedSession && !amcEmbed) return;
+    if (!shouldBounceCloudHomeToOnboarding({
+      view,
+      usesOpenDesignCloud,
+      amrLoggedIn,
+      amrAuthRequired,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      embedSession,
+      amcEmbed,
+    })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-  }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view]);
+  }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view, acpSsoUrl, acpSsoResolved]);
   let accountFooterNotice: ReactNode = null;
   if (accountFooterState === 'syncing') {
     accountFooterNotice = <RailAccountSyncTip />;
