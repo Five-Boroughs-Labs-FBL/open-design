@@ -309,6 +309,23 @@ export function shouldRouteToFirstRunOnboarding(
   return true;
 }
 
+/**
+ * Cloud-session expiry can bounce the SPA to the sign-in onboarding view.
+ * AMC Design iframes a project conversation with chrome hidden, so that bounce
+ * would trap the embed on "Sign in to OpenDesign" and drop `?t=` / `amcEmbed`.
+ * Project deep links follow the same rule as first-run onboarding: do not hijack.
+ */
+export function shouldForceCloudOnboarding(input: {
+  cloudIdentityRejected: boolean;
+  amcEmbed: boolean;
+  routeKind: string;
+}): boolean {
+  if (!input.cloudIdentityRejected) return false;
+  if (input.amcEmbed) return false;
+  if (input.routeKind === 'project') return false;
+  return true;
+}
+
 function workspaceProjectListViewForRoute(route: Route): WorkspaceProjectListView {
   if (route.kind === 'home' && route.view === 'all-projects') return 'all';
   if (route.kind === 'home' && route.view === 'drafts') return 'drafts';
@@ -1970,6 +1987,12 @@ function AppInner() {
       );
     if (!cloudIdentityRejected) return;
     if (route.kind === 'home' && route.view === 'onboarding') return;
+    const amcEmbed = typeof window !== 'undefined' && isAmcEmbedActive(window);
+    if (!shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed,
+      routeKind: route.kind,
+    })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
   }, [
     amrLoginStatus,
