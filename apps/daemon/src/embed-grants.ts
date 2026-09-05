@@ -274,6 +274,8 @@ export function embedGrantAllowsPath(
   if (!isReadMethod(methodUpper)) return false;
   if (OPEN_PROBE_PATHS.has(pathname)) return true;
   if (pathname === '/api/app-config') return true;
+  // Catalog used by Studio embed autoselect; writes stay under /api/agents/:id/...
+  if (pathname === '/api/agents') return true;
   if (pathname === '/api/projects') return true;
   return isStudioShellPath(pathname);
 }

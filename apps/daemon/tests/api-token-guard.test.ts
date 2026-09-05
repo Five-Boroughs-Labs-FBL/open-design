@@ -424,6 +424,9 @@ describe('embed grant middleware for non-loopback Studio', () => {
     expect(list.status).toBe(200);
     expect(projectIdsFromList(list.body)).toEqual([pid]);
 
+    const agents = await jsonRequest(`${baseUrl}/api/agents`, { headers: cookie });
+    expect(agents.status).toBe(200);
+
     const other = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(otherPid)}`, {
       headers: cookie,
     });
