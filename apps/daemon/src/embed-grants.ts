@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export const EMBED_GRANT_COOKIE = 'od_embed';
 export const EMBED_GRANT_TTL_MS = 12 * 60 * 60 * 1000;
 export const EMBED_GRANT_QUERY = 't';
+export const CATALOG_EMBED_GRANT_PID = '*';
+export const EMBED_GRANT_MAX_PIDS = 200;
 
 export type EmbedGrantPayload = {
   v: 1;
@@ -10,6 +12,7 @@ export type EmbedGrantPayload = {
   uid: string;
   iat: number;
   exp: number;
+  pids?: string[];
 };
 
 export type MintEmbedGrantOptions = {
@@ -17,7 +20,17 @@ export type MintEmbedGrantOptions = {
   userId: string;
   ttlMs?: number;
   now?: Date | number;
+  projectIds?: readonly string[];
 };
+
+export type EmbedGrantProjectRecord = {
+  id: string;
+  metadata?: unknown;
+};
+
+export type EmbedGrantProjectLookup = (
+  projectId: string,
+) => EmbedGrantProjectRecord | null | undefined;
 
 export type MintEmbedGrantResult = {
   token: string;
@@ -47,9 +60,11 @@ const OPEN_PROBE_PATHS = new Set([
   '/api/ready',
   '/version',
   '/api/version',
+  '/api/public-runtime',
 ]);
 
 const EMBED_GRANT_MINT_PATH = /^\/api\/projects\/[^/]+\/embed-grants(?:\/|$)/;
+const CATALOG_EMBED_GRANT_MINT_PATH = '/api/embed-grants';
 const PROJECT_SCOPED_PATH = /^\/(?:api\/)?projects\/([^/]+)/;
 
 function toUnixMs(value: Date | number | undefined): number {
@@ -144,6 +159,21 @@ function readQueryParam(query: Record<string, unknown> | undefined, name: string
   return String(value);
 }
 
+export function normalizeEmbedGrantProjectIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of input) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim();
+    if (!id || id === CATALOG_EMBED_GRANT_PID || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= EMBED_GRANT_MAX_PIDS) break;
+  }
+  return out;
+}
+
 function asEmbedGrantPayload(value: unknown): EmbedGrantPayload | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const rec = value as Record<string, unknown>;
@@ -152,7 +182,36 @@ function asEmbedGrantPayload(value: unknown): EmbedGrantPayload | null {
   if (typeof rec.uid !== 'string' || rec.uid.length === 0) return null;
   if (typeof rec.iat !== 'number' || !Number.isFinite(rec.iat)) return null;
   if (typeof rec.exp !== 'number' || !Number.isFinite(rec.exp)) return null;
-  return { v: 1, pid: rec.pid, uid: rec.uid, iat: rec.iat, exp: rec.exp };
+  const payload: EmbedGrantPayload = {
+    v: 1,
+    pid: rec.pid,
+    uid: rec.uid,
+    iat: rec.iat,
+    exp: rec.exp,
+  };
+  if (rec.pids !== undefined) {
+    if (!Array.isArray(rec.pids) || rec.pids.length > EMBED_GRANT_MAX_PIDS) return null;
+    const pids: string[] = [];
+    for (const item of rec.pids) {
+      if (typeof item !== 'string' || item.length === 0) return null;
+      pids.push(item);
+    }
+    if (pids.length > 0) payload.pids = pids;
+  }
+  return payload;
+}
+
+export function isCatalogEmbedGrant(
+  grant: EmbedGrantPayload | null | undefined,
+): grant is EmbedGrantPayload {
+  return grant != null && grant.pid === CATALOG_EMBED_GRANT_PID;
+}
+
+export function projectAcpUserId(project: EmbedGrantProjectRecord | null | undefined): string {
+  const metadata = project?.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return '';
+  const value = (metadata as { acpUserId?: unknown }).acpUserId;
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function isReadMethod(method: string): boolean {
@@ -183,6 +242,10 @@ export function mintEmbedGrant(
     iat,
     exp,
   };
+  if (options.projectId === CATALOG_EMBED_GRANT_PID) {
+    const pids = normalizeEmbedGrantProjectIds(options.projectIds);
+    if (pids.length > 0) payload.pids = pids;
+  }
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
   const token = `${payloadBytes.toString('base64url')}.${signPayloadBytes(apiToken, payloadBytes)}`;
   return { token, payload, expiresAt: new Date(exp * 1000) };
@@ -265,13 +328,20 @@ export function embedGrantAllowsPath(
   const queryProjectId = firstString(query?.projectId) ?? firstString(search.get('projectId'));
 
   if (EMBED_GRANT_MINT_PATH.test(pathname)) return false;
+  if (pathname === CATALOG_EMBED_GRANT_MINT_PATH) return false;
 
+  const catalog = isCatalogEmbedGrant(grant);
   const pathProjectId = projectIdFromPath(pathname);
-  if (pathProjectId !== null) return pathProjectId === grant.pid;
+  if (pathProjectId !== null) {
+    if (catalog) return true;
+    return pathProjectId === grant.pid;
+  }
 
-  if (pathname === '/api/runs') return queryProjectId === grant.pid;
+  if (pathname === '/api/runs') return catalog || queryProjectId === grant.pid;
 
-  if (!isReadMethod(methodUpper)) return false;
+  if (!isReadMethod(methodUpper)) {
+    return catalog && methodUpper === 'POST' && pathname === '/api/projects';
+  }
   if (OPEN_PROBE_PATHS.has(pathname)) return true;
   if (pathname === '/api/app-config') return true;
   // Catalog used by Studio embed autoselect; writes stay under /api/agents/:id/...
@@ -350,25 +420,61 @@ function embedGrantAllowsPostRuns(
   body: unknown,
 ): boolean {
   const bodyProjectId = firstString(jsonRecord(body)?.projectId);
+  if (!bodyProjectId) return false;
+  if (isCatalogEmbedGrant(grant)) {
+    const queryProjectId = firstString(query?.projectId);
+    return queryProjectId == null || queryProjectId === bodyProjectId;
+  }
   if (bodyProjectId !== grant.pid) return false;
   const queryProjectId = firstString(query?.projectId);
   return queryProjectId == null || queryProjectId === grant.pid;
 }
 
+export function embedGrantAllowsProjectRecord(
+  grant: EmbedGrantPayload | null | undefined,
+  project: EmbedGrantProjectRecord | null | undefined,
+): boolean {
+  if (grant == null) return true;
+  if (project == null || typeof project.id !== 'string' || project.id.length === 0) return false;
+  if (grant.pid === project.id) return true;
+  if (!isCatalogEmbedGrant(grant)) return false;
+  if (grant.pids?.includes(project.id)) return true;
+  return projectAcpUserId(project) === grant.uid;
+}
+
 export function embedGrantAllowsProjectId(
   grant: EmbedGrantPayload | null | undefined,
   projectId: unknown,
+  project?: EmbedGrantProjectRecord | null,
 ): boolean {
   if (grant == null) return true;
-  return typeof projectId === 'string' && projectId.length > 0 && projectId === grant.pid;
+  if (typeof projectId !== 'string' || projectId.length === 0) return false;
+  if (grant.pid === projectId) return true;
+  if (!isCatalogEmbedGrant(grant)) return false;
+  if (project && project.id === projectId) return embedGrantAllowsProjectRecord(grant, project);
+  return Boolean(grant.pids?.includes(projectId));
 }
 
-export function filterProjectsForEmbedGrant<T extends { id: string }>(
+export function filterProjectsForEmbedGrant<T extends EmbedGrantProjectRecord>(
   grant: EmbedGrantPayload | null | undefined,
   projects: readonly T[],
 ): T[] {
   if (grant == null) return [...projects];
+  if (isCatalogEmbedGrant(grant)) {
+    return projects.filter((project) => embedGrantAllowsProjectRecord(grant, project));
+  }
   return projects.filter((project) => project.id === grant.pid);
+}
+
+export function stampCatalogOwnerMetadata<T extends Record<string, unknown>>(
+  metadata: T | null | undefined,
+  grant: EmbedGrantPayload | null | undefined,
+): T | Record<string, unknown> | null | undefined {
+  if (!isCatalogEmbedGrant(grant)) return metadata;
+  const base = metadata && typeof metadata === 'object' ? { ...metadata } : {};
+  base.acpUserId = grant.uid;
+  base.acp = true;
+  return base;
 }
 
 export function applyVerifiedEmbedGrant(
@@ -390,15 +496,29 @@ export function applyVerifiedEmbedGrant(
 export function embedGrantForbidsRequest(
   grant: EmbedGrantPayload,
   req: EmbedGrantAuthedRequest,
+  lookup?: EmbedGrantProjectLookup | null,
 ): boolean {
   const method = (req.method ?? 'GET').toUpperCase();
   const path = embedGrantRequestPath(req);
   const { pathname } = splitPath(path);
   if (isEmbedGrantDeferredRunLookupPath(pathname)) return false;
   if (method === 'POST' && pathname === '/api/runs') {
-    return !embedGrantAllowsPostRuns(grant, req.query, req.body);
+    if (!embedGrantAllowsPostRuns(grant, req.query, req.body)) return true;
+    if (!isCatalogEmbedGrant(grant)) return false;
+    const bodyProjectId = firstString(jsonRecord(req.body)?.projectId);
+    if (!lookup) return true;
+    return !embedGrantAllowsProjectRecord(
+      grant,
+      bodyProjectId ? lookup(bodyProjectId) : null,
+    );
   }
-  return !embedGrantAllowsPath(grant, method, path, req.query ?? null);
+  if (!embedGrantAllowsPath(grant, method, path, req.query ?? null)) return true;
+  const pathProjectId = projectIdFromPath(pathname);
+  if (isCatalogEmbedGrant(grant) && pathProjectId) {
+    if (!lookup) return true;
+    return !embedGrantAllowsProjectRecord(grant, lookup(pathProjectId));
+  }
+  return false;
 }
 
 declare global {

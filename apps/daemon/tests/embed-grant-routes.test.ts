@@ -405,4 +405,42 @@ describe('od project embed-grant CLI', () => {
       token: minted.token,
     });
   });
+
+  it('mints an ACP catalog grant', async () => {
+    const minted = {
+      expiresAt: '2026-01-16T00:00:00.000Z',
+      projectId: '*',
+      projectIds: ['legacy-1'],
+      token: 'catalog.token',
+      userId: 'acp-user',
+    };
+    stub.setResponder(() => ({ status: 200, body: minted }));
+
+    const result = await runCli([
+      'project',
+      'embed-grant',
+      '--catalog',
+      '--user-id',
+      'acp-user',
+      '--project-ids',
+      'legacy-1',
+      '--json',
+      '--daemon-url',
+      stub.baseUrl,
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(stub.requests).toHaveLength(1);
+    expect(stub.requests[0]?.method).toBe('POST');
+    expect(stub.requests[0]?.url).toBe('/api/embed-grants');
+    expect(JSON.parse(stub.requests[0]?.body ?? '{}')).toEqual({
+      projectIds: ['legacy-1'],
+      userId: 'acp-user',
+    });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      projectId: '*',
+      token: minted.token,
+      userId: 'acp-user',
+    });
+  });
 });

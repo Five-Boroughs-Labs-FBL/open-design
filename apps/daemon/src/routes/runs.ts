@@ -39,7 +39,7 @@ import {
 import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { renderDesignGenerationDirective } from '../design/generation-directive.js';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
-import { embedGrantAllowsProjectId } from '../embed-grants.js';
+import { embedGrantAllowsProjectRecord } from '../embed-grants.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
 import {
@@ -1797,7 +1797,10 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       capability: 'writeFiles';
     },
   ): Promise<boolean> {
-    if (!embedGrantAllowsProjectId(req.embedGrant, run.projectId)) {
+    if (!embedGrantAllowsProjectRecord(
+      req.embedGrant,
+      run.projectId ? getProject(db, run.projectId) : null,
+    )) {
       sendApiError(res, 403, 'EMBED_GRANT_SCOPE', 'embed grant does not allow this run');
       return false;
     }
@@ -1850,7 +1853,10 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       return sendApiError(res, 503, 'UPSTREAM_UNAVAILABLE', 'daemon is shutting down');
     }
     const requestBody = toJsonRecord(req.body);
-    if (!embedGrantAllowsProjectId(req.embedGrant, requestBody.projectId)) {
+    if (!embedGrantAllowsProjectRecord(
+      req.embedGrant,
+      typeof requestBody.projectId === 'string' ? getProject(db, requestBody.projectId) : null,
+    )) {
       return sendApiError(
         res,
         403,

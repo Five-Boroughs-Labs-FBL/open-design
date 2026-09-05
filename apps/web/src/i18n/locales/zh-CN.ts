@@ -326,6 +326,9 @@ export const zhCN: Dict = {
   "settings.onboardingCloudBody":
     "登录后可直接用云端 AI 开始设计，无需任何复杂配置。",
   "settings.onboardingCloudSignIn": "登录 OpenDesign",
+  "settings.onboardingAcpTitle": "使用 ACP 登录",
+  "settings.onboardingAcpBody": "使用你的 Agent Control Panel 账号打开 Open Design。你只会看到该账号下的项目。",
+  "settings.onboardingAcpSignIn": "使用 ACP 登录",
   "settings.onboardingCloudContinue": "继续（已登录）",
   "settings.onboardingCloudAlternative": "使用本地 CLI 或自己的 API Key",
   "settings.onboardingCloudRights": "保留所有权利。",
