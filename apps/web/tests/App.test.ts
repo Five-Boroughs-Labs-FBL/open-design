@@ -10,6 +10,7 @@ import {
   projectRouteSurfaceState,
   resolveDeepLinkedTeamSharedProject,
   resolveSettingsCloseConfig,
+  shouldBounceCloudHomeToOnboarding,
   shouldForceCloudOnboarding,
   shouldRouteToFirstRunOnboarding,
   shouldSyncMediaProvidersOnSave,
@@ -121,6 +122,41 @@ describe('shouldForceCloudOnboarding', () => {
       cloudIdentityRejected: false,
       amcEmbed: false,
       routeKind: 'home',
+    })).toBe(false);
+  });
+});
+
+describe('shouldBounceCloudHomeToOnboarding', () => {
+  const signedOutCloudHome = {
+    view: 'home' as const,
+    usesOpenDesignCloud: true,
+    amrLoggedIn: false,
+    amrAuthRequired: false,
+  };
+
+  it('bounces a signed-out OpenDesign Cloud home to onboarding', () => {
+    expect(shouldBounceCloudHomeToOnboarding(signedOutCloudHome)).toBe(true);
+  });
+
+  it('does not bounce after ACP SSO or an embed catalog grant', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      acpSsoConfigured: true,
+    })).toBe(false);
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      embedSession: true,
+    })).toBe(false);
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      amcEmbed: true,
+    })).toBe(false);
+  });
+
+  it('does not bounce when already on onboarding', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      view: 'onboarding',
     })).toBe(false);
   });
 });
