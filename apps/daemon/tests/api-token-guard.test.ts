@@ -289,7 +289,13 @@ describe('browser authentication for non-loopback Docker peers', () => {
 
 const EMBED_GRANT_API_TOKEN = 'embed-grant-studio-token';
 
-type JsonResponse = { body: unknown; setCookie: string | null; status: number; text: string };
+type JsonResponse = {
+  body: unknown;
+  setCookie: string | null;
+  status: number;
+  text: string;
+  wwwAuthenticate: string | null;
+};
 
 function errorCode(body: unknown): string | undefined {
   if (!body || typeof body !== 'object') return undefined;
@@ -320,6 +326,7 @@ async function jsonRequest(url: string, init: RequestInit = {}): Promise<JsonRes
     setCookie: resp.headers.get('set-cookie'),
     status: resp.status,
     text,
+    wwwAuthenticate: resp.headers.get('www-authenticate'),
   };
 }
 
@@ -375,6 +382,7 @@ describe('embed grant middleware for non-loopback Studio', () => {
     const projects = await jsonRequest(`${baseUrl}/api/projects`);
     expect(projects.status).toBe(401);
     expect(errorCode(projects.body)).toBe('API_TOKEN_REQUIRED');
+    expect(projects.wwwAuthenticate).toMatch(/Basic/i);
 
     const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
     expect(spa.status).toBe(401);
@@ -413,6 +421,9 @@ describe('embed grant middleware for non-loopback Studio', () => {
     const projects = await jsonRequest(`${baseUrl}/api/projects`);
     expect(projects.status).toBe(401);
     expect(errorCode(projects.body)).toBe('API_TOKEN_REQUIRED');
+    // A Basic challenge here makes the browser steal the ACP SSO landing
+    // with a native username/password dialog.
+    expect(projects.wwwAuthenticate).toBeNull();
   });
 
   it('lets a matching API token list every project', async () => {

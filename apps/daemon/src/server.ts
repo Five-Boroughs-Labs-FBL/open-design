@@ -3057,7 +3057,12 @@ export async function startServer({
         }
         return next();
       }
-      res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
+      // ACP SSO serves the shell without Basic. A WWW-Authenticate challenge
+      // on /api/* still pops the native username/password dialog over
+      // "Sign in with ACP" as soon as the SPA fetches /api/projects.
+      if (!isAcpSsoConfigured()) {
+        res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
+      }
       return res.status(401).json({
         error: {
           code: 'API_TOKEN_REQUIRED',
