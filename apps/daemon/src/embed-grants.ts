@@ -452,8 +452,7 @@ export function embedGrantAllowsProjectId(
   if (grant.pid === projectId) return true;
   if (!isCatalogEmbedGrant(grant)) return false;
   if (project && project.id === projectId) return embedGrantAllowsProjectRecord(grant, project);
-  if (grant.pids?.includes(projectId)) return true;
-  return !grant.pids || grant.pids.length === 0;
+  return Boolean(grant.pids?.includes(projectId));
 }
 
 export function filterProjectsForEmbedGrant<T extends EmbedGrantProjectRecord>(
@@ -505,18 +504,18 @@ export function embedGrantForbidsRequest(
   if (isEmbedGrantDeferredRunLookupPath(pathname)) return false;
   if (method === 'POST' && pathname === '/api/runs') {
     if (!embedGrantAllowsPostRuns(grant, req.query, req.body)) return true;
-    if (isCatalogEmbedGrant(grant) && lookup) {
-      const bodyProjectId = firstString(jsonRecord(req.body)?.projectId);
-      return !embedGrantAllowsProjectRecord(
-        grant,
-        bodyProjectId ? lookup(bodyProjectId) : null,
-      );
-    }
-    return false;
+    if (!isCatalogEmbedGrant(grant)) return false;
+    const bodyProjectId = firstString(jsonRecord(req.body)?.projectId);
+    if (!lookup) return true;
+    return !embedGrantAllowsProjectRecord(
+      grant,
+      bodyProjectId ? lookup(bodyProjectId) : null,
+    );
   }
   if (!embedGrantAllowsPath(grant, method, path, req.query ?? null)) return true;
   const pathProjectId = projectIdFromPath(pathname);
-  if (isCatalogEmbedGrant(grant) && pathProjectId && lookup) {
+  if (isCatalogEmbedGrant(grant) && pathProjectId) {
+    if (!lookup) return true;
     return !embedGrantAllowsProjectRecord(grant, lookup(pathProjectId));
   }
   return false;

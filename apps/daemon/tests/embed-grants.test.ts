@@ -415,6 +415,11 @@ describe('embed grant request helpers', () => {
       method: 'GET',
       originalUrl: '/api/projects/other-3',
     }, (id) => (id === 'other-3' ? { id, metadata: { acpUserId: 'nope' } } : null))).toBe(true);
+    expect(embedGrantForbidsRequest(catalog, {
+      method: 'GET',
+      originalUrl: '/api/projects/owned-2',
+    })).toBe(true);
+    expect(embedGrantAllowsProjectId(catalog, 'guessed-id')).toBe(false);
   });
 
   it('sets Secure from req.secure or x-forwarded-proto=https', () => {
