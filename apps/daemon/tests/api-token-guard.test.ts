@@ -12,12 +12,14 @@
 // the "refuse 0.0.0.0 without token" path is exercised by a separate
 // negative case that constructs the start call directly).
 
+import { randomUUID } from 'node:crypto';
 import { request as httpRequest, type OutgoingHttpHeaders, type Server } from 'node:http';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isApiAuthDisabled, isApiTokenMiddlewareEnabled } from '../src/api-token-auth.js';
+import { EMBED_GRANT_COOKIE } from '../src/embed-grants.js';
 import { startServer } from '../src/server.js';
 
 const PREVIOUS_TOKEN = process.env.OD_API_TOKEN;
@@ -279,5 +281,205 @@ describe('browser authentication for non-loopback Docker peers', () => {
     expect(JSON.parse(poweredPreviewHost.body)).toEqual({
       error: 'Powered preview origin cannot access this API route',
     });
+  });
+});
+
+const EMBED_GRANT_API_TOKEN = 'embed-grant-studio-token';
+
+type JsonResponse = { body: unknown; setCookie: string | null; status: number; text: string };
+
+function errorCode(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const error = (body as { error?: { code?: unknown } }).error;
+  return error && typeof error.code === 'string' ? error.code : undefined;
+}
+
+function projectIdsFromList(body: unknown): string[] {
+  if (!body || typeof body !== 'object') return [];
+  const projects = (body as { projects?: unknown }).projects;
+  if (!Array.isArray(projects)) return [];
+  return projects
+    .map((project) => (project && typeof project === 'object' ? (project as { id?: unknown }).id : null))
+    .filter((id): id is string => typeof id === 'string');
+}
+
+async function jsonRequest(url: string, init: RequestInit = {}): Promise<JsonResponse> {
+  const resp = await fetch(url, init);
+  const text = await resp.text();
+  let body: unknown = text;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+  return {
+    body,
+    setCookie: resp.headers.get('set-cookie'),
+    status: resp.status,
+    text,
+  };
+}
+
+async function createTestProject(url: string, authorization: string, name: string): Promise<string> {
+  const projectId = `proj_${randomUUID()}`;
+  const resp = await jsonRequest(`${url}/api/projects`, {
+    method: 'POST',
+    headers: {
+      authorization,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: projectId,
+      name,
+      metadata: { kind: 'prototype' },
+      skipDiscoveryBrief: true,
+      skipDefaultScenario: true,
+    }),
+  });
+  expect(resp.status).toBe(200);
+  return projectId;
+}
+
+describe('embed grant middleware for non-loopback Studio', () => {
+  const authorization = `Bearer ${EMBED_GRANT_API_TOKEN}`;
+
+  beforeEach(async () => {
+    delete process.env.OD_DISABLE_API_AUTH;
+    process.env.OD_API_TOKEN = EMBED_GRANT_API_TOKEN;
+    staticDir = mkdtempSync(path.join(os.tmpdir(), 'od-embed-grant-static-'));
+    writeFileSync(path.join(staticDir, 'index.html'), '<!doctype html><div>studio embed shell</div>');
+
+    const started = (await startServer({
+      port: 0,
+      host: '127.0.0.1',
+      returnServer: true,
+      staticDir,
+    })) as {
+      url: string;
+      server: Server;
+      shutdown?: () => Promise<void> | void;
+    };
+    baseUrl = started.url;
+    server = started.server;
+    shutdown = started.shutdown;
+    makeConnectionsAppearNonLoopback(server);
+  });
+
+  it('keeps probes open and rejects API/SPA callers without a grant', async () => {
+    const health = await jsonRequest(`${baseUrl}/api/health`);
+    expect(health.status).toBe(200);
+
+    const projects = await jsonRequest(`${baseUrl}/api/projects`);
+    expect(projects.status).toBe(401);
+    expect(errorCode(projects.body)).toBe('API_TOKEN_REQUIRED');
+
+    const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
+    expect(spa.status).toBe(401);
+    expect(await spa.text()).not.toContain('studio embed shell');
+  });
+
+  it('lets a matching API token list every project', async () => {
+    const pid = await createTestProject(baseUrl, authorization, 'Grant project');
+    const otherPid = await createTestProject(baseUrl, authorization, 'Other project');
+    const list = await jsonRequest(`${baseUrl}/api/projects`, {
+      headers: { authorization },
+    });
+    expect(list.status).toBe(200);
+    expect(projectIdsFromList(list.body)).toEqual(expect.arrayContaining([pid, otherPid]));
+  });
+
+  it('accepts a minted grant for the Studio shell and scopes later cookie calls', async () => {
+    const pid = await createTestProject(baseUrl, authorization, 'Grant project');
+    const otherPid = await createTestProject(baseUrl, authorization, 'Other project');
+    const minted = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(pid)}/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'amc-user-1' }),
+    });
+    expect(minted.status).toBe(200);
+    const token = (minted.body as { token?: string }).token;
+    expect(typeof token).toBe('string');
+    expect(token!.length).toBeGreaterThan(0);
+
+    const spa = await jsonRequest(
+      `${baseUrl}/projects/${encodeURIComponent(pid)}/conversations/conv_embed?amcEmbed=1&t=${encodeURIComponent(token!)}`,
+      { headers: { accept: 'text/html' } },
+    );
+    expect(spa.status).toBe(200);
+    expect(spa.text).toContain('studio embed shell');
+    expect(spa.setCookie).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=`));
+    expect(spa.setCookie).toEqual(expect.stringContaining(token!));
+
+    const cookie = { cookie: `${EMBED_GRANT_COOKIE}=${token}` };
+
+    const ownProject = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(pid)}`, {
+      headers: cookie,
+    });
+    expect(ownProject.status).toBe(200);
+
+    const list = await jsonRequest(`${baseUrl}/api/projects`, { headers: cookie });
+    expect(list.status).toBe(200);
+    expect(projectIdsFromList(list.body)).toEqual([pid]);
+
+    const agents = await jsonRequest(`${baseUrl}/api/agents`, { headers: cookie });
+    expect(agents.status).toBe(200);
+
+    const other = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(otherPid)}`, {
+      headers: cookie,
+    });
+    expect(other.status).toBe(403);
+    expect(errorCode(other.body)).toBe('EMBED_GRANT_SCOPE');
+
+    const remint = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(pid)}/embed-grants`, {
+      method: 'POST',
+      headers: {
+        ...cookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'amc-user-1' }),
+    });
+    expect([401, 403]).toContain(remint.status);
+
+    const missingRun = await jsonRequest(`${baseUrl}/api/runs/run_missing`, { headers: cookie });
+    expect(missingRun.status).toBe(404);
+    expect(errorCode(missingRun.body)).not.toBe('EMBED_GRANT_SCOPE');
+
+    const foreignRunCreate = await jsonRequest(`${baseUrl}/api/runs`, {
+      method: 'POST',
+      headers: {
+        ...cookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ projectId: otherPid }),
+    });
+    expect(foreignRunCreate.status).toBe(403);
+    expect(errorCode(foreignRunCreate.body)).toBe('EMBED_GRANT_SCOPE');
+  });
+});
+
+describe('embed grant middleware leaves loopback unauthenticated', () => {
+  beforeEach(async () => {
+    delete process.env.OD_DISABLE_API_AUTH;
+    process.env.OD_API_TOKEN = EMBED_GRANT_API_TOKEN;
+    const started = (await startServer({
+      port: 0,
+      host: '127.0.0.1',
+      returnServer: true,
+    })) as {
+      url: string;
+      server: Server;
+      shutdown?: () => Promise<void> | void;
+    };
+    baseUrl = started.url;
+    server = started.server;
+    shutdown = started.shutdown;
+  });
+
+  it('still skips the API-token guard for loopback peers', async () => {
+    const list = await jsonRequest(`${baseUrl}/api/projects`);
+    expect(list.status).toBe(200);
   });
 });

@@ -39,6 +39,7 @@ import {
 import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { renderDesignGenerationDirective } from '../design/generation-directive.js';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
+import { embedGrantAllowsProjectId } from '../embed-grants.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
 import {
@@ -1796,6 +1797,10 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       capability: 'writeFiles';
     },
   ): Promise<boolean> {
+    if (!embedGrantAllowsProjectId(req.embedGrant, run.projectId)) {
+      sendApiError(res, 403, 'EMBED_GRANT_SCOPE', 'embed grant does not allow this run');
+      return false;
+    }
     if (!run.projectId || !ctx.authorizeProjectRequest) return true;
 
     // Once a run exists, status/stream/cancel are local lifecycle operations.
@@ -1845,6 +1850,14 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       return sendApiError(res, 503, 'UPSTREAM_UNAVAILABLE', 'daemon is shutting down');
     }
     const requestBody = toJsonRecord(req.body);
+    if (!embedGrantAllowsProjectId(req.embedGrant, requestBody.projectId)) {
+      return sendApiError(
+        res,
+        403,
+        'EMBED_GRANT_SCOPE',
+        'embed grant does not allow this project',
+      );
+    }
     let parsedAmcGrok = null;
     if (requestBody.amcGrok != null) {
       const apiToken = apiTokenFromEnv();
@@ -3563,7 +3576,9 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
   app.get('/api/runs', async (req: ApiRequest, res: ApiResponse) => {
     const { projectId, conversationId, status } = req.query;
     const runs = design.runs.list({ projectId, conversationId, status });
-    let visibleRuns = runs;
+    let visibleRuns = req.embedGrant
+      ? runs.filter((run) => run.projectId === req.embedGrant?.pid)
+      : runs;
     if (typeof projectId === 'string' && projectId) {
       const binding =
         ctx.projectStore?.getWorkspaceProjectByProjectId(db, projectId);
