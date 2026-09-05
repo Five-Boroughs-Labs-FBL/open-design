@@ -159,6 +159,13 @@ describe('shouldBounceCloudHomeToOnboarding', () => {
       view: 'onboarding',
     })).toBe(false);
   });
+
+  it('does not treat an unresolved AMR login as signed-out', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      amrLoggedIn: null,
+    })).toBe(false);
+  });
 });
 
 describe('hydrateReadyTeamProject', () => {
