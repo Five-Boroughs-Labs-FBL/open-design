@@ -1143,6 +1143,10 @@ import {
   isApiAuthDisabled,
   isApiTokenMiddlewareEnabled,
 } from './api-token-auth.js';
+import {
+  applyVerifiedEmbedGrant,
+  embedGrantForbidsRequest,
+} from './embed-grants.js';
 import { createOpenDesignPublicMetadataService } from './services/open-design-public-metadata.js';
 import { createWhatsNewService } from './services/whats-new.js';
 import { execCommandViaLoginShell } from './services/login-shell.js';
@@ -2990,14 +2994,15 @@ export async function startServer({
   // Active only when OD_API_TOKEN is set and API auth is not disabled.
   // Loopback origins skip the check (the desktop UI / local CLI never carry
   // credentials); every other request must present a matching bearer token
-  // (CLI / proxy) or matching HTTP Basic credentials (browser UI). A currently
-  // valid run-scoped token may pass only an exact screenshot-export endpoint;
-  // its route rechecks the operation and project. Health / readiness / version
-  // remain open. Server-minted project preview asset scopes are also accepted
-  // for GETs so sandboxed
-  // browser iframes can load HTML/CSS/JS without privileged headers.
-  // Rich daemon status stays authenticated because it includes local
-  // runtime paths.
+  // (CLI / proxy), matching HTTP Basic credentials (browser UI), or a
+  // project-scoped Studio embed grant (query `t` / cookie `od_embed`). A
+  // currently valid run-scoped token may pass only an exact screenshot-export
+  // endpoint; its route rechecks the operation and project. Health /
+  // readiness / version remain open. Server-minted project preview asset
+  // scopes are also accepted for GETs so sandboxed browser iframes can load
+  // HTML/CSS/JS without privileged headers. Rich daemon status stays
+  // authenticated because it includes local runtime paths. A matching API
+  // token is full access and does not stamp `req.embedGrant`.
   if (apiTokenAuthEnabled) {
     const openProbePaths = new Set([
       '/health',
@@ -3034,6 +3039,18 @@ export async function startServer({
       ) {
         return next();
       }
+      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      if (embedGrant) {
+        if (embedGrantForbidsRequest(embedGrant, req)) {
+          return sendApiError(
+            res,
+            403,
+            'EMBED_GRANT_SCOPE',
+            'embed grant does not allow this path',
+          );
+        }
+        return next();
+      }
       res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
       return res.status(401).json({
         error: {
@@ -3053,6 +3070,18 @@ export async function startServer({
       if (isLoopbackPeerAddress(req.socket?.remoteAddress)) return next();
       if (resolveStaticSpaFallbackPath(req, staticDir) === null) return next();
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
+      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      if (embedGrant) {
+        if (embedGrantForbidsRequest(embedGrant, req)) {
+          return sendApiError(
+            res,
+            403,
+            'EMBED_GRANT_SCOPE',
+            'embed grant does not allow this path',
+          );
+        }
+        return next();
+      }
 
       res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
       return res.status(401).type('text/plain').send(

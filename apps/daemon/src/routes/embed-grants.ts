@@ -24,9 +24,7 @@ export interface RegisterEmbedGrantRoutesDeps {
   ) => unknown;
 }
 
-type EmbedGrantMintRequest = Request & {
-  embedGrant?: unknown;
-};
+type EmbedGrantMintRequest = Request;
 
 function projectIdFromRequest(req: Request): string {
   const raw = req.params.id;
@@ -53,7 +51,6 @@ function readTtlSec(raw: unknown): { ok: true; value: number } | { ok: false } {
 }
 
 function authorizeMint(req: EmbedGrantMintRequest): 'ok' | 'forbidden' | 'unauthorized' {
-  // Task 4 will stamp req.embedGrant; a grant principal must never mint.
   if (req.embedGrant) return 'forbidden';
 
   const apiToken = apiTokenFromEnv();

@@ -277,3 +277,132 @@ export function embedGrantAllowsPath(
   if (pathname === '/api/projects') return true;
   return isStudioShellPath(pathname);
 }
+
+const DEFERRED_RUN_LOOKUP_PATH = /^\/api\/runs\/([^/]+)(?:\/([^/]+))?$/;
+const DEFERRED_RUN_LOOKUP_BLOCKLIST = new Set(['by-plugin-workflow']);
+const DEFERRED_RUN_LOOKUP_SUFFIXES = new Set([
+  '',
+  'agui',
+  'cancel',
+  'events',
+  'result-package',
+]);
+
+export type EmbedGrantAuthedRequest = EmbedGrantRequestLike & {
+  method?: string;
+  originalUrl?: string;
+  baseUrl?: string;
+  path?: string;
+  url?: string;
+  secure?: boolean;
+  get?: (name: string) => string | undefined;
+  body?: unknown;
+  embedGrant?: EmbedGrantPayload;
+};
+
+function jsonRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+export function embedGrantRequestPath(req: {
+  originalUrl?: string;
+  baseUrl?: string;
+  path?: string;
+  url?: string;
+}): string {
+  if (typeof req.originalUrl === 'string' && req.originalUrl.length > 0) {
+    return req.originalUrl;
+  }
+  const base = typeof req.baseUrl === 'string' ? req.baseUrl : '';
+  if (typeof req.path === 'string' && req.path.length > 0) return `${base}${req.path}`;
+  if (typeof req.url === 'string' && req.url.length > 0) return `${base}${req.url}`;
+  return '/';
+}
+
+export function isEmbedGrantDeferredRunLookupPath(path: string): boolean {
+  const { pathname } = splitPath(path);
+  const match = DEFERRED_RUN_LOOKUP_PATH.exec(pathname);
+  if (!match) return false;
+  const id = match[1];
+  if (!id || DEFERRED_RUN_LOOKUP_BLOCKLIST.has(id)) return false;
+  return DEFERRED_RUN_LOOKUP_SUFFIXES.has(match[2] ?? '');
+}
+
+export function embedGrantCookieShouldBeSecure(req: {
+  secure?: boolean;
+  get?: (name: string) => string | undefined;
+  headers?: EmbedGrantRequestLike['headers'];
+}): boolean {
+  if (req.secure === true) return true;
+  const forwarded = typeof req.get === 'function'
+    ? req.get('x-forwarded-proto')
+    : firstString(req.headers?.['x-forwarded-proto']);
+  if (typeof forwarded !== 'string' || forwarded.length === 0) return false;
+  return forwarded.split(',')[0]?.trim().toLowerCase() === 'https';
+}
+
+function embedGrantAllowsPostRuns(
+  grant: EmbedGrantPayload,
+  query: Record<string, unknown> | null | undefined,
+  body: unknown,
+): boolean {
+  const bodyProjectId = firstString(jsonRecord(body)?.projectId);
+  if (bodyProjectId !== grant.pid) return false;
+  const queryProjectId = firstString(query?.projectId);
+  return queryProjectId == null || queryProjectId === grant.pid;
+}
+
+export function embedGrantAllowsProjectId(
+  grant: EmbedGrantPayload | null | undefined,
+  projectId: unknown,
+): boolean {
+  if (grant == null) return true;
+  return typeof projectId === 'string' && projectId.length > 0 && projectId === grant.pid;
+}
+
+export function filterProjectsForEmbedGrant<T extends { id: string }>(
+  grant: EmbedGrantPayload | null | undefined,
+  projects: readonly T[],
+): T[] {
+  if (grant == null) return [...projects];
+  return projects.filter((project) => project.id === grant.pid);
+}
+
+export function applyVerifiedEmbedGrant(
+  req: EmbedGrantAuthedRequest,
+  res: EmbedGrantResponseLike,
+  apiToken: string,
+): EmbedGrantPayload | null {
+  const token = readEmbedGrantFromRequest(req);
+  if (!token) return null;
+  const payload = verifyEmbedGrant(apiToken, token);
+  if (!payload) return null;
+  req.embedGrant = payload;
+  setEmbedGrantCookie(res, token, payload.exp, {
+    secure: embedGrantCookieShouldBeSecure(req),
+  });
+  return payload;
+}
+
+export function embedGrantForbidsRequest(
+  grant: EmbedGrantPayload,
+  req: EmbedGrantAuthedRequest,
+): boolean {
+  const method = (req.method ?? 'GET').toUpperCase();
+  const path = embedGrantRequestPath(req);
+  const { pathname } = splitPath(path);
+  if (isEmbedGrantDeferredRunLookupPath(pathname)) return false;
+  if (method === 'POST' && pathname === '/api/runs') {
+    return !embedGrantAllowsPostRuns(grant, req.query, req.body);
+  }
+  return !embedGrantAllowsPath(grant, method, path, req.query ?? null);
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      embedGrant?: EmbedGrantPayload;
+    }
+  }
+}

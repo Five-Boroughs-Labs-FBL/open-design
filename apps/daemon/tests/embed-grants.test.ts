@@ -5,7 +5,13 @@ import {
   EMBED_GRANT_COOKIE,
   EMBED_GRANT_QUERY,
   EMBED_GRANT_TTL_MS,
+  applyVerifiedEmbedGrant,
   embedGrantAllowsPath,
+  embedGrantAllowsProjectId,
+  embedGrantCookieShouldBeSecure,
+  embedGrantForbidsRequest,
+  filterProjectsForEmbedGrant,
+  isEmbedGrantDeferredRunLookupPath,
   mintEmbedGrant,
   readEmbedGrantFromRequest,
   setEmbedGrantCookie,
@@ -287,5 +293,86 @@ describe('embedGrantAllowsPath', () => {
     ['POST', '/', {}],
   ] as const)('denies %s %s', (method, path, query) => {
     expect(embedGrantAllowsPath(g, method, path, query)).toBe(false);
+  });
+});
+
+describe('embed grant request helpers', () => {
+  const g = grant();
+
+  it('treats /api/runs/:id as a deferred lookup and blocks by-plugin-workflow', () => {
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc')).toBe(true);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc/events')).toBe(true);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc/agui')).toBe(true);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc/result-package')).toBe(true);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc/cancel')).toBe(true);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs')).toBe(false);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/run_abc/genui')).toBe(false);
+    expect(isEmbedGrantDeferredRunLookupPath('/api/runs/by-plugin-workflow/wf_1')).toBe(false);
+  });
+
+  it('does not forbid deferred run-id paths even though the path helper denies them', () => {
+    expect(embedGrantForbidsRequest(g, { method: 'GET', originalUrl: '/api/runs/run_abc' })).toBe(false);
+    expect(embedGrantForbidsRequest(g, {
+      method: 'GET',
+      originalUrl: '/api/runs/by-plugin-workflow/wf_1',
+    })).toBe(true);
+  });
+
+  it('authorizes POST /api/runs from the body projectId, not the query', () => {
+    expect(embedGrantForbidsRequest(g, {
+      body: { projectId: PROJECT_ID },
+      method: 'POST',
+      originalUrl: '/api/runs',
+    })).toBe(false);
+    expect(embedGrantForbidsRequest(g, {
+      body: { projectId: 'proj_other' },
+      method: 'POST',
+      originalUrl: '/api/runs',
+      query: { projectId: PROJECT_ID },
+    })).toBe(true);
+    expect(embedGrantForbidsRequest(g, {
+      method: 'POST',
+      originalUrl: '/api/runs',
+      query: { projectId: PROJECT_ID },
+    })).toBe(true);
+  });
+
+  it('filters the project list to the grant pid and no-ops without a grant', () => {
+    const projects = [{ id: 'proj_other' }, { id: PROJECT_ID }, { id: 'proj_three' }];
+    expect(filterProjectsForEmbedGrant(g, projects)).toEqual([{ id: PROJECT_ID }]);
+    expect(filterProjectsForEmbedGrant(undefined, projects)).toEqual(projects);
+    expect(embedGrantAllowsProjectId(undefined, 'proj_other')).toBe(true);
+    expect(embedGrantAllowsProjectId(g, PROJECT_ID)).toBe(true);
+    expect(embedGrantAllowsProjectId(g, 'proj_other')).toBe(false);
+  });
+
+  it('sets Secure from req.secure or x-forwarded-proto=https', () => {
+    expect(embedGrantCookieShouldBeSecure({ secure: true })).toBe(true);
+    expect(embedGrantCookieShouldBeSecure({
+      get: (name) => (name.toLowerCase() === 'x-forwarded-proto' ? 'https, http' : undefined),
+    })).toBe(true);
+    expect(embedGrantCookieShouldBeSecure({
+      headers: { 'x-forwarded-proto': 'http' },
+      secure: false,
+    })).toBe(false);
+  });
+
+  it('stamps the verified payload and refreshes the cookie', () => {
+    const minted = mintEmbedGrant(API_TOKEN, {
+      projectId: PROJECT_ID,
+      userId: USER_ID,
+    });
+    const headers = new Map<string, string>();
+    const req = {
+      query: { [EMBED_GRANT_QUERY]: minted.token },
+    };
+    const payload = applyVerifiedEmbedGrant(req, {
+      setHeader(name: string, value: string) {
+        headers.set(name.toLowerCase(), value);
+      },
+    }, API_TOKEN);
+    expect(payload).toMatchObject({ pid: PROJECT_ID, uid: USER_ID, v: 1 });
+    expect(req).toHaveProperty('embedGrant', payload);
+    expect(headers.get('set-cookie')).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=${minted.token}`));
   });
 });
