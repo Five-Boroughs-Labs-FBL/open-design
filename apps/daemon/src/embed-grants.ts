@@ -15,6 +15,11 @@ export type EmbedGrantPayload = {
   pids?: string[];
 };
 
+/** Catalog grants use pid `*`. The type predicate must name this subtype — `grant is EmbedGrantPayload` makes the false branch `never` under tsc. */
+export type CatalogEmbedGrantPayload = EmbedGrantPayload & {
+  pid: typeof CATALOG_EMBED_GRANT_PID;
+};
+
 export type MintEmbedGrantOptions = {
   projectId: string;
   userId: string;
@@ -203,7 +208,7 @@ function asEmbedGrantPayload(value: unknown): EmbedGrantPayload | null {
 
 export function isCatalogEmbedGrant(
   grant: EmbedGrantPayload | null | undefined,
-): grant is EmbedGrantPayload {
+): grant is CatalogEmbedGrantPayload {
   return grant != null && grant.pid === CATALOG_EMBED_GRANT_PID;
 }
 
@@ -471,7 +476,8 @@ export function stampCatalogOwnerMetadata<T extends Record<string, unknown>>(
   grant: EmbedGrantPayload | null | undefined,
 ): T | Record<string, unknown> | null | undefined {
   if (!isCatalogEmbedGrant(grant)) return metadata;
-  const base = metadata && typeof metadata === 'object' ? { ...metadata } : {};
+  const base: Record<string, unknown> =
+    metadata && typeof metadata === 'object' ? { ...metadata } : {};
   base.acpUserId = grant.uid;
   base.acp = true;
   return base;
