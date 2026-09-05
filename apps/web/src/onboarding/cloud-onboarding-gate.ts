@@ -24,7 +24,7 @@ export function shouldForceCloudOnboarding(input: {
 export function shouldBounceCloudHomeToOnboarding(input: {
   view: string;
   usesOpenDesignCloud: boolean;
-  amrLoggedIn: boolean;
+  amrLoggedIn: boolean | null;
   amrAuthRequired: boolean;
   acpSsoConfigured?: boolean;
   embedSession?: boolean;
