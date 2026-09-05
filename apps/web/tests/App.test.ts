@@ -10,6 +10,7 @@ import {
   projectRouteSurfaceState,
   resolveDeepLinkedTeamSharedProject,
   resolveSettingsCloseConfig,
+  shouldForceCloudOnboarding,
   shouldRouteToFirstRunOnboarding,
   shouldSyncMediaProvidersOnSave,
 } from '../src/App';
@@ -79,6 +80,31 @@ describe('shouldRouteToFirstRunOnboarding', () => {
 
     expect(shouldRouteToFirstRunOnboarding(unfinished, '/projects/project-a')).toBe(false);
     expect(shouldRouteToFirstRunOnboarding(unfinished, '/')).toBe(true);
+  });
+});
+
+describe('shouldForceCloudOnboarding', () => {
+  it('does not bounce AMC embed or project deep links to sign-in onboarding', () => {
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: true,
+      routeKind: 'project',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      routeKind: 'project',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      routeKind: 'home',
+    })).toBe(true);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: false,
+      amcEmbed: false,
+      routeKind: 'home',
+    })).toBe(false);
   });
 });
 
