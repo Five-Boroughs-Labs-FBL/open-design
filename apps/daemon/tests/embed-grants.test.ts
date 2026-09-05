@@ -277,6 +277,12 @@ describe('embedGrantAllowsPath', () => {
     ['GET', '/api/agents', {}],
     ['GET', '/api/agents?stream=1', {}],
     ['HEAD', '/api/agents', {}],
+    ['GET', '/api/skills', {}],
+    ['GET', '/api/skills/html-prototype', {}],
+    ['GET', '/api/design-templates', {}],
+    ['GET', '/api/design-systems', {}],
+    ['GET', '/api/prompt-templates', {}],
+    ['GET', '/api/atoms', {}],
     ['GET', '/api/health', {}],
     ['GET', '/api/ready', {}],
     ['GET', '/api/version', {}],
@@ -291,6 +297,7 @@ describe('embedGrantAllowsPath', () => {
     ['GET', `/projects/${PROJECT_ID}/files/index.html`, {}],
     ['GET', '/api/runs', { projectId: PROJECT_ID }],
     ['POST', '/api/runs', { projectId: PROJECT_ID }],
+    ['POST', '/api/chat', { projectId: PROJECT_ID }],
   ] as const)('allows %s %s', (method, path, query) => {
     expect(embedGrantAllowsPath(g, method, path, query)).toBe(true);
   });
@@ -359,6 +366,16 @@ describe('embed grant request helpers', () => {
       originalUrl: '/api/runs',
       query: { projectId: PROJECT_ID },
     })).toBe(true);
+    expect(embedGrantForbidsRequest(g, {
+      body: { projectId: PROJECT_ID },
+      method: 'POST',
+      originalUrl: '/api/chat',
+    })).toBe(false);
+    expect(embedGrantForbidsRequest(g, {
+      body: { projectId: 'proj_other' },
+      method: 'POST',
+      originalUrl: '/api/chat',
+    })).toBe(true);
   });
 
   it('filters the project list to the grant pid and no-ops without a grant', () => {
@@ -406,6 +423,10 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/projects')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/projects')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/public-runtime')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/skills')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-templates')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-systems')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/skills/install')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/embed-grants')).toBe(false);
     expect(embedGrantForbidsRequest(catalog, {
       method: 'GET',
@@ -420,6 +441,39 @@ describe('embed grant request helpers', () => {
       originalUrl: '/api/projects/owned-2',
     })).toBe(true);
     expect(embedGrantAllowsProjectId(catalog, 'guessed-id')).toBe(false);
+  });
+
+  it('lets a catalog grant POST /api/chat only for ACP-owned projects', () => {
+    const catalog = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: USER_ID,
+    }).payload;
+    const lookup = (id: string) => {
+      if (id === 'owned-2') return { id, metadata: { acpUserId: USER_ID } };
+      if (id === 'other-3') return { id, metadata: { acpUserId: 'nope' } };
+      return null;
+    };
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/chat')).toBe(true);
+    expect(embedGrantForbidsRequest(catalog, {
+      body: { projectId: 'owned-2' },
+      method: 'POST',
+      originalUrl: '/api/chat',
+    }, lookup)).toBe(false);
+    expect(embedGrantForbidsRequest(catalog, {
+      body: { projectId: 'other-3' },
+      method: 'POST',
+      originalUrl: '/api/chat',
+    }, lookup)).toBe(true);
+    expect(embedGrantForbidsRequest(catalog, {
+      method: 'POST',
+      originalUrl: '/api/chat',
+    }, lookup)).toBe(true);
+    expect(embedGrantForbidsRequest(catalog, {
+      body: { projectId: 'owned-2' },
+      method: 'POST',
+      originalUrl: '/api/runs',
+    }, lookup)).toBe(false);
   });
 
   it('sets Secure from req.secure or x-forwarded-proto=https', () => {

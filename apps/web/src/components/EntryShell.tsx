@@ -108,6 +108,7 @@ import {
 import {
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
+  shouldShowCloudSignInTip,
 } from './entry-rail-account-state';
 import { LibrarySection } from './LibrarySection';
 import { UpdaterPopup } from './UpdaterPopup';
@@ -713,7 +714,11 @@ export function EntryShell({
     accountFooterNotice = <RailAccountSyncTip />;
   } else if (accountFooterState === 'recovering') {
     accountFooterNotice = <RailAccountRecoveryTip />;
-  } else if (accountFooterState === 'sign-in') {
+  } else if (shouldShowCloudSignInTip({
+    accountFooterState,
+    acpSsoResolved,
+    acpSsoUrl,
+  })) {
     accountFooterNotice = <CloudSignInTip />;
   }
   const workspaceContextRef = useRef(workspaceContext);

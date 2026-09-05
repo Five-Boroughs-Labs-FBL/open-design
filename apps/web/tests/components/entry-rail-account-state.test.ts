@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
+  shouldShowCloudSignInTip,
 } from '../../src/components/entry-rail-account-state';
 import type { WorkspaceContextState } from '../../src/collab/useWorkspaceContext';
 
@@ -74,6 +75,32 @@ describe('resolveEntryRailAccountFooterState', () => {
       loading: false,
       failure: 'unsupported',
     }, true)).toBe('sign-in');
+  });
+});
+
+describe('shouldShowCloudSignInTip', () => {
+  it('hides the OpenDesign Cloud rail after ACP SSO is the identity path', () => {
+    expect(shouldShowCloudSignInTip({
+      accountFooterState: 'sign-in',
+      acpSsoResolved: true,
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+    })).toBe(false);
+  });
+
+  it('does not flash the Cloud rail while public runtime is still loading', () => {
+    expect(shouldShowCloudSignInTip({
+      accountFooterState: 'sign-in',
+      acpSsoResolved: false,
+      acpSsoUrl: null,
+    })).toBe(false);
+  });
+
+  it('keeps the Cloud rail for local daemon without ACP SSO', () => {
+    expect(shouldShowCloudSignInTip({
+      accountFooterState: 'sign-in',
+      acpSsoResolved: true,
+      acpSsoUrl: null,
+    })).toBe(true);
   });
 });
 
