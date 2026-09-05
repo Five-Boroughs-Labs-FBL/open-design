@@ -47,6 +47,7 @@ vi.mock('../../src/collab/useWorkspaceContext', async (importOriginal) => {
 });
 
 import { HomeView } from '../../src/components/HomeView';
+import { HOME_APPLY_TEMPLATE_EVENT } from '../../src/components/home-hero/chips';
 import { homeHeroPromptText, setHomeHeroPrompt } from '../helpers/home-hero-lexical';
 
 // HomeHero's prompt input migrated from a <textarea>+highlight overlay to the
@@ -156,10 +157,31 @@ afterEach(() => {
 // #5517 removed the inline template rail from Home; scenario templates are
 // picked from the composer footer's radial Template picker instead.
 async function pickHomeTemplate(id: string) {
-  const trigger = await screen.findByTestId('home-hero-template-trigger');
-  await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(trigger);
-  fireEvent.click(await screen.findByTestId(`home-hero-template-wedge-${id}`));
+  // A type already picked retires the row, and the pill has no menu — so
+  // switching means clearing back to the empty state first.
+  const clear = screen.queryByTestId('home-hero-template-clear');
+  if (clear) fireEvent.click(clear);
+  const lead = await screen.findByTestId('home-hero-type-pill-prototype');
+  await waitFor(() => expect((lead as HTMLButtonElement).disabled).toBe(false));
+  let pill = screen.queryByTestId(`home-hero-type-pill-${id}`);
+  if (!pill) {
+    // Types behind 更多 mount only while its popover is open.
+    fireEvent.click(screen.getByTestId('home-hero-type-pills-more'));
+    pill = screen.queryByTestId(`home-hero-type-pill-${id}-more`);
+  }
+  if (pill) {
+    fireEvent.click(pill);
+    return;
+  }
+  // Types outside the fixed row (media, HyperFrames, …) are reached the way
+  // the workspace tabs-bar hands one off: the apply-template window event,
+  // which HomeHero applies exactly as a row click.
+  fireEvent.keyDown(document, { key: 'Escape' });
+  await act(async () => {
+    window.dispatchEvent(
+      new CustomEvent(HOME_APPLY_TEMPLATE_EVENT, { detail: { chipId: id } }),
+    );
+  });
 }
 
 describe('HomeView context picker', () => {
@@ -426,7 +448,7 @@ describe('HomeView context picker', () => {
     }));
   });
 
-  it('clears an active type chip when the user picks a skill (#2972)', async () => {
+  it('keeps the active type chip when the user picks a skill (#2972)', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
         return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
@@ -471,40 +493,31 @@ describe('HomeView context picker', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-active-skill')).toBeTruthy();
-      // Round-4 skin: the cleared template pill shows the gray creation-type
-      // kicker instead of a "None" placeholder label.
-      expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Creation type');
-      expect(screen.getByTestId('home-hero-template-trigger').textContent).not.toContain('Slide deck');
     });
+    // #2972 asked for a defined, explainable rule when the prompt's intent and
+    // the picked card disagree. The rule used to be "the Skill wins, drop the
+    // card", which routed a user who picked Prototype into a deck project
+    // behind their back. The task type now owns the route and the Skill rides
+    // along inside it, so the answer to the conflict is "both survive" — the
+    // strategy's own conflict order ranks the user-selected Skill above its
+    // task-type Skill in the prompt.
+    expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
 
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
+      automaticStrategyTaskProfile: 'prototype',
       skillId: DECK_SKILL.id,
-      projectKind: 'deck',
+      projectKind: 'prototype',
     }));
     expect(onSubmit.mock.calls[0]?.[0]?.pluginId).not.toBe('example-web-prototype');
   });
 
-  it('clears an active skill when the user picks a type chip (#2972)', async () => {
+  it('hands a supported automatic type entirely to OD Next without applying its legacy plugin', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
         return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      if (typeof url === 'string' && url.includes('/apply')) {
-        return new Response(JSON.stringify({
-          appliedPlugin: {
-            snapshotId: 'snap-web-prototype',
-            pluginId: 'example-web-prototype',
-            pluginVersion: '1.0.0',
-            inputs: {},
-          },
-          contextItems: [],
-        }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -545,7 +558,10 @@ describe('HomeView context picker', () => {
     await pickHomeTemplate('prototype');
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Prototype');
-      expect(screen.queryByTestId('home-hero-active-skill')).toBeNull();
+      // The mention the user typed is still in their prompt, so the Skill it
+      // named stays selected too — picking a task type decides the route, not
+      // what material the turn carries.
+      expect(screen.getByTestId('home-hero-active-skill')).toBeTruthy();
     });
 
     setHomeHeroPrompt('Build a pricing-page prototype.');
@@ -553,10 +569,18 @@ describe('HomeView context picker', () => {
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: 'example-web-prototype',
-      skillId: null,
+      pluginId: null,
+      pluginSelectionProvenance: 'automatic-default',
+      automaticStrategyTaskProfile: 'prototype',
+      skillId: SKILL.id,
       projectKind: 'prototype',
+      appliedPluginSnapshotId: null,
+      pluginTitle: null,
+      taskKind: null,
     })));
+    expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('pluginSource');
+    expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('pluginInputs');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/apply'))).toBe(false);
   });
 
   it('submits selected MCP servers and connectors as first-turn context', async () => {
@@ -690,24 +714,29 @@ describe('HomeView context picker', () => {
     );
 
     await screen.findByTestId('home-hero-input');
-    fireEvent.click(screen.getByTestId('home-hero-plus-trigger'));
-    fireEvent.click(await screen.findByTestId('composer-plus-reference-project'));
+    // 引用其它项目 moved from the "+" menu into the working-dir chip's menu.
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(await screen.findByTestId('working-dir-reference-project'));
     await screen.findByText('Reference A');
     fireEvent.click(screen.getByRole('button', { name: 'Reference project' }));
 
+    // The TRIGGER takes the reference's name and the prompt is left alone (per
+    // product: 工作目录会换成后边的文件名，不要在上边的输入框展示).
     await waitFor(() => {
-      expect(homeHeroPromptText().trim()).toBe('@Reference A');
+      expect(screen.getByTestId('working-dir-trigger').textContent).toContain('Reference A');
     });
+    expect(homeHeroPromptText().trim()).toBe('');
+    // A reference on its own is not a request; type first, then submit.
+    setHomeHeroPrompt('Describe this');
+    await settle();
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('selected reference folder');
     });
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(homeHeroPromptText().trim()).toBe('@Reference A');
-    expect(screen.getByTestId('home-hero-context-workspace-project:reference-a').textContent).toContain(
-      'Reference A',
-    );
+    expect(homeHeroPromptText().trim()).toBe('Describe this');
+    expect(screen.getByTestId('working-dir-trigger').textContent).toContain('Reference A');
   });
 
   it('keeps referenced project context visible after its inline mention is deleted', async () => {
@@ -773,20 +802,22 @@ describe('HomeView context picker', () => {
     );
 
     await screen.findByTestId('home-hero-input');
-    fireEvent.click(screen.getByTestId('home-hero-plus-trigger'));
-    fireEvent.click(await screen.findByTestId('composer-plus-reference-project'));
+    // 引用其它项目 moved from the "+" menu into the working-dir chip's menu.
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(await screen.findByTestId('working-dir-reference-project'));
     await screen.findByText('Reference A');
     fireEvent.click(screen.getByRole('button', { name: 'Reference project' }));
 
+    // Nothing lands in the prompt — the working-directory trigger is the only
+    // place the reference shows, exactly like a picked folder.
     await waitFor(() => {
-      expect(homeHeroPromptText().trim()).toBe('@Reference A');
+      expect(screen.getByTestId('working-dir-trigger').textContent).toContain('Reference A');
     });
+    expect(homeHeroPromptText()).not.toContain('@Reference A');
     setHomeHeroPrompt('Describe this');
     await settle();
 
-    expect(screen.getByTestId('home-hero-context-workspace-project:reference-a').textContent).toContain(
-      'Reference A',
-    );
+    expect(screen.getByTestId('working-dir-trigger').textContent).toContain('Reference A');
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));

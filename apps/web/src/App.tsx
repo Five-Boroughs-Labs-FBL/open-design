@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { flushSync } from 'react-dom';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { Button } from '@open-design/components';
+import { reportAgentDetectDiagnostics } from './analytics/agent-detect';
 import { useAnalytics } from './analytics/provider';
 import {
   trackExperienceSurveyDismissed,
@@ -27,12 +28,14 @@ import {
 import type {
   AmrModelsResponse,
   ChatSessionMode,
+  CreateProjectExampleReference,
   LocalCatalogScope,
   RunContextSelection,
   TeamProject,
   WorkspaceCollabContext,
   WorkspaceInvalidationSsePayload,
   ProjectWorkspaceScope,
+  ProjectScenarioTaskProfile,
   WorkspaceProjectSummary,
 } from '@open-design/contracts';
 import { DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID } from '@open-design/contracts';
@@ -130,8 +133,9 @@ import {
   notifyWorkspaceContextRefresh,
   resolveBoundProjectWorkspaceContext,
   resolveCurrentWorkspaceContextReadWitness,
-  useWorkspaceBilling,
+  useWorkspaceBillingResponse,
   useWorkspaceContext,
+  workspaceBillingSummaryForContext,
   workspaceIdentityCacheKey,
   workspaceResourceReadContext,
 } from './collab/useWorkspaceContext';
@@ -252,6 +256,9 @@ type AppCreateProjectInput = Omit<CreateInput, 'metadata'> & {
   pluginType?: string;
   appliedPluginSnapshotId?: string;
   pluginInputs?: Record<string, unknown>;
+  automaticStrategyTaskProfile?: ProjectScenarioTaskProfile;
+  /** Official example card the user picked under the automatic route. */
+  exampleReference?: CreateProjectExampleReference;
   initialRunContext?: RunContextSelection | null;
   conversationMode?: ChatSessionMode;
   autoSendFirstMessage?: boolean;
@@ -386,9 +393,10 @@ function clearStaleAmrModelChoiceOnProfileChange(
 }
 
 /**
- * Active Cloud sign-out is an account boundary. Remove every saved execution
- * choice that could leak account A's Hosted/Local/BYOK setup into account B,
- * while preserving unrelated product preferences and authored content.
+ * Active Cloud sign-out is an account boundary for Cloud-owned execution
+ * state. Local BYOK credentials and provider choices belong to this install,
+ * not the signed-in Cloud account, so keep them available when onboarding asks
+ * the user to choose an execution path again.
  */
 export function resetExecutionConfigAfterSignOut(config: AppConfig): AppConfig {
   return {
@@ -399,20 +407,6 @@ export function resetExecutionConfigAfterSignOut(config: AppConfig): AppConfig {
     agentModels: {},
     agentCliEnv: {},
     agentCliEnvIntent: {},
-    apiProtocol: DEFAULT_CONFIG.apiProtocol,
-    apiKey: DEFAULT_CONFIG.apiKey,
-    apiVersion: DEFAULT_CONFIG.apiVersion,
-    baseUrl: DEFAULT_CONFIG.baseUrl,
-    model: DEFAULT_CONFIG.model,
-    byokImageModel: DEFAULT_CONFIG.byokImageModel,
-    byokVideoModel: DEFAULT_CONFIG.byokVideoModel,
-    byokSpeechModel: DEFAULT_CONFIG.byokSpeechModel,
-    byokSpeechVoice: DEFAULT_CONFIG.byokSpeechVoice,
-    byokProviderConfigDrafts: {},
-    byokPendingProviderKey: undefined,
-    maxTokens: DEFAULT_CONFIG.maxTokens,
-    apiProviderBaseUrl: DEFAULT_CONFIG.apiProviderBaseUrl,
-    apiProtocolConfigs: {},
   };
 }
 
@@ -883,7 +877,6 @@ function AppInner() {
       ? ['pending-account', workspaceAccountGeneration]
       : ['workspace-account', workspaceAccountGeneration, currentWorkspaceIdentity],
   );
-  const workspaceBilling = useWorkspaceBilling();
   const workspaceContextRef = useRef<WorkspaceCollabContext | null>(null);
   const workspaceContextStateRef = useRef(workspaceContextState);
   const projectRouteWorkspaceContextRef = useRef<WorkspaceCollabContext | null>(null);
@@ -1260,6 +1253,8 @@ function AppInner() {
   const [appVersionInfo, setAppVersionInfo] = useState<AppVersionInfo | null>(
     null,
   );
+
+
   const [daemonMediaProviders, setDaemonMediaProviders] = useState<
     AppConfig['mediaProviders'] | null
   >(null);
@@ -1672,21 +1667,6 @@ function AppInner() {
     }, remainingMs);
     return () => window.clearTimeout(timeout);
   }, [amrAuthRetryContinuation, clearAmrAuthRetryContinuation]);
-  // The plan that gates free-tier surfaces (today: the post-generation artifact
-  // upsell). vela's login status is ACCOUNT-scoped, so a member whose plan is
-  // held by the team workspace reads `free` there and used to be shown the
-  // free-user banner; the workspace context's plan id is authoritative and
-  // wins. See resolvePlanTier for the full precedence rule.
-  const resolvedAmrPlan = resolvePlanTier({
-    billing: workspaceBilling,
-    context: workspaceContext,
-    accountPlan:
-      workspaceContextLoading || workspaceContext?.workspaceType === 'team'
-        ? null
-        : amrLoginStatus?.account?.plan?.trim()
-          || amrLoginStatus?.user?.plan?.trim()
-          || null,
-  });
   // Child surfaces report status snapshots, not login events. Deduplicate the
   // signed-in transition here: restarting the model poll for every Settings
   // snapshot updates `agents`, which makes Settings fetch status again and
@@ -2054,6 +2034,7 @@ function AppInner() {
       })
         .then((list) => {
           if (cancelled || !isCurrentAgentStreamRequest(agentRequestId)) return;
+          reportAgentDetectDiagnostics(analytics.track, list);
           setAgents(
             mergeAmrModelsIntoAgents(
               orderAgentsByRegistry(list),
@@ -2865,6 +2846,7 @@ function AppInner() {
           },
         });
         const ordered = orderAgentsByRegistry(next);
+        reportAgentDetectDiagnostics(analytics.track, ordered);
         if (isCurrentAgentStreamRequest(agentRequestId)) {
           setAgents(mergeAmrModelsIntoAgents(ordered, amrModelsRef.current));
           setAgentsLoading(false);
@@ -3034,6 +3016,12 @@ function AppInner() {
             ? { appliedPluginSnapshotId: input.appliedPluginSnapshotId }
             : {}),
           ...(input.pluginInputs ? { pluginInputs: input.pluginInputs } : {}),
+          ...(input.automaticStrategyTaskProfile
+            ? { automaticStrategyTaskProfile: input.automaticStrategyTaskProfile }
+            : {}),
+          ...(input.exampleReference
+            ? { exampleReference: input.exampleReference }
+            : {}),
           workspaceContext: createWorkspaceContext,
         });
       } catch (err) {
@@ -4235,6 +4223,23 @@ function AppInner() {
     [iframeKeepAlivePool, refreshDesignSystems],
   );
 
+  /**
+   * Invariant: leaving `/design-systems/create` returns the user to whatever
+   * surface opened it — the project conversation they were mid-task in, the
+   * composer's design-system picker, the Library, a home card — instead of a
+   * fixed destination. The page is reachable from all of those, so a hardcoded
+   * exit route silently abandons the work the user was in the middle of
+   * (OPEND-2249: creating a design system from inside a project conversation
+   * dropped them on the Design systems tab).
+   *
+   * The Design systems tab stays the fallback: it is where the standalone
+   * entry lives, so a deep link or fresh load — the only case with no in-app
+   * layer to step back to — still lands somewhere that makes sense.
+   */
+  const handleDesignSystemCreateBack = useCallback(() => {
+    goBack({ kind: 'home', view: 'design-systems' });
+  }, []);
+
   const handlePluginsChanged = useCallback((
     context: WorkspaceCollabContext | null,
     accountGeneration: number,
@@ -4368,6 +4373,36 @@ function AppInner() {
     ? projectRouteWorkspaceContext.context
     : null;
   projectRouteWorkspaceContextRef.current = activeProjectWorkspaceContext;
+  // The post-generation upgrade gate belongs to the project that owns the
+  // conversation, not whichever Workspace the navigation shell currently
+  // selects. A bound project stays fail-closed until its exact membership and
+  // billing snapshot resolve; borrowing the ambient/account Free plan here is
+  // what interrupted paid Team members with the Free upsell.
+  const amrUpgradeWorkspaceContext = activeProject?.workspaceId
+    ? activeProjectWorkspaceContext
+    : workspaceContext;
+  const amrUpgradeWorkspaceContextLoading = activeProject?.workspaceId
+    ? activeProjectWorkspaceContext === null
+    : workspaceContextLoading;
+  const amrUpgradeBillingResponse = useWorkspaceBillingResponse({
+    context: amrUpgradeWorkspaceContext,
+    loading: amrUpgradeWorkspaceContextLoading,
+  });
+  const amrUpgradeBilling = workspaceBillingSummaryForContext(
+    amrUpgradeBillingResponse,
+    amrUpgradeWorkspaceContext,
+  );
+  const resolvedAmrPlan = resolvePlanTier({
+    billing: amrUpgradeBilling,
+    context: amrUpgradeWorkspaceContext,
+    accountPlan:
+      amrUpgradeWorkspaceContextLoading
+      || amrUpgradeWorkspaceContext?.workspaceType === 'team'
+        ? null
+        : amrLoginStatus?.account?.plan?.trim()
+          || amrLoginStatus?.user?.plan?.trim()
+          || null,
+  });
   useEffect(() => {
     const pending = amrAuthRetryContinuationRef.current;
     if (!pending) return;
@@ -5056,7 +5091,7 @@ function AppInner() {
   } else if (route.kind === 'design-system-create') {
     appMain = (
       <DesignSystemCreationFlow
-        onBack={() => navigate({ kind: 'home', view: 'design-systems' })}
+        onBack={handleDesignSystemCreateBack}
         designSystems={enabledDS}
         onCreated={(projectId, project, conversationId) => {
           if (project) {
@@ -5408,8 +5443,8 @@ function AppInner() {
           identityScopeKey={workspaceTabsIdentityScopeKey}
         />
         )}
-        {/* Avatar + credits keep their home-view spot (the fixed top-right
-            corner over the tabs chrome) while a project tab is open, even
+        {/* Avatar + credits keep their home-view spot (the top-right actions
+            host inside the tabs chrome) while a project tab is open, even
             though EntryShell — the cluster's usual owner — is unmounted here.
             Home and the other entry views mount theirs through EntryNavRail;
             the routes are mutually exclusive, so exactly one is on screen. */}

@@ -182,9 +182,28 @@ export function buildLiveHtmlStreamBridgeSource(writtenHtml: string, generation:
  * Inner script for the lazy transport shell. First stream message
  * open+writes (no close). Later messages are handled by the injected bridge
  * after this document is replaced. Activate keeps the historical rewrite path.
+ *
+ * Also owns the upstream ready-announcement loop (#2253): a cached Blob can
+ * finish before React attaches the parent listener, so keep announcing until
+ * activation / shell-probe acknowledgement.
  */
 export function buildLiveHtmlStreamShellScript(): string {
   return `(function(){
+  var readyInterval = null;
+  var readyAttempts = 0;
+  function stopReadyAnnouncements(){
+    if (readyInterval !== null && typeof clearInterval === 'function') {
+      clearInterval(readyInterval);
+    }
+    readyInterval = null;
+  }
+  function announceReady(){
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'od:srcdoc-transport-ready' }, '*');
+      }
+    } catch (_) { /* sandboxed parent — host falls back to onLoad */ }
+  }
   function injectStreamBridge(html, generation) {
     var writtenJson = JSON.stringify(html).replace(/</g, '\\\\u003c');
     var genJson = JSON.stringify(generation).replace(/</g, '\\\\u003c');
@@ -215,9 +234,13 @@ export function buildLiveHtmlStreamShellScript(): string {
     }
     return bridge + html;
   }
-  window.addEventListener('message', function(ev){
+  function handleTransportMessage(ev){
     var data = ev && ev.data;
     if (!data) return;
+    if (data.type === 'od:srcdoc-transport-shell-probe') {
+      announceReady();
+      return;
+    }
     if (data.type === '${SRCDOC_STREAM_MESSAGE_TYPE}' && typeof data.html === 'string' && typeof data.generation === 'string' && data.generation) {
       document.open();
       document.write(injectStreamBridge(data.html, data.generation));
@@ -225,14 +248,27 @@ export function buildLiveHtmlStreamShellScript(): string {
       return;
     }
     if (data.type !== 'od:srcdoc-transport-activate' || typeof data.html !== 'string' || typeof data.generation !== 'string' || !data.generation) return;
+    stopReadyAnnouncements();
+    if (typeof window.removeEventListener === 'function') {
+      window.removeEventListener('message', handleTransportMessage);
+    }
     document.open();
     document.write(data.html);
     document.close();
-  });
-  try {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'od:srcdoc-transport-ready' }, '*');
-    }
-  } catch (_) {}
+  }
+  window.addEventListener('message', handleTransportMessage);
+  announceReady();
+  // A cached app-lifetime Blob can finish long before React attaches the
+  // parent's listener. Keep announcing until activation instead of
+  // guessing a host-mount delay; cap the retries so a broken host cannot
+  // leave a background timer running forever. The host's probe remains a
+  // recovery path after this ten-second window.
+  if (window.parent && window.parent !== window && typeof setInterval === 'function') {
+    readyInterval = setInterval(function(){
+      announceReady();
+      readyAttempts += 1;
+      if (readyAttempts >= 100) stopReadyAnnouncements();
+    }, 100);
+  }
 })();`;
 }

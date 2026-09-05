@@ -310,7 +310,9 @@ describe('EntryShell AMR workspace precheck race', () => {
     setHomeHeroPrompt('Create a poster after I sign in.');
     fireEvent.click(await screen.findByTestId('home-hero-submit'));
 
-    await waitFor(() => expect(mockedCheckAmrBalanceGate).toHaveBeenCalledWith(undefined));
+    await waitFor(() => {
+      expect(mockedCheckAmrBalanceGate).toHaveBeenCalledWith(undefined, 'glm-5');
+    });
     const dialog = await screen.findByTestId('amr-balance-dialog');
     expect(dialog.getAttribute('data-reason')).toBe('signed_out');
     expect(onCreateProject).not.toHaveBeenCalled();
@@ -393,7 +395,9 @@ describe('EntryShell AMR workspace precheck race', () => {
     setHomeHeroPrompt('Create through the old daemon compatibility lane.');
     fireEvent.click(await screen.findByTestId('home-hero-submit'));
 
-    await waitFor(() => expect(mockedCheckAmrBalanceGate).toHaveBeenCalledWith(undefined));
+    await waitFor(() => {
+      expect(mockedCheckAmrBalanceGate).toHaveBeenCalledWith(undefined, 'glm-5');
+    });
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
   });
 
@@ -556,7 +560,10 @@ describe('EntryShell AMR workspace precheck race', () => {
       await Promise.resolve();
     });
     expect(mockedCheckAmrBalanceGate).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('home-hero-submit').getAttribute('aria-busy')).toBe('true');
+    // The Home arrow never flashes a busy treatment (the destination Chat frame
+    // owns progress); the in-flight window is only visible as the disabled lock.
+    expect((screen.getByTestId('home-hero-submit') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('home-hero-submit').getAttribute('aria-busy')).toBe('false');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400);
@@ -890,7 +897,7 @@ describe('EntryShell AMR workspace precheck race', () => {
         workspaceType: 'team',
         workspaceId: 'workspace-a',
         workspaceMemberId: 'member-a',
-      });
+      }, 'glm-5');
     });
 
     currentContext = workspaceB;
@@ -905,7 +912,7 @@ describe('EntryShell AMR workspace precheck race', () => {
         workspaceType: 'team',
         workspaceId: 'workspace-b',
         workspaceMemberId: 'member-b',
-      });
+      }, 'glm-5');
     });
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
     expect(onCreateProject).toHaveBeenCalledWith(

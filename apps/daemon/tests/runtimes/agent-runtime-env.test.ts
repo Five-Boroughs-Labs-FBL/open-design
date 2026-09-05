@@ -1,7 +1,7 @@
+import os from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
-import { SIDECAR_ENV } from '@open-design/sidecar-proto';
 
 import {
   createAgentRuntimeEnv,
@@ -48,6 +48,21 @@ describe('agent runtime tool environment', () => {
       OD_NODE_BIN: '/opt/open-design/bin/node',
       OD_TOOL_TOKEN: 'fresh-token',
     });
+  });
+
+  it('merges an opaque environment supplied by the runtime integration seam', () => {
+    const inheritedEnvironment = vi.fn(() => ({ OD_OPAQUE_CLIENT_CAPABILITY: 'capability' }));
+    const baseEnv = { PATH: '/bin' };
+    const env = createAgentRuntimeEnv(
+      baseEnv,
+      'http://127.0.0.1:7456',
+      null,
+      '/opt/open-design/bin/node',
+      inheritedEnvironment,
+    );
+
+    expect(inheritedEnvironment).toHaveBeenCalledWith(baseEnv);
+    expect(env.OD_OPAQUE_CLIENT_CAPABILITY).toBe('capability');
   });
 
   it('prepends node binary directory to PATH when not already present', () => {
@@ -224,6 +239,23 @@ describe('agent runtime tool environment', () => {
     expect(env.OD_HYPERFRAMES_BIN).toBe('/opt/open-design/hyperframes/bin/hyperframes.mjs');
   });
 
+  it('names the codex rollout root so a complex Run can observe its native Children', () => {
+    // `collectCodexChildEvidence` reads
+    // `<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-*.jsonl` and deliberately
+    // refuses a homedir fallback, so it can never attribute one install's
+    // sessions to another. That leaves the caller owing it an explicit root,
+    // and nothing supplied one: the collector's `CODEX_HOME` guard was false on
+    // every default install, so a complex Run's native Children went
+    // unobserved and certification failed for evidence never looked for.
+    const env = spawnEnvForAgent('codex', { PATH: '/bin' });
+    expect(env.CODEX_HOME).toBe(path.join(os.homedir(), '.codex'));
+  });
+
+  it('leaves an explicitly configured codex rollout root alone', () => {
+    const env = spawnEnvForAgent('codex', { PATH: '/bin', CODEX_HOME: '/custom/codex' });
+    expect(env.CODEX_HOME).toBe('/custom/codex');
+  });
+
   it('keeps non-sandbox NO_PROXY behavior unchanged', () => {
     const env = createAgentRuntimeEnv(
       { PATH: '/bin', HTTP_PROXY: 'http://127.0.0.1:9', NO_PROXY: '' },
@@ -235,33 +267,6 @@ describe('agent runtime tool environment', () => {
     expect(env.HTTP_PROXY).toBe('http://127.0.0.1:9');
     expect(env.NO_PROXY).toBe('');
     expect(env.no_proxy).toBeUndefined();
-  });
-
-  it('passes the daemon sidecar IPC path from the explicit base env into agent wrapper sessions', () => {
-    const env = createAgentRuntimeEnv(
-      { PATH: '/bin', [SIDECAR_ENV.IPC_PATH]: '/tmp/open-design/ipc/daemon.sock' },
-      'http://127.0.0.1:7456',
-      null,
-      '/opt/open-design/bin/node',
-    );
-
-    expect(env[SIDECAR_ENV.IPC_PATH]).toBe('/tmp/open-design/ipc/daemon.sock');
-  });
-
-  it('does not pull the daemon sidecar IPC path from ambient process state', () => {
-    vi.stubEnv(SIDECAR_ENV.IPC_PATH, '/tmp/open-design/ipc/stale.sock');
-    try {
-      const env = createAgentRuntimeEnv(
-        { PATH: '/bin' },
-        'http://127.0.0.1:7456',
-        null,
-        '/opt/open-design/bin/node',
-      );
-
-      expect(env[SIDECAR_ENV.IPC_PATH]).toBeUndefined();
-    } finally {
-      vi.unstubAllEnvs();
-    }
   });
 
   it('describes daemon URL and token availability without exposing the token', () => {

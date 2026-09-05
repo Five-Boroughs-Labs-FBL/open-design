@@ -100,6 +100,12 @@ export interface ProjectPreviewScopeDeps {
     options?: { readonly ttlMs?: number },
   ) => string;
   revoke: (scope: string) => void;
+  expiresAt: (projectId: string, scope: string) => number | undefined;
+  renew: (
+    projectId: string,
+    scope: string,
+    options?: { readonly ttlMs?: number },
+  ) => number | undefined;
   validate: (projectId: string, scope: string) => boolean;
   resolve: (
     projectId: string,
@@ -180,7 +186,11 @@ export interface ServerContext {
   orbit: any;
   nativeDialogs: any;
   research: any;
-  mcp: any;
+  mcp: {
+    pendingAuth: any;
+    daemonUrlRef: { current: string };
+    inheritedEnvironment: (baseEnv?: NodeJS.ProcessEnv) => Record<string, string>;
+  };
   plugins: any;
   resources: ResourceDeps;
   routines: RoutineDeps;

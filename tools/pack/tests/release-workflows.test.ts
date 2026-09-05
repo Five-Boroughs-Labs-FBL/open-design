@@ -2,6 +2,15 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import linuxPack from "@/linux.ts?raw";
+import macBuild from "@/mac/build.ts?raw";
+import macFs from "@/mac/fs.ts?raw";
+import macLifecycle from "@/mac/lifecycle.ts?raw";
+import macWorkspace from "@/mac/workspace.ts?raw";
+import workspaceBuild from "@/workspace-build.ts?raw";
+import winApp from "@/win/app.ts?raw";
+import winLifecycle from "@/win/lifecycle.ts?raw";
+
 function sectionBetween(content: string, start: string, end: string): string {
   const startIndex = content.indexOf(start);
   expect(startIndex).toBeGreaterThanOrEqual(0);
@@ -37,7 +46,7 @@ describe("release workflows", () => {
   });
 
   it("requires Vela CLI for every beta desktop packaging target", async () => {
-    const [beta, prerelease, stable, stablePrepare, buildMac, buildWin, prepareMac, prepareWin, publishPlatform, winLifecycle, desktopUpdater, macBuild, macFs, installUnsafeDmg, winApp, macWorkspace, linuxPack] = await Promise.all([
+    const [beta, prerelease, stable, stablePrepare, buildMac, buildWin, prepareMac, prepareWin, publishPlatform, desktopUpdater, installUnsafeDmg] = await Promise.all([
       readFile(new URL("../../../.github/workflows/release-beta.yml", import.meta.url), "utf8"),
       readFile(new URL("../../../.github/workflows/release-prerelease.yml", import.meta.url), "utf8"),
       readFile(new URL("../../../.github/workflows/release-stable.yml", import.meta.url), "utf8"),
@@ -47,14 +56,8 @@ describe("release workflows", () => {
       readFile(new URL("../../../tools/release/scripts/prepare-platform-assets.sh", import.meta.url), "utf8"),
       readFile(new URL("../../../tools/release/scripts/prepare-platform-assets.ps1", import.meta.url), "utf8"),
       readFile(new URL("../../../tools/release/src/storage/publish-platform.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/win/lifecycle.ts", import.meta.url), "utf8"),
       readFile(new URL("../../../apps/desktop/src/main/updater/payload.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/mac/build.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/mac/fs.ts", import.meta.url), "utf8"),
       readFile(new URL("../../../scripts/install-unsafe-dmg.sh", import.meta.url), "utf8"),
-      readFile(new URL("../src/win/app.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/mac/workspace.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/linux.ts", import.meta.url), "utf8"),
     ]);
     const mac = sectionBetween(beta, "  build_mac_arm64:", "  build_mac_x64:");
     const macX64 = sectionBetween(beta, "  build_mac_x64:", "  build_win_x64:");
@@ -172,21 +175,25 @@ describe("release workflows", () => {
     expect(winLifecycle).toContain("const launcher = resolveToolPackLauncherLayout(config)");
     expect(winLifecycle).toContain("await removeTree(launcher.paths.namespaceRoot)");
     expect(winLifecycle).toContain("removedLauncherNamespaceRoot");
+    expect(macLifecycle).toContain("const launcher = resolveToolPackLauncherLayout(config)");
+    expect(macLifecycle).toContain("await rm(launcher.paths.namespaceRoot, { force: true, recursive: true })");
+    expect(macLifecycle).toContain("removedLauncherNamespaceRoot");
     expect(buildWin).toContain('Measure-Step "validate launcher payload artifact"');
     expect(buildWin).toContain('Measure-Step "validate launcher payload update fixture"');
     expect(buildWin).toContain('Test-JsonString $manifest.entry.executable "entry.executable" "payload/Open Design.exe"');
-    for (const workspaceBuild of [winApp, macWorkspace, linuxPack]) {
-      const sidecarProtoBuild = 'await runPnpm(config, ["--filter", "@open-design/sidecar-proto", "build"])';
-      const launcherProtoBuild = 'await runPnpm(config, ["--filter", "@open-design/launcher-proto", "build"])';
-      const sidecarBuild = 'await runPnpm(config, ["--filter", "@open-design/sidecar", "build"])';
-      const dshRuntimeBuild = 'await runPnpm(config, ["--filter", "@open-design/dsh-runtime", "build"])';
-      const daemonBuild = 'await runPnpm(config, ["--filter", "@open-design/daemon", "build"])';
-      expect(workspaceBuild).toContain(launcherProtoBuild);
-      expect(workspaceBuild).toContain(dshRuntimeBuild);
-      expect(workspaceBuild.indexOf(sidecarProtoBuild)).toBeLessThan(workspaceBuild.indexOf(launcherProtoBuild));
-      expect(workspaceBuild.indexOf(launcherProtoBuild)).toBeLessThan(workspaceBuild.indexOf(sidecarBuild));
-      expect(workspaceBuild.indexOf(dshRuntimeBuild)).toBeLessThan(workspaceBuild.indexOf(daemonBuild));
+    expect(winApp).toContain("return ensureWorkspaceBuildArtifacts(");
+    expect(macWorkspace).toContain("await ensureWorkspaceBuildArtifacts(");
+    expect(linuxPack).toContain("await runWorkspaceBuild(");
+    for (const buildSource of [winApp, macWorkspace, linuxPack]) {
+      expect(buildSource).not.toContain('["--filter", "@open-design/platform", "build"]');
+      expect(buildSource).not.toContain('["--filter", "@open-design/sidecar", "build"]');
     }
+    const dependencyClosureBuild = '"--filter", "@open-design/packaged^..."';
+    const webSidecarBuild = '"--filter", "@open-design/web", "run", "build:sidecar"';
+    const packagedBuild = '"--filter", "@open-design/packaged", "run", "build"';
+    expect(workspaceBuild).toContain('"--filter", "@open-design/dsh-runtime..."');
+    expect(workspaceBuild.indexOf(dependencyClosureBuild)).toBeLessThan(workspaceBuild.indexOf(webSidecarBuild));
+    expect(workspaceBuild.indexOf(webSidecarBuild)).toBeLessThan(workspaceBuild.indexOf(packagedBuild));
     expect(prerelease).toContain("name: release-prerelease");
     expect(prerelease).toContain("pnpm exec tools-release prepare prerelease");
     expect(prerelease).toContain("OPEN_DESIGN_PRERELEASE_METADATA_URL");

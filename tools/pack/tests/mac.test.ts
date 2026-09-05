@@ -1,21 +1,23 @@
-import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os, { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ToolPackConfig } from "../src/config.js";
+import type { ToolPackConfig } from "@/config/index.js";
 import {
   copyMacPrebundleRuntimeDependencies,
   copyResourceTree,
   createMacElectronRebuildOptions,
   renderMacPackagedConfig,
+  toRelativeImportSpecifier,
   validateMacNativeRebuildOutput,
-} from "../src/mac/app.js";
-import { runElectronBuilder } from "../src/mac/builder.js";
-import { resolveSeededAppConfigPaths, seedPackagedAppConfig, writeLaunchPackagedConfig } from "../src/mac/index.js";
-import { resolveMacPaths } from "../src/mac/paths.js";
+} from "@/mac/app.js";
+import macBuilderSource from "@/mac/builder.ts?raw";
+import { runElectronBuilder } from "@/mac/builder.js";
+import { resolveSeededAppConfigPaths, seedPackagedAppConfig, writeLaunchPackagedConfig } from "@/mac/index.js";
+import { resolveMacPaths } from "@/mac/paths.js";
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -74,11 +76,30 @@ afterEach(() => {
   }
 });
 
+describe("mac prebundle entrypoints", () => {
+  it("canonicalizes symlinked roots before rendering relative imports", async () => {
+    const root = await mkdtemp(join(tmpdir(), "od-mac-prebundle-path-"));
+    const physicalRoot = join(root, "physical");
+    const linkedRoot = join(root, "linked");
+    const fromDirectory = join(physicalRoot, "entrypoints");
+    const targetPath = join(physicalRoot, "dist", "entry.js");
+    await mkdir(fromDirectory, { recursive: true });
+    await mkdir(dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, "export {};\n", "utf8");
+    await symlink(physicalRoot, linkedRoot, "dir");
+    try {
+      await expect(toRelativeImportSpecifier(join(linkedRoot, "entrypoints"), targetPath))
+        .resolves.toBe("../dist/entry.js");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+});
+
 describe("resolveSeededAppConfigPaths", () => {
-  it("declares the Workspace invite URL scheme in the packaged app metadata", async () => {
-    const source = await readFile(new URL("../src/mac/builder.ts", import.meta.url), "utf8");
-    expect(source).toContain("protocols: [");
-    expect(source).toContain('schemes: ["opendesign"]');
+  it("declares the Workspace invite URL scheme in the packaged app metadata", () => {
+    expect(macBuilderSource).toContain("protocols: [");
+    expect(macBuilderSource).toContain('schemes: ["opendesign"]');
   });
 
   it("uses workspace .od by default", () => {

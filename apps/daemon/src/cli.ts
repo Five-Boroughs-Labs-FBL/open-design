@@ -15,8 +15,8 @@ import { parseDesignSystemRenameArgs } from './design-systems/rename-args.js';
 import { runLiveArtifactsToolCli } from './tools-live-artifacts-cli.js';
 import { splitResearchSubcommand } from './research/cli-args.js';
 import { resolveDaemonUrl } from './daemon-url.js';
-import { requestJsonIpc } from '@open-design/sidecar';
-import { SIDECAR_ENV, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
+import { SidecarFactory } from '@open-design/sidecar';
+import { APP_KEYS, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
 import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS, DESIGN_MANIFEST_MAX_SURFACES } from '@open-design/contracts';
 import type { ArtifactLintFinding, LintArtifactCliResultEnvelope, LintArtifactResponse, LintFailOn } from '@open-design/contracts';
 import { buildExportCliRequestBody, buildExportCliResultEnvelope, resolveExportCliDeckMode } from './export-cli-request.js';
@@ -245,7 +245,8 @@ const MESSAGE_CENTER_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const PROJECT_STRING_FLAGS = new Set([
   'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json',
   'pending-prompt', 'project', 'conversation', 'message', 'prompt',
-  'prompt-file', 'path', 'dir', 'as', 'url',
+  'prompt-file', 'task-execution', 'path', 'dir', 'as', 'url',
+  'client-request-id',
   'agent', 'model', 'service-tier', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
   'source', 'file', 'expected-revision',
@@ -349,6 +350,8 @@ const BRAND_BOOLEAN_FLAGS = new Set([
 ]);
 const AGENT_STRING_FLAGS = new Set(['daemon-url']);
 const AGENT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+const STRATEGY_STRING_FLAGS = new Set(['daemon-url', 'expected-revision']);
+const STRATEGY_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 // Hoisted because `runAutomation` is reachable through the top-of-file
 // SUBCOMMAND_MAP dispatch, which runs during module evaluation —
 // any `const` declared further down would still be in TDZ when
@@ -398,6 +401,7 @@ const SUBCOMMAND_MAP = {
   brand: runBrand,
   brands: runBrand,
   project: runProject,
+  strategy: runStrategy,
   workspace: runWorkspace,
   automation: runAutomation,
   automations: runAutomation,
@@ -426,6 +430,106 @@ const SUBCOMMAND_MAP = {
   library: runLibrary,
   figma: runFigma,
 };
+
+function printStrategyHelp() {
+  console.log(`Usage:
+  od strategy rollout status [--json] [--daemon-url <url>]
+  od strategy rollout reset [--expected-revision <n>] [--json] [--daemon-url <url>]
+
+Inspect or reset the OD Next safety latch for this daemon instance. Reset is
+compare-and-swap protected; when --expected-revision is omitted the CLI first
+reads status and submits that exact revision.
+
+OD Next is opt-in and off until this installation asks for it:
+
+  od config set odNextStrategyMode active    Opt in; takes effect next run.
+  od config set odNextStrategyMode off       Opt back out.
+
+The status subcommand reports which authority set the mode in effect (env /
+app_config / default), so you can confirm the configuration landed.
+
+Options:
+  --expected-revision <n>  Reset only the status revision you inspected.
+  --json                   Emit the daemon response as JSON.
+  --daemon-url <url>       Override the Open Design daemon HTTP base.`);
+}
+
+function printStrategyRolloutStatus(status) {
+  console.log(`Strategy\t${status.strategyId}`);
+  console.log(`Scope\t${status.scope}`);
+  console.log(`Requested mode\t${status.requestedMode}`);
+  if (status.requestedModeSource) console.log(`Requested by\t${status.requestedModeSource}`);
+  console.log(`Effective mode\t${status.effectiveMode}`);
+  console.log(`Latch\t${status.latch?.mode ?? 'none'}`);
+  if (status.latch?.reasonCode) console.log(`Reason\t${status.latch.reasonCode}`);
+  console.log(`Revision\t${status.revision}`);
+  if (status.lastEvent) {
+    console.log(`Last event\t${status.lastEvent.action}:${status.lastEvent.reasonCode}`);
+  }
+}
+
+async function runStrategy(args) {
+  if (
+    args.length === 0
+    || args[0] === 'help'
+    || args.includes('--help')
+    || args.includes('-h')
+  ) {
+    printStrategyHelp();
+    process.exit(args.length === 0 ? 2 : 0);
+  }
+  const [area, action = 'status', ...rest] = args;
+  if (area !== 'rollout' || (action !== 'status' && action !== 'reset')) {
+    printStrategyHelp();
+    process.exit(2);
+  }
+  const flags = parseFlags(rest, {
+    string: STRATEGY_STRING_FLAGS,
+    boolean: STRATEGY_BOOLEAN_FLAGS,
+  });
+  const base = (await cliDaemonUrl(flags)).replace(/\/$/, '');
+  const readStatus = async () => {
+    let response;
+    try {
+      response = await fetch(`${base}/api/strategies/od-next/rollout`);
+    } catch (error) {
+      surfaceFetchError(error, base);
+      process.exit(3);
+    }
+    if (!response.ok) return structuredHttpFailure(response);
+    return response.json();
+  };
+  if (action === 'status') {
+    const payload = await readStatus();
+    if (flags.json) return process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    printStrategyRolloutStatus(payload.status);
+    return;
+  }
+
+  const inspected = await readStatus();
+  const expectedRevision = flags['expected-revision'] == null
+    ? inspected.status.revision
+    : Number(flags['expected-revision']);
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
+    console.error('--expected-revision must be a non-negative integer');
+    process.exit(2);
+  }
+  let response;
+  try {
+    response = await fetch(`${base}/api/strategies/od-next/rollout/reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedRevision }),
+    });
+  } catch (error) {
+    surfaceFetchError(error, base);
+    process.exit(3);
+  }
+  if (!response.ok) return structuredHttpFailure(response);
+  const payload = await response.json();
+  if (flags.json) return process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+  printStrategyRolloutStatus(payload.status);
+}
 
 function printAgentHelp() {
   console.log(`Usage: od agent setup deepseek-harness [options]
@@ -1624,7 +1728,7 @@ Output is JSON only on stdout:
 Flags:
   --query        Required search query.
   --max-sources  Optional source cap. Defaults to 5, clamped to Tavily's max.
-  --daemon-url   Local daemon URL. Defaults to OD_DAEMON_URL, OD_SIDECAR_IPC_PATH discovery, or http://127.0.0.1:7456.`);
+  --daemon-url   Local daemon URL. Defaults to OD_DAEMON_URL, inherited sidecar discovery, or http://127.0.0.1:7456.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -2260,7 +2364,7 @@ every iteration.
 
 Options:
   --daemon-url <url>   OpenDesign daemon HTTP base URL. Resolution
-                       order: this flag, OD_DAEMON_URL, OD_SIDECAR_IPC_PATH,
+                       order: this flag, OD_DAEMON_URL, inherited sidecar status,
                        then http://127.0.0.1:7456. Each new MCP spawn
                        discovers the live daemon URL at startup, so
                        MCP client configs stay valid across daemon
@@ -2272,6 +2376,14 @@ Options:
                        before calls and safely retries reads when the
                        daemon changes ports, so an existing task can
                        survive an OpenDesign restart.
+
+Environment:
+  OD_MCP_STDIO_IDLE_EXIT_MS
+                       Milliseconds without MCP activity before this
+                       stdio process exits. Defaults to 1800000 (30
+                       minutes), is capped at 86400000 (24 hours), and
+                       can be set to 0 to keep the process alive until
+                       the MCP client disconnects.
 
 Tools exposed:
   list_projects                  list every OpenDesign project
@@ -3127,7 +3239,7 @@ async function runMarketplace(args) {
                                                               Update the marketplace trust tier.
 
 Common options:
-  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, OD_SIDECAR_IPC_PATH discovery, or http://127.0.0.1:7456).
+  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, inherited sidecar discovery, or http://127.0.0.1:7456).
   --json               Emit raw JSON (suitable for scripts).`);
     process.exit(args.length === 0 ? 2 : 0);
   }
@@ -6023,7 +6135,7 @@ function printUiHelp() {
                                                      Pre-answer a surface so the run never broadcasts it.
 
 Common options:
-  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, OD_SIDECAR_IPC_PATH discovery, or http://127.0.0.1:7456).
+  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, inherited sidecar discovery, or http://127.0.0.1:7456).
   --workspace <id>     Explicit Workspace id for a bound project or run.
   --workspace-member <id>
                        Explicit Workspace member id for a bound project or run.
@@ -6081,7 +6193,7 @@ function printPluginHelp() {
   od plugin whoami [--host github.com]     Show the gh account used for publishing.
 
 Common options:
-  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, OD_SIDECAR_IPC_PATH discovery, or http://127.0.0.1:7456).
+  --daemon-url <url>   OpenDesign daemon HTTP base (default OD_DAEMON_URL, inherited sidecar discovery, or http://127.0.0.1:7456).
   --json               Emit raw JSON (suitable for scripts) instead of human-readable output.
 
 Installs support local folders, github:owner/repo refs, HTTPS .tgz archives,
@@ -6892,6 +7004,9 @@ async function runProject(args) {
   od project design-manifest put <id> --file <path|-> --expected-revision <n>
                     [--json]
                     Replace the manifest with optimistic revision checking.
+  od project restore-automatic-scenario <id> [--json]
+                                          Restore the daemon-selected default
+                                          scenario with a snapshot CAS guard.
   od project delete <id>                  Delete a project.
   od project revoke-public-link <id> --path <file> --url <public-url>
                     Revoke a public file link whose local publication record
@@ -7042,6 +7157,30 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'restore-automatic-scenario': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      if (!id) {
+        console.error('Usage: od project restore-automatic-scenario <id> [--json]');
+        process.exit(2);
+      }
+      const infoResponse = await fetch(`${base}/api/projects/${encodeURIComponent(id)}`, {
+        headers: workspaceHeaders,
+      });
+      if (!infoResponse.ok) return structuredHttpFailure(infoResponse, 'project-not-found');
+      const info = await infoResponse.json();
+      const data = await postJsonToDaemon(
+        base,
+        `/api/projects/${encodeURIComponent(id)}/scenario/restore-automatic`,
+        { expectedCurrentSnapshotId: info.project?.appliedPluginSnapshotId ?? null },
+        workspaceHeaders,
+      );
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(
+        `[project] automatic scenario ${data.changed ? 'restored' : 'already active'} `
+        + `${data.scenarioBinding?.pluginId ?? '-'}@${data.scenarioBinding?.snapshotId ?? '-'}`,
+      );
       return;
     }
     case 'revoke-public-link': {
@@ -7571,7 +7710,9 @@ async function runRun(args) {
   if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
     console.log(`Usage:
   od run start --project <projectId> [--conversation <id>] [--message "<text>"]
-               [--plugin <id>] [--inputs <json>] [--grant-caps a,b]
+               [--prompt-file <path|->] [--task-execution <id>]
+               [--client-request-id <id>]
+               [--skill <id>[,<id>]] [--plugin <id>] [--inputs <json>] [--grant-caps a,b]
                [--surface-ids id[,id...] --expected-revision <n>]
                [--agent claude|codex|opencode] [--model <id>] [--service-tier <id>]
                [--workspace <id> --workspace-member <id>] [--follow] [--json]
@@ -7611,7 +7752,8 @@ Common options:
       if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
       const runs = data?.runs ?? [];
       for (const r of runs) {
-        console.log(`${r.id}\t${r.status}\tproject=${r.projectId ?? '-'}\tplugin=${r.pluginId ?? '-'}`);
+        const task = r.strategyTask;
+        console.log(`${r.id}\t${r.status}\tproject=${r.projectId ?? '-'}\tplugin=${r.pluginId ?? '-'}${task ? `\ttask=${task.taskExecutionId}\tactive=${task.activeRunId}\toutcome=${task.outcome}` : ''}`);
       }
       return;
     }
@@ -7649,6 +7791,9 @@ Common options:
       console.log(`workspace\t${storage.kind ?? '-'}\t${storage.baseDir ?? '-'}`);
       console.log(`provenance\t${provenance?.kind ?? '-'}\twriteback=${provenance?.writeback ?? '-'}`);
       console.log(`project\t${data?.project?.id ?? '-'}\tfiles=${data?.project?.fileCount ?? 0}`);
+      if (data?.strategyTask) {
+        console.log(`task\t${data.strategyTask.taskExecutionId}\tactive=${data.strategyTask.activeRunId}\toutcome=${data.strategyTask.outcome}`);
+      }
       const artifacts = Array.isArray(data?.artifacts) ? data.artifacts : [];
       for (const artifact of artifacts) {
         console.log(`artifact\t${artifact.file ?? '-'}\t${artifact.kind ?? '-'}\t${artifact.title ?? '-'}`);
@@ -7666,7 +7811,13 @@ Common options:
         headers: workspaceHeaders,
       });
       if (!resp.ok) return structuredHttpFailure(resp, 'run-not-found');
-      console.log(`[run] cancelled ${id}`);
+      const data = await resp.json();
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      const canceledRun = data?.run ?? {};
+      console.log(`[run] cancelled ${canceledRun.id ?? id}`);
+      if (canceledRun.strategyTask) {
+        console.log(`task\t${canceledRun.strategyTask.taskExecutionId}\tactive=${canceledRun.strategyTask.activeRunId}\toutcome=${canceledRun.strategyTask.outcome}`);
+      }
       return;
     }
     case 'continue': {
@@ -7798,7 +7949,14 @@ Common options:
       const message = await readRunMessageFromFlags(flags);
       if (message) body.message = message;
       if (flags.plugin) body.pluginId = flags.plugin;
-      if (flags.skill) body.skillId = flags.skill;
+      if (flags.skill) {
+        const selectedSkillIds = splitCommaSeparatedIds(flags.skill);
+        if (selectedSkillIds.length === 1) body.skillId = selectedSkillIds[0];
+        if (selectedSkillIds.length > 1) {
+          body.skillId = selectedSkillIds[0];
+          body.skillIds = selectedSkillIds;
+        }
+      }
       if (flags['design-system']) body.designSystemId = flags['design-system'];
       if (flags.agent) body.agentId = flags.agent;
       if (flags.model) body.model = flags.model;
@@ -7813,6 +7971,8 @@ Common options:
         body.grantCaps = String(flags['grant-caps']).split(',').map((c) => c.trim()).filter(Boolean);
       }
       if (flags['snapshot-id']) body.appliedPluginSnapshotId = flags['snapshot-id'];
+      if (flags['task-execution']) body.taskExecutionId = flags['task-execution'];
+      if (flags['client-request-id']) body.clientRequestId = flags['client-request-id'];
       if (flags['surface-ids'] !== undefined || flags['expected-revision'] !== undefined) {
         const surfaceIds = String(flags['surface-ids'] ?? '')
           .split(',')
@@ -7871,36 +8031,60 @@ Common options:
 // Stream the SSE events at /api/runs/:id/events as ND-JSON on stdout.
 // Each line is one event: { event, data } so a code agent can parse it
 // without needing an SSE library.
-async function streamRunEvents(base, runId, workspaceHeaders = {}) {
-  const resp = await fetch(`${base}/api/runs/${encodeURIComponent(runId)}/events`, {
-    headers: { accept: 'text/event-stream', ...workspaceHeaders },
-  });
-  if (!resp.ok || !resp.body) {
-    console.error(`run watch failed: ${resp.status}`);
-    process.exit(1);
-  }
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+async function streamRunEvents(base, initialRunId, workspaceHeaders = {}) {
+  let runId = initialRunId;
+  const visited = new Set();
   while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
-    for (const block of blocks) {
-      const lines = block.split('\n');
-      const eventLine = lines.find((l) => l.startsWith('event: '));
-      const dataLine  = lines.find((l) => l.startsWith('data: '));
-      const event = eventLine ? eventLine.slice('event: '.length) : 'message';
-      const dataRaw = dataLine ? dataLine.slice('data: '.length) : '';
-      let parsed;
-      try { parsed = JSON.parse(dataRaw); } catch { parsed = dataRaw; }
-      process.stdout.write(JSON.stringify({ event, data: parsed }) + '\n');
-      if (event === 'end') {
-        return;
+    if (visited.has(runId)) {
+      console.error(`run watch failed: cyclic strategy task chain at ${runId}`);
+      process.exit(1);
+    }
+    visited.add(runId);
+    const resp = await fetch(`${base}/api/runs/${encodeURIComponent(runId)}/events`, {
+      headers: { accept: 'text/event-stream', ...workspaceHeaders },
+    });
+    if (!resp.ok || !resp.body) {
+      console.error(`run watch failed: ${resp.status}`);
+      process.exit(1);
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let nextRunId = null;
+    let ended = false;
+    while (!ended) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? '';
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        const eventLine = lines.find((l) => l.startsWith('event: '));
+        const dataLines = lines
+          .filter((line) => line.startsWith('data: '))
+          .map((line) => line.slice('data: '.length));
+        const event = eventLine ? eventLine.slice('event: '.length) : 'message';
+        const dataRaw = dataLines.join('\n');
+        let parsed;
+        try { parsed = JSON.parse(dataRaw); } catch { parsed = dataRaw; }
+        process.stdout.write(JSON.stringify({ event, data: parsed }) + '\n');
+        if (event !== 'end') continue;
+        const task = parsed?.strategyTask;
+        if (task && task.terminal !== true) {
+          const candidate = task.activeRunId !== runId
+            ? task.activeRunId
+            : task.nextRunId;
+          if (typeof candidate === 'string' && candidate.length > 0 && candidate !== runId) {
+            nextRunId = candidate;
+          }
+        }
+        ended = true;
+        break;
       }
     }
+    if (!nextRunId) return;
+    runId = nextRunId;
   }
 }
 
@@ -8327,15 +8511,11 @@ async function readStdinUtf8() {
 }
 
 async function mintCliImportToken(baseDir) {
-  const socketPath = process.env[SIDECAR_ENV.IPC_PATH];
-  if (typeof socketPath !== 'string' || socketPath.length === 0) return null;
+  const client = SidecarFactory.connectInherited();
+  if (client == null) return null;
   let result;
   try {
-    result = await requestJsonIpc(
-      socketPath,
-      { type: SIDECAR_MESSAGES.MINT_IMPORT_TOKEN, input: { baseDir } },
-      { timeoutMs: 800 },
-    );
+    result = await client.invoke(APP_KEYS.DAEMON, SIDECAR_MESSAGES.MINT_IMPORT_TOKEN, { baseDir }, { timeoutMs: 800 });
   } catch {
     return null;
   }
@@ -11051,7 +11231,7 @@ function describeAutomationTargetForCli(target) {
   return 'new-project';
 }
 
-function splitAutomationIds(value) {
+function splitCommaSeparatedIds(value) {
   if (typeof value !== 'string' || value.trim().length === 0) return [];
   const seen = new Set();
   const out = [];
@@ -11063,6 +11243,8 @@ function splitAutomationIds(value) {
   }
   return out;
 }
+
+const splitAutomationIds = splitCommaSeparatedIds;
 
 function automationContextFromFlags(flags) {
   const skillIds = splitAutomationIds(flags.skill);

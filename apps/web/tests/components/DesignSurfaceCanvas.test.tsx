@@ -160,7 +160,7 @@ describe('DesignSurfaceCanvas', () => {
     expect(document).toContain("default-src 'none'");
     expect(document).toContain("script-src 'none'");
     expect(document).toContain('img-src data: blob: https://open-design.test');
-    expect(document).toContain('<base href="https://open-design.test/project/raw/">');
+    expect(document).toContain('<base href="https://open-design.test/project/raw/" data-od-project-preview-base>');
     expect(document).not.toMatch(/<script\b/i);
     expect(document).not.toMatch(/http-equiv=["']refresh/i);
     expect(document).not.toMatch(/<iframe\b/i);
@@ -177,7 +177,7 @@ describe('DesignSurfaceCanvas', () => {
 
     expect(document).toMatch(/^<!doctype html><meta http-equiv="Content-Security-Policy"/i);
     expect(document).toContain('img-src data: blob: https://open-design.test');
-    expect(document).toContain('<base href="https://open-design.test/project/raw/">');
+    expect(document).toContain('<base href="https://open-design.test/project/raw/" data-od-project-preview-base>');
     expect(document).toContain('src="https://attacker.example/tracker.png"');
     expect(document).not.toContain('img-src data: blob: https://attacker');
   });
@@ -188,7 +188,7 @@ describe('DesignSurfaceCanvas', () => {
       'https://open-design.test/api/projects/p1/files/',
     );
     expect(document).toContain('src="assets/hero.png"');
-    expect(document).toContain('<base href="https://open-design.test/api/projects/p1/files/">');
+    expect(document).toContain('<base href="https://open-design.test/api/projects/p1/files/" data-od-project-preview-base>');
     expect(document).toContain('img-src data: blob: https://open-design.test');
     expect(document).not.toContain('img-src data: blob: https://attacker');
   });
