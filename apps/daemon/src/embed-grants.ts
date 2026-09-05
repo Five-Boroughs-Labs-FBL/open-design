@@ -68,6 +68,26 @@ const OPEN_PROBE_PATHS = new Set([
   '/api/public-runtime',
 ]);
 
+/** Read-only Studio catalogs an embed session needs to generate. Writes stay denied. */
+const STUDIO_EMBED_READ_PREFIXES = [
+  '/api/app-config',
+  '/api/agents',
+  '/api/projects',
+  '/api/skills',
+  '/api/design-templates',
+  '/api/design-systems',
+  '/api/prompt-templates',
+  '/api/atoms',
+  '/api/codex-pets',
+] as const;
+
+function isStudioEmbedReadPath(pathname: string): boolean {
+  for (const prefix of STUDIO_EMBED_READ_PREFIXES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return true;
+  }
+  return false;
+}
+
 const EMBED_GRANT_MINT_PATH = /^\/api\/projects\/[^/]+\/embed-grants(?:\/|$)/;
 const CATALOG_EMBED_GRANT_MINT_PATH = '/api/embed-grants';
 const PROJECT_SCOPED_PATH = /^\/(?:api\/)?projects\/([^/]+)/;
@@ -357,10 +377,7 @@ export function embedGrantAllowsPath(
     return catalog && methodUpper === 'POST' && pathname === '/api/projects';
   }
   if (OPEN_PROBE_PATHS.has(pathname)) return true;
-  if (pathname === '/api/app-config') return true;
-  // Catalog used by Studio embed autoselect; writes stay under /api/agents/:id/...
-  if (pathname === '/api/agents') return true;
-  if (pathname === '/api/projects') return true;
+  if (isStudioEmbedReadPath(pathname)) return true;
   return isStudioShellPath(pathname);
 }
 

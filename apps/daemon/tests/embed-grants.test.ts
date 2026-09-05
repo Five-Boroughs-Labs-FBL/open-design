@@ -277,6 +277,12 @@ describe('embedGrantAllowsPath', () => {
     ['GET', '/api/agents', {}],
     ['GET', '/api/agents?stream=1', {}],
     ['HEAD', '/api/agents', {}],
+    ['GET', '/api/skills', {}],
+    ['GET', '/api/skills/html-prototype', {}],
+    ['GET', '/api/design-templates', {}],
+    ['GET', '/api/design-systems', {}],
+    ['GET', '/api/prompt-templates', {}],
+    ['GET', '/api/atoms', {}],
     ['GET', '/api/health', {}],
     ['GET', '/api/ready', {}],
     ['GET', '/api/version', {}],
@@ -417,6 +423,10 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/projects')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/projects')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/public-runtime')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/skills')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-templates')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-systems')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/skills/install')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/embed-grants')).toBe(false);
     expect(embedGrantForbidsRequest(catalog, {
       method: 'GET',

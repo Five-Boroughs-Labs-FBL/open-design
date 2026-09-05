@@ -158,6 +158,9 @@ describe('ACP catalog grant integration', () => {
 
     const aliceList = await jsonRequest(`${baseUrl}/api/projects`, { headers: aliceCookie });
     expect(aliceList.status).toBe(200);
+    expect((await jsonRequest(`${baseUrl}/api/skills`, { headers: aliceCookie })).status).not.toBe(403);
+    expect((await jsonRequest(`${baseUrl}/api/design-templates`, { headers: aliceCookie })).status).not.toBe(403);
+    expect((await jsonRequest(`${baseUrl}/api/design-systems`, { headers: aliceCookie })).status).not.toBe(403);
     expect(projectIds(aliceList.body).sort()).toEqual([aliceLegacy, aliceOwned].sort());
 
     const bobList = await jsonRequest(`${baseUrl}/api/projects`, { headers: bobCookie });

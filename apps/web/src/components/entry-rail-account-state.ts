@@ -52,6 +52,16 @@ export function requiresAmrReauthentication(
  * hook does this when one exists) or show the neutral syncing placeholder for
  * a locally signed-in/unknown account instead of falsely claiming sign-out.
  */
+export function shouldShowCloudSignInTip(input: {
+  accountFooterState: EntryRailAccountFooterState;
+  acpSsoResolved: boolean;
+  acpSsoUrl: string | null;
+}): boolean {
+  if (input.accountFooterState !== 'sign-in') return false;
+  if (!input.acpSsoResolved) return false;
+  return !input.acpSsoUrl;
+}
+
 export function resolveEntryRailAccountFooterState(
   workspaceState: WorkspaceContextState,
   amrLoggedIn: boolean | null | undefined,
