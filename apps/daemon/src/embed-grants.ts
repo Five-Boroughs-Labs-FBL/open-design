@@ -322,6 +322,10 @@ export function setEmbedGrantCookie(
   res.append?.('Set-Cookie', header);
 }
 
+function isEmbedGrantRunCreatePath(pathname: string): boolean {
+  return pathname === '/api/runs' || pathname === '/api/chat';
+}
+
 export function embedGrantAllowsPath(
   grant: EmbedGrantPayload,
   method: string,
@@ -342,7 +346,12 @@ export function embedGrantAllowsPath(
     return pathProjectId === grant.pid;
   }
 
-  if (pathname === '/api/runs') return catalog || queryProjectId === grant.pid;
+  // POST /api/runs and POST /api/chat are the two "create a generation run"
+  // entry points. Catalog grants may hit them; project grants need the
+  // matching projectId (query here, body in embedGrantForbidsRequest).
+  if (isEmbedGrantRunCreatePath(pathname)) {
+    return catalog || queryProjectId === grant.pid;
+  }
 
   if (!isReadMethod(methodUpper)) {
     return catalog && methodUpper === 'POST' && pathname === '/api/projects';
@@ -508,7 +517,7 @@ export function embedGrantForbidsRequest(
   const path = embedGrantRequestPath(req);
   const { pathname } = splitPath(path);
   if (isEmbedGrantDeferredRunLookupPath(pathname)) return false;
-  if (method === 'POST' && pathname === '/api/runs') {
+  if (method === 'POST' && isEmbedGrantRunCreatePath(pathname)) {
     if (!embedGrantAllowsPostRuns(grant, req.query, req.body)) return true;
     if (!isCatalogEmbedGrant(grant)) return false;
     const bodyProjectId = firstString(jsonRecord(req.body)?.projectId);

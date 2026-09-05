@@ -203,6 +203,8 @@ describe('ACP catalog grant integration', () => {
       body: JSON.stringify({ name: 'notes.md', content: 'alice-only' }),
     });
     expect([200, 201]).toContain(fileWrite.status);
+    expect((await jsonRequest(`${baseUrl}/api/projects/${createdId}/files`, { headers: aliceCookie })).status).toBe(200);
+    expect((await jsonRequest(`${baseUrl}/api/projects/${createdId}/files`, { headers: bobCookie })).status).toBe(403);
 
     const bobFile = await jsonRequest(`${baseUrl}/api/projects/${createdId}/files`, {
       method: 'POST',
@@ -224,6 +226,44 @@ describe('ACP catalog grant integration', () => {
     });
     expect(bobRun.status).toBe(403);
     expect(errorCode(bobRun.body)).toBe('EMBED_GRANT_SCOPE');
+
+    const aliceChat = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        ...aliceCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'not-a-real-agent',
+        message: 'hello',
+        projectId: createdId,
+      }),
+    });
+    // Grant check is middleware: 403 EMBED_GRANT_SCOPE is the bug. Any other
+    // outcome (validation error, unknown agent) means the catalog user may chat
+    // on their own project. Cancel the body so a 200 SSE stream cannot hang.
+    expect(aliceChat.status).not.toBe(403);
+    if (aliceChat.status !== 200) {
+      const aliceChatBody = await aliceChat.json().catch(() => null);
+      expect(errorCode(aliceChatBody)).not.toBe('EMBED_GRANT_SCOPE');
+    } else {
+      await aliceChat.body?.cancel();
+    }
+
+    const bobChat = await jsonRequest(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        ...bobCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'not-a-real-agent',
+        message: 'hello',
+        projectId: createdId,
+      }),
+    });
+    expect(bobChat.status).toBe(403);
+    expect(errorCode(bobChat.body)).toBe('EMBED_GRANT_SCOPE');
   });
 
   it('keeps APIs locked without a grant while serving the SSO shell and public runtime', async () => {
