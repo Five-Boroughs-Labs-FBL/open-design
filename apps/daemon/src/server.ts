@@ -867,6 +867,7 @@ import { registerDesignSystemToolRoutes } from './routes/design-system-tool.js';
 import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/deploy.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes, createEnforceWorkspaceProjectMutation } from './routes/project/index.js';
+import { registerEmbedGrantRoutes } from './routes/embed-grants.js';
 import { registerVelaRoutes } from './routes/vela.js';
 import { registerFinalizeRoutes, registerImportRoutes, registerProjectExportRoutes } from './import-export-routes.js';
 import { registerHandoffRoutes } from './routes/handoff.js';
@@ -8301,6 +8302,10 @@ export async function startServer({
     });
   });
   registerSocialShareRoutes(app, { http: httpDeps });
+  registerEmbedGrantRoutes(app, {
+    getProject: (projectId) => getProject(db, projectId),
+    sendApiError,
+  });
   registerProjectRoutes(app, {
     db,
     design,

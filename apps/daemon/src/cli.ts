@@ -251,6 +251,7 @@ const PROJECT_STRING_FLAGS = new Set([
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
   'source', 'file', 'expected-revision',
   'surface-ids',
+  'user-id', 'ttl-sec',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
@@ -6999,6 +7000,8 @@ async function runProject(args) {
                     [--design-system <id>] [--json]
   od project list                         List projects.
   od project info <id>                    Print one project.
+  od project embed-grant <id> --user-id <amcUserId> [--ttl-sec 43200] [--json]
+                    Mint a project-scoped Studio embed grant.
   od project design-manifest get <id> [--json]
                     Read the normalized v2 manifest and derived coverage.
   od project design-manifest put <id> --file <path|-> --expected-revision <n>
@@ -7157,6 +7160,34 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'embed-grant': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      const userId = typeof flags['user-id'] === 'string' ? flags['user-id'].trim() : '';
+      if (!id || !userId) {
+        console.error('Usage: od project embed-grant <id> --user-id <amcUserId> [--ttl-sec 43200] [--json]');
+        process.exit(2);
+      }
+      const body = { userId };
+      if (flags['ttl-sec'] != null) {
+        const ttlSec = Number(flags['ttl-sec']);
+        if (!Number.isFinite(ttlSec)) {
+          console.error('od project embed-grant --ttl-sec must be a number');
+          process.exit(2);
+        }
+        body.ttlSec = ttlSec;
+      }
+      const data = await postJsonToDaemon(
+        base,
+        `/api/projects/${encodeURIComponent(id)}/embed-grants`,
+        body,
+        workspaceHeaders,
+      );
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(
+        `[project] minted embed grant for ${data.projectId} user ${data.userId} expires ${data.expiresAt}`,
+      );
       return;
     }
     case 'restore-automatic-scenario': {
