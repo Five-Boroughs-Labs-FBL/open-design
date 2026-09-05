@@ -10,6 +10,8 @@ import {
   projectRouteSurfaceState,
   resolveDeepLinkedTeamSharedProject,
   resolveSettingsCloseConfig,
+  shouldBounceCloudHomeToOnboarding,
+  shouldForceCloudOnboarding,
   shouldRouteToFirstRunOnboarding,
   shouldSyncMediaProvidersOnSave,
 } from '../src/App';
@@ -79,6 +81,90 @@ describe('shouldRouteToFirstRunOnboarding', () => {
 
     expect(shouldRouteToFirstRunOnboarding(unfinished, '/projects/project-a')).toBe(false);
     expect(shouldRouteToFirstRunOnboarding(unfinished, '/')).toBe(true);
+  });
+
+  it('does not hijack an ACP embed-grant session on the home route', () => {
+    const unfinished = { ...baseConfig, onboardingCompleted: false };
+    expect(shouldRouteToFirstRunOnboarding(unfinished, '/', { embedSession: true })).toBe(false);
+  });
+});
+
+describe('shouldForceCloudOnboarding', () => {
+  it('does not bounce ACP embed, ACP SSO, or project deep links to sign-in onboarding', () => {
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: true,
+      routeKind: 'project',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      routeKind: 'project',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      acpSsoConfigured: true,
+      routeKind: 'home',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      embedSession: true,
+      routeKind: 'home',
+    })).toBe(false);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: true,
+      amcEmbed: false,
+      routeKind: 'home',
+    })).toBe(true);
+    expect(shouldForceCloudOnboarding({
+      cloudIdentityRejected: false,
+      amcEmbed: false,
+      routeKind: 'home',
+    })).toBe(false);
+  });
+});
+
+describe('shouldBounceCloudHomeToOnboarding', () => {
+  const signedOutCloudHome = {
+    view: 'home' as const,
+    usesOpenDesignCloud: true,
+    amrLoggedIn: false,
+    amrAuthRequired: false,
+  };
+
+  it('bounces a signed-out OpenDesign Cloud home to onboarding', () => {
+    expect(shouldBounceCloudHomeToOnboarding(signedOutCloudHome)).toBe(true);
+  });
+
+  it('does not bounce after ACP SSO or an embed catalog grant', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      acpSsoConfigured: true,
+    })).toBe(false);
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      embedSession: true,
+    })).toBe(false);
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      amcEmbed: true,
+    })).toBe(false);
+  });
+
+  it('does not bounce when already on onboarding', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      view: 'onboarding',
+    })).toBe(false);
+  });
+
+  it('does not treat an unresolved AMR login as signed-out', () => {
+    expect(shouldBounceCloudHomeToOnboarding({
+      ...signedOutCloudHome,
+      amrLoggedIn: null,
+    })).toBe(false);
   });
 });
 

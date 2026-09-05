@@ -283,10 +283,14 @@ export interface ProjectMetadata {
   // the first agent turn builds immediately from the submitted brief.
   skipDiscoveryBrief?: boolean;
   // Opt out of kind→bundled-scenario fallback (`od-new-generation` for
-  // `other`, `example-web-prototype` for `prototype`, …). AMC I'll-design-it
+  // `other`, `example-web-prototype` for `prototype`, …). ACP I'll-design-it
   // sets this so Grok emits one HTML `<artifact>` instead of running the
   // discovery → plan → generate → critique plugin.
   skipDefaultScenario?: boolean;
+  /** ACP account that owns this hosted Studio project. */
+  acpUserId?: string;
+  /** Marker stamped on ACP-created / ACP-SSO catalog projects. */
+  acp?: boolean;
   // Set when the user submits an unmodified curated example prompt from the
   // gallery. Skips discovery AND requests full-quality direct generation,
   // treating the curated title/brief as the complete creative brief. Honored

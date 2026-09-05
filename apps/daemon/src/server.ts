@@ -867,6 +867,7 @@ import { registerDesignSystemToolRoutes } from './routes/design-system-tool.js';
 import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/deploy.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes, createEnforceWorkspaceProjectMutation } from './routes/project/index.js';
+import { registerEmbedGrantRoutes } from './routes/embed-grants.js';
 import { registerVelaRoutes } from './routes/vela.js';
 import { registerFinalizeRoutes, registerImportRoutes, registerProjectExportRoutes } from './import-export-routes.js';
 import { registerHandoffRoutes } from './routes/handoff.js';
@@ -1142,6 +1143,11 @@ import {
   isApiAuthDisabled,
   isApiTokenMiddlewareEnabled,
 } from './api-token-auth.js';
+import { isAcpSsoConfigured } from './acp-sso.js';
+import {
+  applyVerifiedEmbedGrant,
+  embedGrantForbidsRequest,
+} from './embed-grants.js';
 import { createOpenDesignPublicMetadataService } from './services/open-design-public-metadata.js';
 import { createWhatsNewService } from './services/whats-new.js';
 import { execCommandViaLoginShell } from './services/login-shell.js';
@@ -2983,20 +2989,24 @@ export async function startServer({
   });
   app.use(jsonParser('4mb'));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
+  const embedGrantProjectLookup = {
+    current: null,
+  };
 
   // Plan §3.K1 — API-token middleware.
   //
   // Active only when OD_API_TOKEN is set and API auth is not disabled.
   // Loopback origins skip the check (the desktop UI / local CLI never carry
   // credentials); every other request must present a matching bearer token
-  // (CLI / proxy) or matching HTTP Basic credentials (browser UI). A currently
-  // valid run-scoped token may pass only an exact screenshot-export endpoint;
-  // its route rechecks the operation and project. Health / readiness / version
-  // remain open. Server-minted project preview asset scopes are also accepted
-  // for GETs so sandboxed
-  // browser iframes can load HTML/CSS/JS without privileged headers.
-  // Rich daemon status stays authenticated because it includes local
-  // runtime paths.
+  // (CLI / proxy), matching HTTP Basic credentials (browser UI), or a
+  // project-scoped Studio embed grant (query `t` / cookie `od_embed`). A
+  // currently valid run-scoped token may pass only an exact screenshot-export
+  // endpoint; its route rechecks the operation and project. Health /
+  // readiness / version remain open. Server-minted project preview asset
+  // scopes are also accepted for GETs so sandboxed browser iframes can load
+  // HTML/CSS/JS without privileged headers. Rich daemon status stays
+  // authenticated because it includes local runtime paths. A matching API
+  // token is full access and does not stamp `req.embedGrant`.
   if (apiTokenAuthEnabled) {
     const openProbePaths = new Set([
       '/health',
@@ -3005,6 +3015,8 @@ export async function startServer({
       '/api/ready',
       '/version',
       '/api/version',
+      '/public-runtime',
+      '/api/public-runtime',
     ]);
     app.use('/api', (req, res, next) => {
       if (openProbePaths.has(req.path)) return next();
@@ -3033,6 +3045,18 @@ export async function startServer({
       ) {
         return next();
       }
+      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      if (embedGrant) {
+        if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
+          return sendApiError(
+            res,
+            403,
+            'EMBED_GRANT_SCOPE',
+            'embed grant does not allow this path',
+          );
+        }
+        return next();
+      }
       res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
       return res.status(401).json({
         error: {
@@ -3052,6 +3076,26 @@ export async function startServer({
       if (isLoopbackPeerAddress(req.socket?.remoteAddress)) return next();
       if (resolveStaticSpaFallbackPath(req, staticDir) === null) return next();
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
+      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      if (embedGrant) {
+        if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
+          return sendApiError(
+            res,
+            403,
+            'EMBED_GRANT_SCOPE',
+            'embed grant does not allow this path',
+          );
+        }
+        return next();
+      }
+
+      // Hosted ACP SSO needs the sign-in page itself. APIs stay grant/token gated.
+      if (
+        isAcpSsoConfigured()
+        && (req.method === 'GET' || req.method === 'HEAD')
+      ) {
+        return next();
+      }
 
       res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
       return res.status(401).type('text/plain').send(
@@ -3244,6 +3288,7 @@ export async function startServer({
     next();
   });
   const db = openDatabase(PROJECT_ROOT, { dataDir: RUNTIME_DATA_DIR });
+  embedGrantProjectLookup.current = (projectId) => getProject(db, projectId);
   const amrTerminalReportOutbox = createAmrTerminalReportOutboxStore(db);
   const amrTerminalReportDelivery = createAmrTerminalReportDeliveryService({
     store: amrTerminalReportOutbox,
@@ -8301,6 +8346,10 @@ export async function startServer({
     });
   });
   registerSocialShareRoutes(app, { http: httpDeps });
+  registerEmbedGrantRoutes(app, {
+    getProject: (projectId) => getProject(db, projectId),
+    sendApiError,
+  });
   registerProjectRoutes(app, {
     db,
     design,

@@ -1257,6 +1257,24 @@ export async function fetchDaemonConfig(): Promise<AppConfigPrefs | null> {
   }
 }
 
+export async function fetchPublicRuntime(): Promise<{ acpSsoUrl: string | null }> {
+  try {
+    const res = await fetch('/api/public-runtime');
+    if (!res.ok) return { acpSsoUrl: null };
+    const data = await res.json();
+    const url = typeof data?.acpSsoUrl === 'string' ? data.acpSsoUrl.trim() : '';
+    return { acpSsoUrl: url.length > 0 ? url : null };
+  } catch {
+    return { acpSsoUrl: null };
+  }
+}
+
+export function acpSsoStartUrl(ssoUrl: string, returnUrl: string): string {
+  const url = new URL(ssoUrl);
+  url.searchParams.set('return', returnUrl);
+  return url.toString();
+}
+
 export async function syncConfigToDaemon(
   config: AppConfig,
   options?: {

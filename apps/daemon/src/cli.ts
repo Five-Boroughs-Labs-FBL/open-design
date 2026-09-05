@@ -251,13 +251,14 @@ const PROJECT_STRING_FLAGS = new Set([
   'title', 'label', 'against', 'seed-from', 'fork-after', 'mode',
   'source', 'file', 'expected-revision',
   'surface-ids',
+  'user-id', 'ttl-sec', 'project-ids',
 ]);
 const PROJECT_RESOURCE_STRING_FLAGS = new Set([
   ...PROJECT_STRING_FLAGS,
   'workspace',
   'workspace-member',
 ]);
-const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow']);
+const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow', 'catalog']);
 const WORKSPACE_STRING_FLAGS = new Set([
   'daemon-url', 'workspace', 'view', 'visibility', 'owner', 'project',
   'member', 'role', 'email', 'app-user', 'lifecycle-state',
@@ -6999,6 +7000,11 @@ async function runProject(args) {
                     [--design-system <id>] [--json]
   od project list                         List projects.
   od project info <id>                    Print one project.
+  od project embed-grant <id> --user-id <acpUserId> [--ttl-sec 43200] [--json]
+                    Mint a project-scoped Studio embed grant.
+  od project embed-grant --catalog --user-id <acpUserId>
+                    [--project-ids id1,id2] [--ttl-sec 43200] [--json]
+                    Mint an ACP catalog grant for the caller's Open Design projects.
   od project design-manifest get <id> [--json]
                     Read the normalized v2 manifest and derived coverage.
   od project design-manifest put <id> --file <path|-> --expected-revision <n>
@@ -7157,6 +7163,53 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
       const data = await resp.json();
       process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+    case 'embed-grant': {
+      const id = positionalArgs(rest, PROJECT_RESOURCE_STRING_FLAGS)[0];
+      const userId = typeof flags['user-id'] === 'string' ? flags['user-id'].trim() : '';
+      const catalog = flags.catalog === true || flags.catalog === 'true' || flags.catalog === '1';
+      if (!userId || (!catalog && !id)) {
+        console.error('Usage: od project embed-grant <id> --user-id <acpUserId> [--ttl-sec 43200] [--json]');
+        console.error('       od project embed-grant --catalog --user-id <acpUserId> [--project-ids id1,id2] [--ttl-sec 43200] [--json]');
+        process.exit(2);
+      }
+      const body: { userId: string; ttlSec?: number; projectIds?: string[] } = { userId };
+      if (flags['ttl-sec'] != null) {
+        const ttlSec = Number(flags['ttl-sec']);
+        if (!Number.isFinite(ttlSec)) {
+          console.error('od project embed-grant --ttl-sec must be a number');
+          process.exit(2);
+        }
+        body.ttlSec = ttlSec;
+      }
+      if (catalog) {
+        const rawIds = typeof flags['project-ids'] === 'string' ? flags['project-ids'] : '';
+        if (rawIds.trim()) {
+          body.projectIds = rawIds.split(',').map((item) => item.trim()).filter(Boolean);
+        }
+        const data = await postJsonToDaemon(
+          base,
+          '/api/embed-grants',
+          body,
+          workspaceHeaders,
+        );
+        if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        console.log(
+          `[project] minted ACP catalog grant for user ${data.userId} expires ${data.expiresAt}`,
+        );
+        return;
+      }
+      const data = await postJsonToDaemon(
+        base,
+        `/api/projects/${encodeURIComponent(id)}/embed-grants`,
+        body,
+        workspaceHeaders,
+      );
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      console.log(
+        `[project] minted embed grant for ${data.projectId} user ${data.userId} expires ${data.expiresAt}`,
+      );
       return;
     }
     case 'restore-automatic-scenario': {
