@@ -11681,7 +11681,6 @@ export async function startServer({
     // across resumes (protecting the conversation-history cache) while still
     // giving the model the current MCP auth state on every turn.
     const mcpConnectedDirective = renderConnectedExternalMcpDirective(connectedExternalMcp);
-    const mcpConnectedDirective = renderConnectedExternalMcpDirective(connectedExternalMcp);
     // Some models (notably claude-opus-4-7 with --include-partial-messages)
     // start their reply by echoing the top of the user message verbatim,
     // so the rendered chat shows a "# Instructions ..." block ahead of the
