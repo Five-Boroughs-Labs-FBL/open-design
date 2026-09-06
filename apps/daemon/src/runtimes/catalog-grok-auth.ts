@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { acpSsoUrlFromEnv } from '../acp-sso.js';
+import { isLoopbackHostname } from '../http/local-daemon-request.js';
 import {
   applyAmcGrokHome,
   parseAmcGrokBlock,
@@ -69,7 +70,25 @@ export function readCatalogGrokAuth(
   }
 }
 
-function acpBeBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+function hostnameFromHostPort(host: string): string {
+  const trimmed = host.trim();
+  if (trimmed.startsWith('[')) {
+    const end = trimmed.indexOf(']');
+    if (end > 0) return trimmed.slice(1, end);
+  }
+  const colon = trimmed.lastIndexOf(':');
+  if (colon > 0 && /^\d+$/.test(trimmed.slice(colon + 1))) {
+    return trimmed.slice(0, colon);
+  }
+  return trimmed;
+}
+
+/**
+ * Railway injects `RAILWAY_SERVICE_ACP_BE_URL` as a bare public host
+ * (`api.dev.agentcontrolpanel.dev`). Prefixing http:// 301s to https and
+ * fetch strips Authorization on the redirect, so SuperGrok pull 401s.
+ */
+export function resolveCatalogAcpBeBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const raw = (
     env.OD_ACP_BE_URL
     || env.RAILWAY_SERVICE_ACP_BE_URL
@@ -77,7 +96,12 @@ function acpBeBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   ).trim();
   if (raw) {
     if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
-    return `http://${raw.replace(/\/$/, '')}`;
+    const host = raw.replace(/\/$/, '');
+    const hostname = hostnameFromHostPort(host);
+    if (isLoopbackHostname(hostname) || /\.railway\.internal$/i.test(hostname)) {
+      return `http://${host}`;
+    }
+    return `https://${host}`;
   }
   const sso = acpSsoUrlFromEnv(env);
   if (!sso) return '';
@@ -97,7 +121,7 @@ export async function fetchCatalogGrokAuthFromAcp(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
   const uid = String(userId || '').trim();
-  const base = acpBeBaseUrl(env);
+  const base = resolveCatalogAcpBeBaseUrl(env);
   const token = String(env.OD_API_TOKEN || '').trim();
   if (!uid || !base || !token) return '';
   const url = new URL('/api/open-design/grok-auth', `${base}/`);
