@@ -66,7 +66,7 @@ describe('EntryNavRail settings entry', () => {
 });
 
 describe('EntryNavRail catalog regular chrome', () => {
-  it('hides host-admin destinations for a catalog regular', () => {
+  it('keeps Community while hiding host-admin destinations for a catalog regular', () => {
     render(
       <I18nProvider initial="en">
         <EntryNavRail
@@ -80,7 +80,7 @@ describe('EntryNavRail catalog regular chrome', () => {
       </I18nProvider>,
     );
 
-    expect(screen.queryByTestId('entry-nav-community')).toBeNull();
+    expect(screen.getByTestId('entry-nav-community')).toBeTruthy();
     expect(screen.queryByTestId('entry-nav-plugins')).toBeNull();
     expect(screen.queryByTestId('entry-nav-design-systems')).toBeNull();
     expect(screen.queryByTestId('entry-settings-button')).toBeNull();
