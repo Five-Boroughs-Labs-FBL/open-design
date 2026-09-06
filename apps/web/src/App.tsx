@@ -4843,8 +4843,8 @@ function AppInner() {
   useEffect(() => {
     if (catalogChrome.showHostAdminChrome) return;
     setSettingsOpen(false);
-    // Community stays reachable for every catalog user (rail + /community).
-    // Settings / Plugins / Design systems remain admin-only on the shared daemon.
+    // Community, Plugins, and Design systems stay reachable for every catalog
+    // user. Settings remain admin-only on the shared daemon.
     if (route.kind === 'home' && isAcpHostAdminOnlyHomeView(route.view)) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }
