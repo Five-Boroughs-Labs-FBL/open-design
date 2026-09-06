@@ -56,4 +56,13 @@ describe('catalog studio models', () => {
     expect(catalogStudioModelId(next)).toBe(CATALOG_STUDIO_MINIMAX_ID);
     expect(needsCatalogStudioGrokLatch(next)).toBe(false);
   });
+
+  it('drops a leftover Settings API key when switching to MiniMax', () => {
+    const next = applyCatalogStudioModel(
+      { ...base, apiKey: 'sk-ant-leftover' },
+      CATALOG_STUDIO_MINIMAX_ID,
+    );
+    expect(next.apiKey).toBe('');
+    expect(next.baseUrl).toMatch(/minimax/i);
+  });
 });

@@ -72,6 +72,9 @@ export function applyCatalogStudioModel(
       ...config,
       mode: 'api',
       apiProtocol: provider?.protocol ?? 'anthropic',
+      // Daemon fills the admin MiniMax vault key. A leftover Anthropic /
+      // OpenAI Settings key must not travel on the BYOK snapshot.
+      apiKey: '',
       baseUrl: provider?.baseUrl ?? 'https://api.minimax.io/anthropic',
       apiProviderBaseUrl: provider?.baseUrl ?? 'https://api.minimax.io/anthropic',
       model: provider?.preferredModels[0] ?? 'MiniMax-M2.7-highspeed',
