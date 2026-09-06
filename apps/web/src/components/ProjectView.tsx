@@ -684,6 +684,8 @@ interface Props {
     id: string,
     choice: { model?: string; reasoning?: string; serviceTier?: string },
   ) => void;
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: (id: import('./catalog-studio-models').CatalogStudioModelId) => void;
   onApiModelChange?: (model: string) => void;
   onRefreshAgents: () => void;
   onOpenSettings: (section?: SettingsSection) => void;
@@ -1895,6 +1897,8 @@ export function ProjectView({
   onModeChange,
   onAgentChange,
   onAgentModelChange,
+  catalogRegular = false,
+  onCatalogStudioModelChange,
   onApiModelChange,
   onRefreshAgents,
   onOpenSettings,
@@ -11582,6 +11586,8 @@ export function ProjectView({
         config={config}
         agents={agents}
         daemonLive={daemonLive}
+        catalogRegular={catalogRegular}
+        onCatalogStudioModelChange={onCatalogStudioModelChange}
         onModeChange={onModeChange}
         onOpen={() => {
           trackComposerBarClick(analytics.track, {

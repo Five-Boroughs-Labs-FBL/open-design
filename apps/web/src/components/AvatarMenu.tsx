@@ -39,6 +39,11 @@ import {
   projectWorkspaceScopeReady,
   type ProjectWorkspaceScopeState,
 } from '../collab/useProjectWorkspaceScope';
+import {
+  CATALOG_STUDIO_MODEL_OPTIONS,
+  catalogStudioModelId,
+  type CatalogStudioModelId,
+} from './catalog-studio-models';
 
 interface Props {
   config: AppConfig;
@@ -64,6 +69,9 @@ interface Props {
    * workspace.
    */
   projectWorkspaceScope?: ProjectWorkspaceScopeState;
+  /** Catalog regulars only see grok-4.6 + MiniMax, and cannot open Settings. */
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: (id: CatalogStudioModelId) => void;
 }
 
 /**
@@ -85,6 +93,8 @@ export function AvatarMenu({
   placement = 'down',
   onOpen,
   projectWorkspaceScope,
+  catalogRegular = false,
+  onCatalogStudioModelChange,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -413,20 +423,26 @@ export function AvatarMenu({
 
   // Selected-model readout shown inside the trigger (left of the Send button).
   // Hidden by default in CSS; composer-row contexts opt it in.
+  const catalogPick = catalogRegular ? catalogStudioModelId(config) : null;
+  const catalogPickOption = catalogPick
+    ? CATALOG_STUDIO_MODEL_OPTIONS.find((option) => option.id === catalogPick)
+    : null;
   const triggerModelLabel =
-    config.mode === 'api'
+    catalogPickOption?.label
+    ?? (config.mode === 'api'
       ? apiModelLabel
       : config.mode === 'daemon'
         ? currentModelLabel ?? currentModelId
-        : null;
+        : null);
   // Model id backing the readout — used to resolve the provider brand mark that
   // replaces the model-name text in the composer trigger.
   const triggerModelId =
-    config.mode === 'api'
+    catalogPick
+    ?? (config.mode === 'api'
       ? config.model?.trim() || null
       : config.mode === 'daemon'
         ? currentModelId
-        : null;
+        : null);
   const triggerModelIconSrc = modelProviderIconSrc(triggerModelId);
   // Whether the daemon-mode popover can offer a real model radio list. When it
   // can't (agent unavailable, or its model catalog is empty — e.g. the AMR
@@ -482,7 +498,60 @@ export function AvatarMenu({
           aria-label={t('avatar.title')}
           style={popoverStyle}
         >
-          {config.mode === 'daemon' ? (
+          {catalogRegular ? (
+            <div className="avatar-model-section">
+              <div className="avatar-select-row">
+                <span className="avatar-select-label">
+                  {t('avatar.modelLabel')}
+                </span>
+                <div
+                  className="avatar-model-list"
+                  role="radiogroup"
+                  aria-label={t('avatar.modelLabel')}
+                  data-testid="avatar-model-list"
+                >
+                  {CATALOG_STUDIO_MODEL_OPTIONS.map((option) => {
+                    const active = catalogPick === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        className={`avatar-model-option${active ? ' is-active' : ''}`}
+                        data-testid={`avatar-model-option-${option.id}`}
+                        onClick={() => {
+                          onCatalogStudioModelChange?.(option.id);
+                          setOpen(false);
+                        }}
+                      >
+                        <span className="avatar-model-option-logo" aria-hidden="true">
+                          {(() => {
+                            const src = modelProviderIconSrc(option.id);
+                            return src ? (
+                              <img src={src} alt="" width={16} height={16} />
+                            ) : (
+                              <AgentIcon id="grok-build" size={16} />
+                            );
+                          })()}
+                        </span>
+                        <span className="avatar-model-option-label">
+                          {option.label}
+                        </span>
+                        {active ? (
+                          <RemixIcon
+                            name="check-line"
+                            size={14}
+                            className="avatar-model-option-check"
+                          />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : config.mode === 'daemon' ? (
             <>
               {hasSelectableModels && currentAgent ? (
                 <div className="avatar-model-section">
@@ -667,7 +736,7 @@ export function AvatarMenu({
             </>
           ) : null}
 
-          {config.mode === 'api' ? (
+          {catalogRegular ? null : config.mode === 'api' ? (
             byokModelOptions.length > 0 ? (
               <div className="avatar-model-section">
                 <div className="avatar-select-row">
@@ -756,6 +825,7 @@ export function AvatarMenu({
               is unreachable from here. Pinned to the bottom of the scroll port
               like the home switcher's, so a long model list cannot scroll it
               away. */}
+          {catalogRegular ? null : (
           <button
             type="button"
             className="avatar-item avatar-item--pinned"
@@ -770,6 +840,7 @@ export function AvatarMenu({
             </span>
             <span>{t('inlineSwitcher.openFullSettings')}</span>
           </button>
+          )}
 
           {onBack ? (
             <>
