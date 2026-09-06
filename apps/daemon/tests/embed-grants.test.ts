@@ -288,7 +288,7 @@ describe('embed grant cookie and query', () => {
     expect(parsed.kv['max-age']).toBe('3600');
   });
 
-  it('adds Secure when requested', () => {
+  it('sets a partitioned HTTPS session that can authenticate cross-site iframe requests', () => {
     vi.useFakeTimers();
     vi.setSystemTime(FIXED_NOW);
     const headers = new Map<string, string>();
@@ -303,22 +303,42 @@ describe('embed grant cookie and query', () => {
     const parsed = parseSetCookie(headers.get('set-cookie') ?? '');
     expect(parsed.flags.has('secure')).toBe(true);
     expect(parsed.flags.has('httponly')).toBe(true);
+    expect(parsed.flags.has('partitioned')).toBe(true);
+    expect(parsed.kv.samesite).toBe('None');
+    expect(parsed.name).toBe('__Host-od_embed_partitioned');
+    expect(parsed.kv.path).toBe('/');
+    expect(parsed.kv.domain).toBeUndefined();
+    expect(readEmbedGrantFromRequest({ headers: { cookie: `${parsed.name}=${parsed.value}` } })).toBe('token-value');
+  });
+
+  it('prefers the current partitioned session over a legacy cookie without changing query precedence', () => {
+    const headers = { cookie: 'od_embed=legacy; __Host-od_embed_partitioned=current' };
+    expect(readEmbedGrantFromRequest({ headers })).toBe('current');
+    expect(readEmbedGrantFromRequest({ headers, query: { t: 'new-session' } })).toBe('new-session');
+    expect(readEmbedGrantFromRequest({ headers, query: { t: '' } })).toBeNull();
+    expect(readEmbedGrantFromRequest({ headers: { cookie: 'od_embed=legacy; __Host-od_embed_partitioned=' } })).toBeNull();
   });
 
   it('clears the embed cookie as an expired HttpOnly session cookie', () => {
-    const headers = new Map<string, string>();
+    const headers = new Map<string, number | string | readonly string[]>();
     const res = {
-      setHeader(name: string, value: string) {
+      setHeader(name: string, value: number | string | readonly string[]) {
         headers.set(name.toLowerCase(), value);
       },
     };
     clearEmbedGrantCookie(res, { secure: true });
-    const parsed = parseSetCookie(headers.get('set-cookie') ?? '');
-    expect(parsed.name).toBe(EMBED_GRANT_COOKIE);
-    expect(parsed.value).toBe('');
-    expect(parsed.kv['max-age']).toBe('0');
-    expect(parsed.flags.has('httponly')).toBe(true);
-    expect(parsed.flags.has('secure')).toBe(true);
+    const values = headers.get('set-cookie');
+    expect(Array.isArray(values)).toBe(true);
+    const parsed = (values as readonly string[]).map(parseSetCookie);
+    expect(parsed.map((cookie) => cookie.name)).toEqual([EMBED_GRANT_COOKIE, '__Host-od_embed_partitioned']);
+    for (const cookie of parsed) {
+      expect(cookie.value).toBe('');
+      expect(cookie.kv['max-age']).toBe('0');
+      expect(cookie.flags.has('httponly')).toBe(true);
+      expect(cookie.flags.has('secure')).toBe(true);
+    }
+    expect(parsed[1]?.flags.has('partitioned')).toBe(true);
+    expect(parsed[1]?.kv.samesite).toBe('None');
   });
 });
 
@@ -581,5 +601,24 @@ describe('embed grant request helpers', () => {
     expect(payload).toMatchObject({ pid: PROJECT_ID, uid: USER_ID, v: 1 });
     expect(req).toHaveProperty('embedGrant', payload);
     expect(headers.get('set-cookie')).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=${minted.token}`));
+  });
+
+  it('authenticates the partitioned session and fails closed instead of reviving a legacy grant', () => {
+    const minted = mintEmbedGrant(API_TOKEN, { projectId: PROJECT_ID, userId: USER_ID });
+    const reply = { setHeader: vi.fn() };
+    const req = {
+      secure: true,
+      headers: { cookie: `__Host-od_embed_partitioned=${minted.token}` },
+    };
+    expect(applyVerifiedEmbedGrant(req, reply, API_TOKEN)).toMatchObject({ pid: PROJECT_ID, uid: USER_ID });
+    expect(reply.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringContaining('Partitioned'));
+
+    const invalid = {
+      secure: true,
+      headers: { cookie: `od_embed=${minted.token}; __Host-od_embed_partitioned=invalid` },
+    };
+    expect(applyVerifiedEmbedGrant(invalid, reply, API_TOKEN)).toBeNull();
+    expect(invalid).not.toHaveProperty('embedGrant');
+    expect(reply.setHeader).toHaveBeenCalledTimes(1);
   });
 });
