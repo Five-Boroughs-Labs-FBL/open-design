@@ -123,6 +123,8 @@ describe('ACP SSO login pane', () => {
     expect(container.querySelector('.acp-sso-header')).not.toBeNull();
     expect(screen.getByTestId('acp-studio-theme-toggle')).toBeTruthy();
     expect(screen.getByTestId('acp-open-design-brand')).toBeTruthy();
+    expect(screen.getByTestId('acp-open-design-brand').textContent).toMatch(/Agent Control Panel/i);
+    expect(screen.getByTestId('acp-open-design-brand').textContent).not.toMatch(/ACP Open Design/i);
   });
 
   it('does not offer OpenDesign Cloud sign-in on the ACP studio shell', async () => {

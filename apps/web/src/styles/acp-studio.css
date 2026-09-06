@@ -182,6 +182,22 @@ html[data-acp-studio][data-theme='dark'] .entry-nav-rail {
   color: var(--text-strong);
 }
 
+.acp-studio-lockup--wordmark {
+  gap: 0;
+}
+
+.acp-studio-lockup--wordmark .acp-studio-lockup__sub {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.acp-studio-lockup--wordmark.acp-studio-lockup--compact .acp-studio-lockup__sub {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
 .acp-studio-lockup__mark {
   flex: 0 0 auto;
   display: block;

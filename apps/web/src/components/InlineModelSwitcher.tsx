@@ -68,7 +68,7 @@ import { apiProtocolLabel } from '../utils/apiProtocol';
 import { isVisibleLocalCliAgent } from '../utils/visibleAgents';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
-import { modelProviderIconSrc } from './modelProviderIcon';
+import { modelProviderIcon } from './modelProviderIcon';
 import { PlanBadge } from './PlanBadge';
 import {
   AMR_LOGIN_STATUS_EVENT,
@@ -1078,12 +1078,12 @@ export function InlineModelSwitcher({
       : chipModel;
   // Brand mark for that same model. `default` is the agent's own pick rather
   // than a named model, so it keeps the agent logo instead of guessing a vendor.
-  const chipModelIconSrc =
+  const chipModelIcon =
     config.mode === 'daemon'
       ? currentModelId && currentModelId !== 'default'
-        ? modelProviderIconSrc(currentModelId)
+        ? modelProviderIcon(currentModelId)
         : null
-      : modelProviderIconSrc(config.model.trim() || null);
+      : modelProviderIcon(config.model.trim() || null);
 
   // Compact home chip surfaces the selected model name + a connection-status
   // dot; label/tooltip fall back to the agent name. In CLI mode the agent's
@@ -1155,14 +1155,16 @@ export function InlineModelSwitcher({
                 clicked show the same thing. Falls back to the agent logo (and
                 then the BYOK link glyph) when the vendor has no mark. */}
             <span className="inline-switcher__chip-icon" aria-hidden="true">
-              {chipModelIconSrc ? (
+              {chipModelIcon?.kind === 'img' ? (
                 <img
                   className="inline-switcher__chip-model-logo"
-                  src={chipModelIconSrc}
+                  src={chipModelIcon.src}
                   alt=""
                   width={18}
                   height={18}
                 />
+              ) : chipModelIcon?.kind === 'agent' ? (
+                <AgentIcon id={chipModelIcon.id} size={18} />
               ) : config.mode === 'daemon' && currentAgent ? (
                 <AgentIcon id={currentAgent.id} size={18} />
               ) : (
@@ -1435,17 +1437,21 @@ export function InlineModelSwitcher({
                             aria-hidden="true"
                           >
                             {(() => {
-                              const src = modelProviderIconSrc(m.id);
-                              return src ? (
-                                <img
-                                  src={src}
-                                  alt=""
-                                  width={16}
-                                  height={16}
-                                />
-                              ) : (
-                                <AgentIcon id={currentAgent.id} size={16} />
-                              );
+                              const icon = modelProviderIcon(m.id);
+                              if (icon?.kind === 'img') {
+                                return (
+                                  <img
+                                    src={icon.src}
+                                    alt=""
+                                    width={16}
+                                    height={16}
+                                  />
+                                );
+                              }
+                              if (icon?.kind === 'agent') {
+                                return <AgentIcon id={icon.id} size={16} />;
+                              }
+                              return <AgentIcon id={currentAgent.id} size={16} />;
                             })()}
                           </span>
                           <span className="inline-switcher__agent-name">
