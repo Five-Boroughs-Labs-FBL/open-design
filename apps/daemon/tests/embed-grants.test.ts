@@ -507,6 +507,7 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/plugins/some-plugin/preview')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/some-plugin/apply')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/some-plugin/apply-local')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/test/connection')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-templates')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-systems')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/skills/install')).toBe(false);
