@@ -5,9 +5,17 @@
 // derivation the two-level picker's company grouping uses. Unknown vendors
 // return null and callers fall back to a neutral/agent mark instead of
 // inventing artwork.
-export function modelProviderIconSrc(
+//
+// Mono silhouettes that `AgentIcon` paints via CSS mask (so dark/light theme
+// both stay legible) are returned as `{ kind: 'agent' }` — never as a raw
+// `<img src>` of a dark-fill SVG (that 404s or vanishes on graphite).
+export type ModelProviderIcon =
+  | { kind: 'img'; src: string }
+  | { kind: 'agent'; id: string };
+
+export function modelProviderIcon(
   modelId: string | null | undefined,
-): string | null {
+): ModelProviderIcon | null {
   if (!modelId) return null;
   const slash = modelId.indexOf('/');
   const vendor = (
@@ -15,7 +23,7 @@ export function modelProviderIconSrc(
   ).toLowerCase();
   if (!vendor) return null;
   if (vendor.includes('anthropic') || vendor.includes('claude'))
-    return '/agent-icons/claude.svg';
+    return { kind: 'img', src: '/agent-icons/claude.svg' };
   if (
     vendor.includes('openai') ||
     vendor.includes('gpt') ||
@@ -23,23 +31,33 @@ export function modelProviderIconSrc(
     vendor === 'o3' ||
     vendor === 'o4'
   )
-    return '/model-icons/openai.svg';
+    return { kind: 'img', src: '/model-icons/openai.svg' };
   if (vendor.includes('google') || vendor.includes('gemini'))
-    return '/model-icons/google-gemini.svg';
+    return { kind: 'img', src: '/model-icons/google-gemini.svg' };
   if (vendor.includes('xai') || vendor.includes('grok'))
-    return '/model-icons/x.svg';
-  if (vendor.includes('deepseek')) return '/agent-icons/deepseek.svg';
+    return { kind: 'agent', id: 'grok-build' };
+  if (vendor.includes('deepseek')) return { kind: 'img', src: '/agent-icons/deepseek.svg' };
   if (vendor.includes('glm') || vendor.includes('zhipu'))
-    return '/agent-icons/glm.svg';
-  if (vendor.includes('qwen')) return '/agent-icons/qwen.svg';
+    return { kind: 'img', src: '/agent-icons/glm.svg' };
+  if (vendor.includes('qwen')) return { kind: 'img', src: '/agent-icons/qwen.svg' };
   if (vendor.includes('kimi') || vendor.includes('moonshot'))
-    return '/agent-icons/kimi.svg';
-  if (vendor.includes('mimo')) return '/agent-icons/mimo.svg';
-  if (vendor.includes('minimax')) return '/model-icons/minimax.svg';
+    return { kind: 'img', src: '/agent-icons/kimi.svg' };
+  if (vendor.includes('mimo')) return { kind: 'img', src: '/agent-icons/mimo.svg' };
+  if (vendor.includes('minimax')) return { kind: 'img', src: '/model-icons/minimax.svg' };
   if (vendor.includes('muse') || vendor.includes('meta') || vendor.includes('llama'))
-    return '/model-icons/meta.png';
+    return { kind: 'img', src: '/model-icons/meta.png' };
   if (vendor.includes('doubao') || vendor.includes('bytedance'))
-    return '/model-icons/bytedance.svg';
-  if (vendor.includes('openrouter')) return '/model-icons/openrouter.svg';
+    return { kind: 'img', src: '/model-icons/bytedance.svg' };
+  if (vendor.includes('openrouter')) return { kind: 'img', src: '/model-icons/openrouter.svg' };
   return null;
+}
+
+/** @deprecated Prefer `modelProviderIcon` — img-only helper kept for call sites that cannot render AgentIcon. */
+export function modelProviderIconSrc(
+  modelId: string | null | undefined,
+): string | null {
+  const icon = modelProviderIcon(modelId);
+  if (!icon) return null;
+  if (icon.kind === 'img') return icon.src;
+  return `/agent-icons/${icon.id}.svg`;
 }

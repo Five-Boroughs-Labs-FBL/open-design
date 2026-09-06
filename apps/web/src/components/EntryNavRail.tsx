@@ -1999,7 +1999,6 @@ export function EntryNavRail({
         >
           <Icon name="home" size={16} />
         </NavButton>
-        {catalogChrome.showHostAdminChrome ? (
         <NavButton
           active={view === 'community'}
           ariaLabel={communityLabel}
@@ -2009,7 +2008,6 @@ export function EntryNavRail({
         >
           <Icon name="globe" size={16} />
         </NavButton>
-        ) : null}
 
         {context ? (
           <div className="entry-nav-rail__team-section">
