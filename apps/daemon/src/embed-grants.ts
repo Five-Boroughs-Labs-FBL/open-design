@@ -416,6 +416,11 @@ function isCatalogEmbedPluginUsePath(pathname: string): boolean {
   return /^\/api\/plugins\/[^/]+\/(?:apply|apply-local)$/.test(pathname);
 }
 
+/** Settings / onboarding "Test" for the selected CLI. Smoke only — not a host write. */
+function isCatalogEmbedConnectionTestPath(pathname: string): boolean {
+  return pathname === '/api/test/connection';
+}
+
 export function embedGrantAllowsPath(
   grant: EmbedGrantPayload,
   method: string,
@@ -448,6 +453,9 @@ export function embedGrantAllowsPath(
     // Community / Home "Use" binds a plugin into the composer via apply.
     // Catalog regulars must be able to do that; install/uninstall/trust stay denied.
     if (catalog && methodUpper === 'POST' && isCatalogEmbedPluginUsePath(pathname)) {
+      return true;
+    }
+    if (catalog && methodUpper === 'POST' && isCatalogEmbedConnectionTestPath(pathname)) {
       return true;
     }
     if (
