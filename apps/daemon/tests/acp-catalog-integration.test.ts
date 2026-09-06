@@ -270,9 +270,12 @@ describe('ACP catalog grant integration', () => {
   });
 
   it('keeps APIs locked without a grant while serving the SSO shell and public runtime', async () => {
-    const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
-    expect(spa.status).toBe(200);
-    expect(await spa.text()).toContain('studio embed shell');
+    const spa = await fetch(`${baseUrl}/`, {
+      headers: { accept: 'text/html' },
+      redirect: 'manual',
+    });
+    expect(spa.status).toBe(302);
+    expect(spa.headers.get('location') ?? '').toContain('https://acp.test/open-design/sso?');
 
     const runtime = await jsonRequest(`${baseUrl}/api/public-runtime`);
     expect(runtime.status).toBe(200);

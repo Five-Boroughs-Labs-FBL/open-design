@@ -310,6 +310,11 @@ export function verifyEmbedGrant(
   return payload;
 }
 
+export function embedGrantQueryPresent(req: EmbedGrantRequestLike): boolean {
+  const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
+  return fromQuery !== null && fromQuery.length > 0;
+}
+
 export function readEmbedGrantFromRequest(req: EmbedGrantRequestLike): string | null {
   const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
   if (fromQuery !== null) return fromQuery.length > 0 ? fromQuery : null;
