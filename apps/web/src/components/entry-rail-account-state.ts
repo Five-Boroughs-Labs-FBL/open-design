@@ -84,6 +84,11 @@ export function isAcpHostAdminOnlyHomeView(view: string): boolean {
  * process-wide, so only an ACP admin may see that chrome. Every catalog
  * user still gets Sign out so they can leave the handshake.
  */
+/** Regular catalog SSO: signed in, not a host admin. */
+export function isCatalogRegularStudioUser(chrome: AcpCatalogChrome): boolean {
+  return chrome.showAcpSignOut && !chrome.showHostAdminChrome;
+}
+
 export function resolveAcpCatalogChrome(input: {
   resolved: boolean;
   acpSsoUrl: string | null;

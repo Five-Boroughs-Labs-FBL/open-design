@@ -18,8 +18,14 @@ import { applyAcpStudioAppearance, isAcpStudioShell } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 import {
   isAcpHostAdminOnlyHomeView,
+  isCatalogRegularStudioUser,
   resolveAcpCatalogChrome,
 } from './components/entry-rail-account-state';
+import {
+  applyCatalogStudioModel,
+  needsCatalogStudioGrokLatch,
+  type CatalogStudioModelId,
+} from './components/catalog-studio-models';
 import { shouldForceCloudOnboarding, shouldRequireAcpCatalogLogin } from './onboarding/cloud-onboarding-gate';
 export {
   shouldBounceCloudHomeToOnboarding,
@@ -2848,6 +2854,19 @@ function AppInner() {
     [],
   );
 
+  const handleCatalogStudioModelChange = useCallback(
+    (pick: CatalogStudioModelId) => {
+      const next = applyCatalogStudioModel(latestPersistedConfigRef.current, pick);
+      latestPersistedConfigRef.current = next;
+      saveConfig(next);
+      if (catalogChromeRef.current.showHostAdminChrome) {
+        void syncConfigToDaemon(next);
+      }
+      setConfig(next);
+    },
+    [],
+  );
+
   const handleAgentModelChange = useCallback(
     (agentId: string, choice: { model?: string; reasoning?: string; serviceTier?: string }) => {
       const current = latestPersistedConfigRef.current;
@@ -4850,6 +4869,12 @@ function AppInner() {
     }
   }, [catalogChrome.showHostAdminChrome, route]);
 
+  useEffect(() => {
+    if (!isCatalogRegularStudioUser(catalogChrome)) return;
+    if (!needsCatalogStudioGrokLatch(config)) return;
+    handleCatalogStudioModelChange('grok-4.6');
+  }, [catalogChrome, config, handleCatalogStudioModelChange]);
+
   const openPetSettings = useCallback(() => {
     const currentRoute = routeRef.current;
     settingsReturnTargetRef.current =
@@ -5398,6 +5423,8 @@ function AppInner() {
           onModeChange={handleModeChange}
           onAgentChange={handleAgentChange}
           onAgentModelChange={handleAgentModelChange}
+          onCatalogStudioModelChange={handleCatalogStudioModelChange}
+          catalogRegular={isCatalogRegularStudioUser(catalogChrome)}
           onApiModelChange={handleApiModelChange}
           onRefreshAgents={refreshAgents}
           onOpenSettings={openSettings}
@@ -5455,6 +5482,8 @@ function AppInner() {
         onModeChange={handleModeChange}
         onAgentChange={handleAgentChange}
         onAgentModelChange={handleAgentModelChange}
+        onCatalogStudioModelChange={handleCatalogStudioModelChange}
+        catalogRegular={isCatalogRegularStudioUser(catalogChrome)}
         onApiProtocolChange={handleApiProtocolChange}
         onApiModelChange={handleApiModelChange}
         onConfigPersist={handleConfigPersist}
