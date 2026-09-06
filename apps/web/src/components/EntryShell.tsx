@@ -107,6 +107,7 @@ import {
   RailAccountSyncTip,
 } from './CloudSignInTip';
 import {
+  isCatalogRegularStudioUser,
   resolveAcpCatalogChrome,
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
@@ -499,6 +500,8 @@ interface Props {
     id: string,
     choice: { model?: string; reasoning?: string; serviceTier?: string },
   ) => void;
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: (id: import('./catalog-studio-models').CatalogStudioModelId) => void;
   onApiProtocolChange: (protocol: ApiProtocol) => void;
   onApiModelChange: (model: string) => void;
   onConfigPersist: (cfg: AppConfig) => Promise<void> | void;
@@ -624,6 +627,8 @@ export function EntryShell({
   onModeChange,
   onAgentChange,
   onAgentModelChange,
+  catalogRegular = false,
+  onCatalogStudioModelChange,
   onApiProtocolChange,
   onApiModelChange,
   onConfigPersist,
@@ -1722,6 +1727,8 @@ export function EntryShell({
       onModeChange={onModeChange}
       onAgentChange={onAgentChange}
       onAgentModelChange={onAgentModelChange}
+      catalogRegular={catalogRegular || isCatalogRegularStudioUser(catalogChrome)}
+      onCatalogStudioModelChange={onCatalogStudioModelChange}
       onApiProtocolChange={onApiProtocolChange}
       onApiModelChange={onApiModelChange}
       onOpenSettings={onOpenSettings}
