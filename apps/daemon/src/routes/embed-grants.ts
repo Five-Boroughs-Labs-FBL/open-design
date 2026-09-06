@@ -22,6 +22,7 @@ import {
   verifyEmbedGrant,
 } from '../embed-grants.js';
 import { isLoopbackPeerAddress } from '../http/local-daemon-request.js';
+import { rememberCatalogGrokAuth } from '../runtimes/catalog-grok-auth.js';
 
 const EMBED_GRANT_TTL_SEC_DEFAULT = Math.floor(EMBED_GRANT_TTL_MS / 1000);
 const EMBED_GRANT_TTL_SEC_MIN = 60;
@@ -29,6 +30,7 @@ const EMBED_GRANT_TTL_SEC_MAX = 86_400;
 
 export interface RegisterEmbedGrantRoutesDeps {
   getProject: (projectId: string) => { id: string } | null | undefined;
+  dataDir?: string;
   sendApiError: (
     res: Response,
     status: number,
@@ -158,6 +160,22 @@ export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantR
       userId,
       admin,
     });
+    const amcGrok = body.amcGrok && typeof body.amcGrok === 'object' && !Array.isArray(body.amcGrok)
+      ? body.amcGrok as { authJson?: unknown }
+      : null;
+    const authJson = typeof amcGrok?.authJson === 'string' ? amcGrok.authJson : '';
+    if (authJson && deps.dataDir) {
+      try {
+        rememberCatalogGrokAuth(deps.dataDir, userId, authJson);
+      } catch (err) {
+        return deps.sendApiError(
+          res,
+          400,
+          'BAD_REQUEST',
+          err instanceof Error ? err.message : 'invalid amcGrok.authJson',
+        );
+      }
+    }
     const payload: CreateCatalogEmbedGrantResponse = {
       projectId: CATALOG_EMBED_GRANT_PID,
       projectIds,

@@ -109,6 +109,14 @@ function readMaterializedApiKey(grokHome: string, explicit?: string): string {
   }
 }
 
+function grokHomeHasAuthJson(grokHome: string): boolean {
+  try {
+    return fs.statSync(path.join(grokHome, 'auth.json')).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function applyAmcGrokHome(
   env: NodeJS.ProcessEnv,
   forwarding: AmcGrokForwarding | null | undefined,
@@ -119,6 +127,13 @@ export function applyAmcGrokHome(
   if (apiKey) {
     next.GROK_CODE_XAI_API_KEY = apiKey;
     next.XAI_API_KEY = apiKey;
+    return next;
+  }
+  // SuperGrok is auth.json. A host XAI_API_KEY makes `grok models` look
+  // signed-in while headless Build still asks for device login.
+  if (forwarding.authJson || grokHomeHasAuthJson(forwarding.grokHome)) {
+    delete next.GROK_CODE_XAI_API_KEY;
+    delete next.XAI_API_KEY;
   }
   return next;
 }
