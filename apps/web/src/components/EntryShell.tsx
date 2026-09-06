@@ -216,7 +216,7 @@ import {
 import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
 import { AcpStudioLockup } from './AcpStudioLockup';
 import { AcpStudioThemeToggle } from './AcpStudioThemeToggle';
-import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
+import { shouldBounceCloudHomeToOnboarding, shouldRequireAcpCatalogLogin } from '../onboarding/cloud-onboarding-gate';
 import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testAgent, testApiProvider } from '../providers/connection-test';
@@ -730,6 +730,30 @@ export function EntryShell({
     })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
   }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view, acpSsoUrl, acpSsoResolved]);
+  useEffect(() => {
+    if (!shouldRequireAcpCatalogLogin({
+      routeKind: 'home',
+      routeView: view,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      publicRuntimeResolved: acpSsoResolved,
+      hasCatalogSession: acpEmbedSession?.catalog === true,
+      amcEmbed: isAmcEmbedActive(window),
+    })) return;
+    navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
+  }, [acpEmbedSession, acpSsoResolved, acpSsoUrl, view]);
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void fetchPublicRuntime().then((runtime) => {
+        setAcpSsoUrl(runtime.acpSsoUrl);
+        setAcpEmbedSession(runtime.embedSession);
+        setAcpSsoResolved(true);
+        applyAcpStudioAppearance();
+      });
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
   let accountFooterNotice: ReactNode = null;
   if (accountFooterState === 'syncing') {
     accountFooterNotice = <RailAccountSyncTip />;
