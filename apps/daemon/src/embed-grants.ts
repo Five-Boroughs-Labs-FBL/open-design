@@ -77,6 +77,7 @@ const STUDIO_EMBED_READ_PREFIXES = [
   '/api/app-config',
   '/api/agents',
   '/api/projects',
+  '/api/plugins',
   '/api/skills',
   '/api/design-templates',
   '/api/design-systems',

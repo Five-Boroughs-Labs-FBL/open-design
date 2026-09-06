@@ -42,3 +42,27 @@ export function shouldBounceCloudHomeToOnboarding(input: {
     routeKind: 'home',
   });
 }
+
+/**
+ * Hosted ACP Studio requires a live catalog embed grant. After Sign out (or
+ * browser Back into a bfcache snapshot), `onboardingCompleted` can still be
+ * true while `/api/public-runtime` reports `embedSession: null` — force the
+ * Continue with ACP card instead of painting an authenticated Home shell.
+ *
+ * Uses the server-reported session only (not sessionStorage hints). Iframe
+ * embeds keep their own grant handshake and must not be hijacked.
+ */
+export function shouldRequireAcpCatalogLogin(input: {
+  routeKind: string;
+  routeView?: string;
+  acpSsoConfigured: boolean;
+  publicRuntimeResolved: boolean;
+  hasCatalogSession: boolean;
+  amcEmbed?: boolean;
+}): boolean {
+  if (input.amcEmbed) return false;
+  if (!input.acpSsoConfigured || !input.publicRuntimeResolved) return false;
+  if (input.hasCatalogSession) return false;
+  if (input.routeKind === 'home' && input.routeView === 'onboarding') return false;
+  return true;
+}
