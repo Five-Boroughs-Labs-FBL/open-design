@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  acpSsoLogoutUrl,
   acpSsoStartUrl,
   acpSsoUrlFromEnv,
   isAcpSsoConfigured,
@@ -48,6 +49,16 @@ describe('ACP SSO document handshake', () => {
         return undefined;
       },
     })).toBe('https://design.agentcontrolpanel.dev/projects/proj_1?acpEmbed=1');
+  });
+
+  it('maps the SSO start URL to the ACP logout page', () => {
+    expect(acpSsoLogoutUrl('https://agentcontrolpanel.dev/open-design/sso')).toBe(
+      'https://agentcontrolpanel.dev/open-design/logout',
+    );
+    expect(acpSsoLogoutUrl('https://dev.agentcontrolpanel.dev/open-design/sso/')).toBe(
+      'https://dev.agentcontrolpanel.dev/open-design/logout',
+    );
+    expect(acpSsoLogoutUrl(null)).toBeNull();
   });
 
   it('starts SSO with the full Open Design return URL', () => {

@@ -18,6 +18,8 @@ export interface CreateCatalogEmbedGrantRequest {
   ttlSec?: number;
   /** Legacy OD project ids that predate `metadata.acpUserId`. */
   projectIds?: string[];
+  /** ACP admin catalog sessions may persist process-wide host settings. */
+  admin?: boolean;
 }
 
 export interface CreateCatalogEmbedGrantResponse {
@@ -26,13 +28,27 @@ export interface CreateCatalogEmbedGrantResponse {
   projectIds: string[];
   token: string;
   expiresAt: string; // ISO-8601
+  admin: boolean;
+}
+
+export interface PublicRuntimeEmbedSession {
+  uid: string;
+  catalog: boolean;
+  admin: boolean;
 }
 
 export interface PublicRuntimeResponse {
   acpSsoUrl: string | null;
+  embedSession: PublicRuntimeEmbedSession | null;
 }
 
 export interface EmbedGrantPublic {
   uid: string;
   catalog: boolean;
+  admin: boolean;
+}
+
+export interface EmbedSessionLogoutResponse {
+  ok: true;
+  redirectTo: string;
 }

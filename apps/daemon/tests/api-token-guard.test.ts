@@ -421,6 +421,7 @@ describe('embed grant middleware for non-loopback Studio', () => {
     expect(runtime.status).toBe(200);
     expect(runtime.body).toEqual({
       acpSsoUrl: 'https://dev.agentcontrolpanel.dev/open-design/sso',
+      embedSession: null,
     });
 
     const projects = await jsonRequest(`${baseUrl}/api/projects`);

@@ -1,4 +1,8 @@
-import type { AppConfigPrefs } from '@open-design/contracts';
+import type {
+  AppConfigPrefs,
+  PublicRuntimeEmbedSession,
+  PublicRuntimeResponse,
+} from '@open-design/contracts';
 import { MEDIA_PROVIDERS } from '../media/models';
 import { isOpenAICompatible } from '../providers/openai-compatible';
 import type {
@@ -1257,15 +1261,32 @@ export async function fetchDaemonConfig(): Promise<AppConfigPrefs | null> {
   }
 }
 
-export async function fetchPublicRuntime(): Promise<{ acpSsoUrl: string | null }> {
+function readPublicEmbedSession(raw: unknown): PublicRuntimeEmbedSession | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const rec = raw as Record<string, unknown>;
+  const uid = typeof rec.uid === 'string' ? rec.uid.trim() : '';
+  if (!uid) return null;
+  const catalog = rec.catalog === true;
+  return {
+    uid,
+    catalog,
+    admin: catalog && rec.admin === true,
+  };
+}
+
+export async function fetchPublicRuntime(): Promise<PublicRuntimeResponse> {
+  const empty: PublicRuntimeResponse = { acpSsoUrl: null, embedSession: null };
   try {
     const res = await fetch('/api/public-runtime');
-    if (!res.ok) return { acpSsoUrl: null };
+    if (!res.ok) return empty;
     const data = await res.json();
     const url = typeof data?.acpSsoUrl === 'string' ? data.acpSsoUrl.trim() : '';
-    return { acpSsoUrl: url.length > 0 ? url : null };
+    return {
+      acpSsoUrl: url.length > 0 ? url : null,
+      embedSession: readPublicEmbedSession(data?.embedSession),
+    };
   } catch {
-    return { acpSsoUrl: null };
+    return empty;
   }
 }
 

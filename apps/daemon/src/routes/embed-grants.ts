@@ -4,15 +4,22 @@ import type {
   ApiErrorCode,
   CreateCatalogEmbedGrantResponse,
   CreateProjectEmbedGrantResponse,
+  EmbedSessionLogoutResponse,
+  PublicRuntimeResponse,
 } from '@open-design/contracts';
 
-import { acpSsoUrlFromEnv } from '../acp-sso.js';
+import { acpSsoLogoutUrl, acpSsoUrlFromEnv } from '../acp-sso.js';
 import { apiTokenAuthorizationMatches, apiTokenFromEnv } from '../api-token-auth.js';
 import {
   CATALOG_EMBED_GRANT_PID,
   EMBED_GRANT_TTL_MS,
+  clearEmbedGrantCookie,
+  embedGrantCookieShouldBeSecure,
   mintEmbedGrant,
   normalizeEmbedGrantProjectIds,
+  publicEmbedSessionFromGrant,
+  readEmbedGrantFromRequest,
+  verifyEmbedGrant,
 } from '../embed-grants.js';
 import { isLoopbackPeerAddress } from '../http/local-daemon-request.js';
 
@@ -47,6 +54,15 @@ function readUserId(body: Record<string, unknown>): string {
   return typeof body.userId === 'string' ? body.userId.trim() : '';
 }
 
+function readAdmin(body: Record<string, unknown>): boolean {
+  return body.admin === true;
+}
+
+function clearSessionAndLogoutTarget(req: Request, res: Response): string {
+  clearEmbedGrantCookie(res, { secure: embedGrantCookieShouldBeSecure(req) });
+  return acpSsoLogoutUrl(acpSsoUrlFromEnv()) ?? '/';
+}
+
 function readTtlSec(raw: unknown): { ok: true; value: number } | { ok: false } {
   if (raw == null || raw === '') return { ok: true, value: EMBED_GRANT_TTL_SEC_DEFAULT };
   const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
@@ -77,8 +93,28 @@ function authorizeMint(req: EmbedGrantMintRequest): 'ok' | 'forbidden' | 'unauth
 }
 
 export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantRoutesDeps): void {
-  app.get('/api/public-runtime', (_req, res) => {
-    res.json({ acpSsoUrl: acpSsoUrlFromEnv() });
+  app.get('/api/public-runtime', (req, res) => {
+    const apiToken = apiTokenFromEnv();
+    const token = readEmbedGrantFromRequest(req);
+    const grant = apiToken.length > 0 && token
+      ? verifyEmbedGrant(apiToken, token)
+      : null;
+    const payload: PublicRuntimeResponse = {
+      acpSsoUrl: acpSsoUrlFromEnv(),
+      embedSession: publicEmbedSessionFromGrant(grant),
+    };
+    res.json(payload);
+  });
+
+  app.get('/api/embed-session/logout', (req, res) => {
+    const redirectTo = clearSessionAndLogoutTarget(req, res);
+    return res.redirect(302, redirectTo);
+  });
+
+  app.post('/api/embed-session/logout', (req, res) => {
+    const redirectTo = clearSessionAndLogoutTarget(req, res);
+    const payload: EmbedSessionLogoutResponse = { ok: true, redirectTo };
+    return res.json(payload);
   });
 
   app.post('/api/embed-grants', (req, res) => {
@@ -113,12 +149,14 @@ export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantR
       return deps.sendApiError(res, 400, 'BAD_REQUEST', 'projectIds must be an array of strings');
     }
     const projectIds = normalizeEmbedGrantProjectIds(body.projectIds);
+    const admin = readAdmin(body);
     const apiToken = apiTokenFromEnv();
     const minted = mintEmbedGrant(apiToken, {
       projectId: CATALOG_EMBED_GRANT_PID,
       projectIds,
       ttlMs: ttlSec.value * 1000,
       userId,
+      admin,
     });
     const payload: CreateCatalogEmbedGrantResponse = {
       projectId: CATALOG_EMBED_GRANT_PID,
@@ -126,6 +164,7 @@ export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantR
       userId,
       token: minted.token,
       expiresAt: minted.expiresAt.toISOString(),
+      admin: minted.payload.adm === true,
     };
     return res.json(payload);
   });
