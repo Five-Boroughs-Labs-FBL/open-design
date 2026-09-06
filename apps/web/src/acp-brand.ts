@@ -7,6 +7,7 @@ import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 
 export const ACP_OPEN_DESIGN_NAME = 'ACP Design';
 export const ACP_PRODUCT_SHORT = 'ACP';
+export const ACP_PRODUCT_WORDMARK = 'AGENT CONTROL PANEL';
 export const ACP_OPEN_DESIGN_SUBTITLE = 'Agent Control Panel';
 export const ACP_OPEN_DESIGN_LOADING = 'Loading ACP Design…';
 export const ACP_ACCENT = '#FF7A29';
