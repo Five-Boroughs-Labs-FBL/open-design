@@ -278,12 +278,13 @@ function renderProjectView(
       models: [],
     } as AgentInfo,
   ],
+  renderConfig: AppConfig = config,
 ) {
   return render(
     <ProjectView
       project={renderProject}
       routeFileName={null}
-      config={config}
+      config={renderConfig}
       agents={agents}
       skills={[] as SkillSummary[]}
       designTemplates={[] as SkillSummary[]}
@@ -611,6 +612,46 @@ describe('ProjectView API empty response handling', () => {
     expect(userMessage?.content).toContain('### Attachment 1: brief.docx');
     expect(userMessage?.content).toContain('Hello world');
     expect(userMessage?.content).toContain('Second line');
+  });
+
+  it('routes MiniMax HTTP without OpenCode instead of asking to install it', async () => {
+    mockedStreamViaDaemon.mockImplementation(async (options: DaemonStreamOptions) => {
+      options.handlers.onDelta('hello from minimax');
+      options.handlers.onDone('hello from minimax');
+    });
+    renderProjectView(
+      project,
+      [
+        {
+          id: 'byok-opencode',
+          name: 'BYOK OpenCode',
+          bin: 'opencode',
+          available: false,
+          models: [],
+        } as AgentInfo,
+      ],
+      {
+        ...config,
+        apiProtocol: 'anthropic',
+        apiKey: '',
+        baseUrl: 'https://api.minimax.io/anthropic',
+        model: 'MiniMax-M2.7-highspeed',
+      },
+    );
+
+    await sendTestPrompt();
+
+    await waitFor(() => expect(mockedStreamViaDaemon).toHaveBeenCalledTimes(1));
+    expect(mockedStreamViaDaemon).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: 'byok-opencode',
+      model: 'MiniMax-M2.7-highspeed',
+      byokProvider: expect.objectContaining({
+        protocol: 'anthropic',
+        baseUrl: 'https://api.minimax.io/anthropic',
+        model: 'MiniMax-M2.7-highspeed',
+      }),
+    }));
+    expect(screen.queryByText(/BYOK API runs require OpenCode/i)).toBeNull();
   });
 
   it('fails BYOK API sends before daemon routing when OpenCode is unavailable', async () => {

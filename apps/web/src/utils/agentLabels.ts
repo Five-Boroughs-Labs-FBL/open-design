@@ -17,6 +17,7 @@ const AGENT_LABELS: Record<string, string> = {
   'deepseek-harness': 'DeepSeek Harness',
   deepseek: 'DeepSeek',
   antigravity: 'Antigravity',
+  minimax: 'MiniMax',
   'anthropic-api': 'Anthropic API via OpenCode',
   'openai-api': 'OpenAI API via OpenCode',
   'azure-openai-api': 'Azure OpenAI via OpenCode',

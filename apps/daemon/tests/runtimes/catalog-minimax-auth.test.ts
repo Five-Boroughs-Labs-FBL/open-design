@@ -51,6 +51,25 @@ describe('catalog MiniMax stash', () => {
     expect(next.apiKey).toBe('sk-admin-minimax');
     expect(next.model).toBe('MiniMax-M3');
   });
+
+  it('ignores a leftover Settings API key so MiniMax gets the admin vault', () => {
+    const next = mergeCatalogMinimaxByok(
+      {
+        protocol: 'anthropic',
+        apiKey: 'sk-ant-leftover',
+        baseUrl: 'https://api.anthropic.com',
+        model: 'claude-opus-4',
+      },
+      {
+        apiKey: 'sk-admin-minimax',
+        baseUrl: 'https://api.minimax.io/anthropic',
+        model: 'MiniMax-M2.7-highspeed',
+      },
+    );
+    expect(next.apiKey).toBe('sk-admin-minimax');
+    expect(next.baseUrl).toBe('https://api.minimax.io/anthropic');
+    expect(next.model).toBe('MiniMax-M2.7-highspeed');
+  });
 });
 
 describe('resolveCatalogMinimaxAuth', () => {
@@ -91,6 +110,35 @@ describe('resolveCatalogMinimaxAuth', () => {
     });
     expect(resolved?.apiKey).toBe('sk-admin-minimax');
     expect(seen).toEqual(['GET /api/open-design/minimax-auth?userId=user-alice']);
+    expect(readCatalogMinimaxAuth(dataDir, 'user-alice')?.apiKey).toBe('sk-admin-minimax');
+  });
+
+  it('refreshes a stale stash from ACP instead of keeping the leftover key', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'od-catalog-minimax-refresh-'));
+    rememberCatalogMinimaxAuth(dataDir, 'user-alice', {
+      apiKey: 'sk-stale-leftover',
+      baseUrl: 'https://api.minimax.io/anthropic',
+      model: 'MiniMax-M2.7-highspeed',
+    });
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        apiKey: 'sk-admin-minimax',
+        baseUrl: 'https://api.minimax.io/anthropic',
+        model: 'MiniMax-M2.7-highspeed',
+      }));
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+    servers.push(server);
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('no listen port');
+    const resolved = await resolveCatalogMinimaxAuth(dataDir, 'user-alice', {
+      OD_ACP_BE_URL: `http://127.0.0.1:${address.port}`,
+      OD_API_TOKEN: 'token',
+    });
+    expect(resolved?.apiKey).toBe('sk-admin-minimax');
     expect(readCatalogMinimaxAuth(dataDir, 'user-alice')?.apiKey).toBe('sk-admin-minimax');
   });
 });

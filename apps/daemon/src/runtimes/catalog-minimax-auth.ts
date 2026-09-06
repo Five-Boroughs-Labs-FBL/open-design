@@ -131,15 +131,17 @@ export async function resolveCatalogMinimaxAuth(
   userId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<CatalogMinimaxAuth | null> {
-  const stored = readCatalogMinimaxAuth(dataDir, userId);
-  if (stored) return stored;
+  // ACP is the source of truth. A leftover stash from an earlier mint
+  // (wrong admin, placeholder, rotated key) must not win over a fresh pull.
   const pulled = await fetchCatalogMinimaxAuthFromAcp(userId, env);
-  if (!pulled) return null;
-  try {
-    return rememberCatalogMinimaxAuth(dataDir, userId, pulled);
-  } catch {
-    return pulled;
+  if (pulled) {
+    try {
+      return rememberCatalogMinimaxAuth(dataDir, userId, pulled);
+    } catch {
+      return pulled;
+    }
   }
+  return readCatalogMinimaxAuth(dataDir, userId);
 }
 
 export function mergeCatalogMinimaxByok<
@@ -151,8 +153,11 @@ export function mergeCatalogMinimaxByok<
   return {
     ...(provider ?? ({} as T)),
     protocol: provider?.protocol || 'anthropic',
-    apiKey: String(provider?.apiKey || '').trim() || packed.apiKey,
-    baseUrl: String(provider?.baseUrl || '').trim() || packed.baseUrl,
+    // Catalog Studio never uses a leftover Settings / BYOK key. Talk and
+    // Studio share the admin MiniMax vault; a stale Anthropic key here is
+    // what MiniMax reports as 401 invalid api key.
+    apiKey: packed.apiKey,
+    baseUrl: packed.baseUrl || String(provider?.baseUrl || '').trim() || DEFAULT_CATALOG_MINIMAX_BASE_URL,
     model: packed.model || String(provider?.model || '').trim() || DEFAULT_CATALOG_MINIMAX_MODEL,
   };
 }

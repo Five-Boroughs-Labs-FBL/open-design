@@ -73,6 +73,7 @@ const HIGH_INPUT_TOKEN_WARNING_THRESHOLD = 200_000;
 const RUN_CREATE_AUTHORITY_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const;
 const BYOK_OPENCODE_AGENT_ID = 'byok-opencode';
 const API_MODE_AGENT_IDS = new Set([
+  'minimax',
   'anthropic-api',
   'openai-api',
   'azure-openai-api',
