@@ -23,6 +23,7 @@ import {
 } from '../embed-grants.js';
 import { isLoopbackPeerAddress } from '../http/local-daemon-request.js';
 import { rememberCatalogGrokAuth } from '../runtimes/catalog-grok-auth.js';
+import { rememberCatalogMinimaxAuth } from '../runtimes/catalog-minimax-auth.js';
 
 const EMBED_GRANT_TTL_SEC_DEFAULT = Math.floor(EMBED_GRANT_TTL_MS / 1000);
 const EMBED_GRANT_TTL_SEC_MIN = 60;
@@ -173,6 +174,21 @@ export function registerEmbedGrantRoutes(app: Express, deps: RegisterEmbedGrantR
           400,
           'BAD_REQUEST',
           err instanceof Error ? err.message : 'invalid amcGrok.authJson',
+        );
+      }
+    }
+    const amcMinimax = body.amcMinimax && typeof body.amcMinimax === 'object' && !Array.isArray(body.amcMinimax)
+      ? body.amcMinimax as { apiKey?: unknown; baseUrl?: unknown; model?: unknown }
+      : null;
+    if (amcMinimax && deps.dataDir) {
+      try {
+        rememberCatalogMinimaxAuth(deps.dataDir, userId, amcMinimax);
+      } catch (err) {
+        return deps.sendApiError(
+          res,
+          400,
+          'BAD_REQUEST',
+          err instanceof Error ? err.message : 'invalid amcMinimax',
         );
       }
     }

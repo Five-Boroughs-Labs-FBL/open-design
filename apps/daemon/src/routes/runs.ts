@@ -39,7 +39,11 @@ import {
 import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { renderDesignGenerationDirective } from '../design/generation-directive.js';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
-import { embedGrantAllowsProjectRecord, isCatalogEmbedGrant } from '../embed-grants.js';
+import {
+  embedGrantAllowsProjectRecord,
+  isCatalogEmbedGrant,
+  type EmbedGrantPayload,
+} from '../embed-grants.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
 import {
@@ -48,6 +52,11 @@ import {
   type AmcGrokForwarding,
 } from '../runtimes/amc-grok.js';
 import { resolveCatalogGrokForwarding } from '../runtimes/catalog-grok-auth.js';
+import {
+  isCatalogMinimaxByok,
+  mergeCatalogMinimaxByok,
+  resolveCatalogMinimaxAuth,
+} from '../runtimes/catalog-minimax-auth.js';
 import {
   attachAmcRunCredentials,
   parseAmcCredentialBlock,
@@ -905,6 +914,30 @@ function hasCompleteByokOpenCodeConfig(meta: JsonRecord): boolean {
     meta.byokProvider as ByokChatProviderConfig | null | undefined,
     typeof meta.model === 'string' ? meta.model : null,
   ) !== null;
+}
+
+async function applyCatalogMinimaxByok(
+  req: { embedGrant?: EmbedGrantPayload | null },
+  record: JsonRecord,
+  dataDir: string,
+): Promise<void> {
+  const grant = req.embedGrant;
+  if (!isCatalogEmbedGrant(grant)) return;
+  if (!isCatalogMinimaxByok(
+    record.byokProvider as { baseUrl?: unknown; model?: unknown } | null,
+    record.model,
+  )) {
+    return;
+  }
+  const packed = await resolveCatalogMinimaxAuth(dataDir, grant.uid);
+  if (!packed) return;
+  const next = mergeCatalogMinimaxByok(
+    record.byokProvider as ByokChatProviderConfig | null | undefined,
+    packed,
+  );
+  record.byokProvider = next;
+  record.agentId = BYOK_OPENCODE_AGENT_ID;
+  record.model = next.model;
 }
 
 function toOdNativeEvent(record: RunEventRecord): OdNativeEvent | null {
@@ -1943,6 +1976,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!toolBundle.ok) {
       return sendApiError(res, 400, 'BAD_REQUEST', toolBundle.message);
     }
+    await applyCatalogMinimaxByok(req, requestBody, RUNTIME_DATA_DIR);
     if (!hasCompleteByokOpenCodeConfig(requestBody)) {
       return sendApiError(
         res,
@@ -2621,6 +2655,8 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         console.warn('[runs] agent id fallback failed', err);
       }
     }
+    await applyCatalogMinimaxByok(req, requestBody, RUNTIME_DATA_DIR);
+    await applyCatalogMinimaxByok(req, meta, RUNTIME_DATA_DIR);
     if (!hasCompleteByokOpenCodeConfig({
       ...meta,
       ...(requestBody.byokProvider !== undefined
@@ -4081,6 +4117,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       ? clarificationResolution.value
       : null;
     const clarificationTask = clarificationContinuation?.task ?? null;
+    await applyCatalogMinimaxByok(req, requestBody, RUNTIME_DATA_DIR);
     if (!hasCompleteByokOpenCodeConfig({
       ...requestBody,
       ...(clarificationTask ? { agentId: clarificationTask.selectedAgentId } : {}),

@@ -166,6 +166,7 @@ export const KNOWN_PROVIDERS: KnownProvider[] = [
     baseUrl: 'https://api.minimax.io/anthropic',
     preferredModels: [
       'MiniMax-M2.7-highspeed',
+      'MiniMax-M3',
       'MiniMax-M2.7',
       'MiniMax-M2.5-highspeed',
       'MiniMax-M2.5',
@@ -180,6 +181,7 @@ export const KNOWN_PROVIDERS: KnownProvider[] = [
     baseUrl: 'https://api.minimaxi.com/anthropic',
     preferredModels: [
       'MiniMax-M2.7-highspeed',
+      'MiniMax-M3',
       'MiniMax-M2.7',
       'MiniMax-M2.5-highspeed',
       'MiniMax-M2.5',
