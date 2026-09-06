@@ -385,6 +385,43 @@ describe('registerEmbedGrantRoutes grant principal', () => {
     )).toBe('{"refresh_token":"vault"}');
   });
 
+  it('stashes admin MiniMax from catalog mint amcMinimax', async () => {
+    process.env.OD_API_TOKEN = API_TOKEN;
+    const dataDir = mkdtempSync(join(tmpdir(), 'od-embed-catalog-minimax-'));
+    const app = express();
+    app.use(express.json());
+    registerEmbedGrantRoutes(app, {
+      getProject: (projectId) => ({ id: projectId }),
+      dataDir,
+      sendApiError,
+    });
+    const { baseUrl, server } = await listenApp(app);
+    servers.push(server);
+
+    const resp = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${API_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: 'user-alice',
+        amcMinimax: {
+          apiKey: 'sk-admin-minimax',
+          baseUrl: 'https://api.minimax.io/anthropic',
+          model: 'MiniMax-M3',
+        },
+      }),
+    });
+    expect(resp.status).toBe(200);
+    const stored = JSON.parse(readFileSync(
+      join(dataDir, 'catalog-minimax', 'user-alice.json'),
+      'utf8',
+    )) as { apiKey: string; model: string };
+    expect(stored.apiKey).toBe('sk-admin-minimax');
+    expect(stored.model).toBe('MiniMax-M3');
+  });
+
   it('still mints when amcGrok is omitted', async () => {
     process.env.OD_API_TOKEN = API_TOKEN;
     const app = express();
