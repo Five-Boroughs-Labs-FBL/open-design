@@ -14,6 +14,7 @@ import {
 import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
+import { applyAcpStudioAppearance } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
 import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
@@ -2186,6 +2187,7 @@ function AppInner() {
         setAcpSsoUrl(publicRuntime.acpSsoUrl);
         setAcpEmbedSession(publicRuntime.embedSession);
         setAcpPublicRuntimeResolved(true);
+        applyAcpStudioAppearance();
         const daemonMediaProvidersLoaded =
           daemonMediaProvidersResult.status === 'ok'
             ? daemonMediaProvidersResult.providers

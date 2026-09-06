@@ -50,8 +50,10 @@ import {
   formatVelaBalanceUsd,
   velaLogout,
 } from '../providers/daemon';
+import { isAcpStudioShell } from '../acp-brand';
 import { beginAcpCatalogSignOut } from '../amc-embed';
 import { resetCloudSignInTipDismissal } from './CloudSignInTip';
+import { AcpStudioLockup } from './AcpStudioLockup';
 import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
 import { Icon } from './Icon';
@@ -1807,6 +1809,11 @@ export function EntryNavRail({
     >
       <div className="entry-nav-rail__panel">
       <div className="entry-nav-rail__group">
+        {catalogChrome.showAcpSignOut || (typeof window !== 'undefined' && isAcpStudioShell(window)) ? (
+          <div className="entry-nav-rail__acp-brand">
+            <AcpStudioLockup size={20} />
+          </div>
+        ) : null}
 
         {context ? (
           <div className="entry-nav-rail__team-wrap">
