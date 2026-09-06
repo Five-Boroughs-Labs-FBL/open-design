@@ -142,14 +142,14 @@ describe('resolveAcpCatalogChrome', () => {
 });
 
 describe('isAcpHostAdminOnlyHomeView', () => {
-  it('blocks Settings, Plugins, and Design systems for catalog regulars', () => {
+  it('blocks Settings for catalog regulars', () => {
     expect(isAcpHostAdminOnlyHomeView('settings')).toBe(true);
-    expect(isAcpHostAdminOnlyHomeView('plugins')).toBe(true);
-    expect(isAcpHostAdminOnlyHomeView('design-systems')).toBe(true);
   });
 
-  it('keeps Community and Home reachable for every catalog user', () => {
+  it('keeps Community, Plugins, Design systems, and Home reachable for every catalog user', () => {
     expect(isAcpHostAdminOnlyHomeView('community')).toBe(false);
+    expect(isAcpHostAdminOnlyHomeView('plugins')).toBe(false);
+    expect(isAcpHostAdminOnlyHomeView('design-systems')).toBe(false);
     expect(isAcpHostAdminOnlyHomeView('home')).toBe(false);
   });
 });
