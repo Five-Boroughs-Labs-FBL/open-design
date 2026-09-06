@@ -154,17 +154,18 @@
 
 .plugin-marketplace__switch button.is-active {
   border-color: transparent;
-  background: #fff;
+  /* Theme-aware fill — hardcoded #fff + --text-strong is invisible on dark. */
+  background: var(--bg-elevated);
   color: var(--text-strong);
   box-shadow: 0 1px 2px color-mix(in srgb, #000 7%, transparent);
 }
-/* Selected scope tab / category chip: white fill matching the segmented
-   switch's active thumb — the pastel app wash behind the page gives the
-   white enough contrast to read as a fill, with a whisper shadow to lift it. */
+/* Selected scope tab / category chip: elevated panel fill matching the
+   segmented switch's active thumb. Uses --bg-elevated so dark theme keeps
+   readable contrast instead of white-on-white. */
 .plugin-marketplace__filters button.is-active,
 .plugin-marketplace__category-tags button.is-active {
   border-color: transparent;
-  background: #fff;
+  background: var(--bg-elevated);
   color: var(--text-strong);
   box-shadow: 0 1px 2px color-mix(in srgb, #000 7%, transparent);
 }

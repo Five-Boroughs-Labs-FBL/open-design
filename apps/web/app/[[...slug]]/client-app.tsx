@@ -2,6 +2,11 @@
 
 import dynamic from 'next/dynamic';
 
+import {
+  ACP_OPEN_DESIGN_LOADING,
+  applyAcpStudioAppearance,
+  isAcpStudioShell,
+} from '../../src/acp-brand';
 import { applyAmcEmbedFromLocation } from '../../src/amc-embed';
 import { installErrorHandlers } from '../../src/analytics/error-tracking';
 import { MatrixLoader } from '../../src/components/MatrixLoader';
@@ -9,6 +14,7 @@ import { installWebObservability } from '../../src/observability/install';
 
 if (typeof window !== 'undefined') {
   applyAmcEmbedFromLocation(window);
+  applyAcpStudioAppearance(window);
 }
 
 // Install browser exception handlers at module-load time, before any other
@@ -36,7 +42,11 @@ const App = dynamic(() => import('../../src/App').then((m) => m.App), {
   loading: () => (
     <div className="od-loading-shell">
       <MatrixLoader />
-      <span>Loading OpenDesign…</span>
+      <span>
+        {typeof window !== 'undefined' && isAcpStudioShell(window)
+          ? ACP_OPEN_DESIGN_LOADING
+          : 'Loading OpenDesign…'}
+      </span>
     </div>
   ),
 });

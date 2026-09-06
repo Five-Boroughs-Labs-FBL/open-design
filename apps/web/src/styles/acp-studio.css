@@ -1,0 +1,581 @@
+/* Hosted ACP Studio — Agent Control Panel graphite + signal amber. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+html[data-acp-studio][data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #07080b;
+  --bg-app: #07080b;
+  --bg-panel: #0d0f15;
+  --bg-subtle: #12141b;
+  --bg-muted: #1a1e2a;
+  --bg-fill-tertiary: rgba(255, 255, 255, 0.03);
+  --bg-fill-secondary: rgba(255, 255, 255, 0.06);
+  --bg-fill: rgba(255, 255, 255, 0.12);
+  --bg-elevated: #12141b;
+  --glass-regular: rgba(14, 16, 21, 0.88);
+  --glass-regular-blur: 28px;
+  --glass-edge-highlight: rgba(255, 255, 255, 0.08);
+  --entry-ground: #07080b;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-selected: rgba(255, 122, 41, 0.3);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --text: #edeff4;
+  --text-strong: #ffffff;
+  --text-muted: #9aa2b4;
+  --text-soft: #6e7689;
+  --text-faint: #6e7689;
+  --accent: #ff7a29;
+  --accent-contrast: #1a0b03;
+  --accent-strong: #ff9147;
+  --accent-soft: rgba(255, 122, 41, 0.14);
+  --accent-tint: rgba(255, 122, 41, 0.08);
+  --accent-hover: #ff9147;
+  --brand: #ff7a29;
+  --brand-weak: rgba(255, 122, 41, 0.28);
+  --brand-soft: rgba(255, 122, 41, 0.14);
+  --brand-text: #ffa35c;
+  --brand-ink: #ffa35c;
+  --brand-surface: rgba(255, 122, 41, 0.12);
+  --send-ground: #ff7a29;
+  --send-ink: #1a0b03;
+  --upgrade-ground: #ff7a29;
+  --upgrade-ink: #1a0b03;
+  --selected: #ff7a29;
+  --selected-soft: rgba(255, 122, 41, 0.16);
+  --green: #34d8a0;
+  --green-bg: rgba(52, 216, 160, 0.12);
+  --green-border: rgba(52, 216, 160, 0.28);
+  --blue: #4fa8ff;
+  --blue-bg: rgba(79, 168, 255, 0.12);
+  --blue-border: rgba(79, 168, 255, 0.28);
+  --purple: #c77dff;
+  --purple-bg: rgba(199, 125, 255, 0.12);
+  --purple-border: rgba(199, 125, 255, 0.28);
+  --red: #ff4d5e;
+  --red-bg: rgba(255, 77, 94, 0.12);
+  --red-border: rgba(255, 77, 94, 0.28);
+  --amber: #ff7a29;
+  --amber-bg: rgba(255, 122, 41, 0.14);
+  --danger-text: #ff8a96;
+  --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.65), 0 8px 16px rgba(0, 0, 0, 0.35);
+  --serif: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --code-header-bg: #12141b;
+  --code-body-bg: #0a0b0f;
+  --rotating-title-accent: #ff7a29;
+  --glass-refract-ring-top: rgba(255, 255, 255, 0.18);
+  --glass-refract-ring-edge: rgba(255, 255, 255, 0.08);
+  --glass-refract-ring-bottom: rgba(255, 255, 255, 0.04);
+}
+
+html[data-acp-studio][data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f4f1;
+  --bg-app: #f6f4f1;
+  --bg-panel: #ffffff;
+  --bg-subtle: #ede9e3;
+  --bg-muted: #e4dfd6;
+  --bg-fill-tertiary: rgba(24, 20, 16, 0.03);
+  --bg-fill-secondary: rgba(24, 20, 16, 0.06);
+  --bg-fill: rgba(24, 20, 16, 0.1);
+  --bg-elevated: #ffffff;
+  --glass-regular: rgba(255, 255, 255, 0.9);
+  --glass-regular-blur: 28px;
+  --glass-edge-highlight: rgba(255, 255, 255, 0.7);
+  --entry-ground: #f6f4f1;
+  --border: rgba(24, 20, 16, 0.1);
+  --border-strong: rgba(24, 20, 16, 0.16);
+  --border-selected: rgba(199, 84, 20, 0.28);
+  --border-soft: rgba(24, 20, 16, 0.08);
+  --border-subtle: rgba(24, 20, 16, 0.08);
+  --text: #17130f;
+  --text-strong: #17130f;
+  --text-muted: #6c6459;
+  --text-soft: #857b6e;
+  --text-faint: #9a8f80;
+  --accent: #c75414;
+  --accent-contrast: #fff6f0;
+  --accent-strong: #b14d12;
+  --accent-soft: rgba(199, 84, 20, 0.1);
+  --accent-tint: rgba(199, 84, 20, 0.06);
+  --accent-hover: #b14d12;
+  --brand: #c75414;
+  --brand-weak: rgba(199, 84, 20, 0.22);
+  --brand-soft: rgba(199, 84, 20, 0.1);
+  --brand-text: #b14d12;
+  --brand-ink: #b14d12;
+  --brand-surface: rgba(199, 84, 20, 0.1);
+  --send-ground: #c75414;
+  --send-ink: #fff6f0;
+  --upgrade-ground: #c75414;
+  --upgrade-ink: #fff6f0;
+  --selected: #c75414;
+  --selected-soft: rgba(199, 84, 20, 0.12);
+  --green: #0b8460;
+  --green-bg: rgba(11, 132, 96, 0.1);
+  --green-border: rgba(11, 132, 96, 0.28);
+  --blue: #1a74ff;
+  --blue-bg: rgba(26, 116, 255, 0.1);
+  --blue-border: rgba(26, 116, 255, 0.24);
+  --purple: #7a34ae;
+  --purple-bg: rgba(122, 52, 174, 0.1);
+  --purple-border: rgba(122, 52, 174, 0.24);
+  --red: #b01f32;
+  --red-bg: rgba(176, 31, 50, 0.1);
+  --red-border: rgba(176, 31, 50, 0.24);
+  --amber: #c75414;
+  --amber-bg: rgba(199, 84, 20, 0.1);
+  --danger-text: #b01f32;
+  --shadow-xs: 0 1px 0 rgba(24, 20, 16, 0.04);
+  --shadow-sm: 0 1px 2px rgba(24, 20, 16, 0.06), 0 2px 4px rgba(24, 20, 16, 0.04);
+  --shadow-md: 0 8px 24px rgba(24, 20, 16, 0.1), 0 2px 6px rgba(24, 20, 16, 0.05);
+  --shadow-lg: 0 18px 50px rgba(24, 20, 16, 0.14), 0 8px 16px rgba(24, 20, 16, 0.06);
+  --serif: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --code-header-bg: #ede9e3;
+  --code-body-bg: #f6f4f1;
+  --rotating-title-accent: #c75414;
+}
+
+html[data-acp-studio][data-theme='dark'] body {
+  background: #07080b;
+  color: #edeff4;
+}
+
+html[data-acp-studio][data-theme='light'] body {
+  background: #f6f4f1;
+  color: #17130f;
+}
+
+/* The entry rail hardcodes a milky white frost. On ACP dark that washes the
+   graphite panel out; pin a theme-aware surface instead. */
+html[data-acp-studio][data-theme='dark'] .entry-nav-rail__panel {
+  --rail-surface: rgba(13, 15, 21, 0.92);
+}
+
+html[data-acp-studio][data-theme='light'] .entry-nav-rail__panel {
+  --rail-surface: rgba(255, 255, 255, 0.86);
+}
+
+html[data-acp-studio] .entry-nav-rail__search {
+  background: var(--bg-fill-secondary);
+}
+
+html[data-acp-studio][data-theme='dark'] .entry-nav-rail {
+  --rail-ink-quiet: color-mix(in srgb, var(--text) 58%, transparent);
+}
+
+/* Hosted ACP Studio — brand lockup and amber primary on the SSO shell. */
+
+.acp-studio-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text-strong);
+}
+
+.acp-studio-lockup--wordmark {
+  gap: 0;
+}
+
+.acp-studio-lockup--wordmark .acp-studio-lockup__sub {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.acp-studio-lockup--wordmark.acp-studio-lockup--compact .acp-studio-lockup__sub {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.acp-studio-lockup__mark {
+  flex: 0 0 auto;
+  display: block;
+}
+
+.acp-studio-lockup__ring {
+  stroke: var(--border-strong);
+}
+
+.acp-studio-lockup__ring--inner {
+  stroke: var(--border);
+}
+
+.acp-studio-lockup__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acp-studio-lockup__name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.acp-studio-lockup__sub {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.acp-studio-lockup--compact .acp-studio-lockup__name {
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.entry-nav-rail__acp-brand {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 4px 10px 8px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.workspace-tabs-acp-brand {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  padding-left: 4px;
+}
+
+html[data-acp-studio] .onboarding-view.onboarding-view--cloud {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-acp-studio] .onboarding-cloud__art {
+  display: none;
+}
+
+html[data-acp-studio] .onboarding-cloud__pane {
+  align-items: center;
+}
+
+html[data-acp-studio] .onboarding-cloud__pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    520px 340px at 80% 0%,
+    rgba(255, 122, 41, 0.12),
+    transparent 66%
+  );
+}
+
+html[data-acp-studio][data-theme='light'] .onboarding-cloud__pane::before {
+  background: radial-gradient(
+    520px 340px at 80% 0%,
+    rgba(199, 84, 20, 0.1),
+    transparent 66%
+  );
+}
+
+/* ACP SSO is a marketing auth page, not the product shell. Collapse the
+   workspace tab row so the sign-in card sits on the graphite void. */
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) {
+  grid-template-rows: minmax(0, 1fr);
+  --workspace-tabs-chrome-height: 0px;
+}
+
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) > .workspace-tabs-chrome {
+  display: none;
+}
+
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) .workspace-shell__body {
+  grid-row: 1;
+}
+
+html[data-acp-studio] .home-hero__title {
+  font-family: var(--sans);
+  color: var(--text-strong);
+}
+
+html[data-acp-studio] .home-hero__composer-beam[data-beam='composer'] {
+  --beam-color: #ff7a29;
+  --beam-color-2: #ffa35c;
+}
+
+html[data-acp-studio][data-theme='light'] .home-hero__composer-beam[data-beam='composer'] {
+  --beam-color: #c75414;
+  --beam-color-2: #e0641d;
+}
+
+.acp-sso-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  pointer-events: none;
+}
+
+.acp-sso-header > * {
+  pointer-events: auto;
+}
+
+.acp-sso-header .acp-studio-theme-toggle {
+  margin-right: 0;
+}
+
+.onboarding-view--acp {
+  position: relative;
+}
+
+.onboarding-view--acp .onboarding-cloud__center {
+  width: min(480px, 100%);
+  align-items: stretch;
+  text-align: left;
+  animation: acp-sso-card-in 0.55s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes acp-sso-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.acp-sso-card__eyebrow {
+  margin: 0 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.acp-sso-card__eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(255, 122, 41, 0.6);
+  animation: acp-sso-pulse 1.8s ease-out infinite;
+}
+
+@keyframes acp-sso-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 122, 41, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 122, 41, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 122, 41, 0);
+  }
+}
+
+.acp-sso-card__title {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.acp-sso-card__title em {
+  font-style: normal;
+  background-image: linear-gradient(140deg, #ffa35c 0%, #ff7a29 50%, #e0561a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+html[data-acp-studio][data-theme='light'] .acp-sso-card__title em {
+  background-image: linear-gradient(140deg, #e0641d 0%, #c75414 50%, #b14d12 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__body {
+  max-width: 44ch;
+  text-align: left;
+  font-size: 15.5px;
+}
+
+html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__footer {
+  left: 0;
+  right: 0;
+  align-items: center;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acp-sso-card__eyebrow::before,
+  .onboarding-view--acp .onboarding-cloud__center {
+    animation: none;
+  }
+}
+
+html[data-acp-studio] .onboarding-cloud__primary {
+  background: linear-gradient(140deg, #ffa35c 0%, #ff7a29 55%, #e0561a 100%);
+  color: #fff;
+}
+
+html[data-acp-studio] .onboarding-cloud__primary:hover {
+  filter: brightness(1.04);
+}
+
+html[data-acp-studio][data-theme='light'] .onboarding-cloud__primary {
+  background: linear-gradient(140deg, #e0641d 0%, #c75414 55%, #b14d12 100%);
+  color: #fff6f0;
+}
+
+html[data-acp-studio] .onboarding-cloud__center .acp-studio-lockup {
+  margin-bottom: 18px;
+}
+
+/* Day / night switch — same compact sun/moon control as Agent Control Panel. */
+.acp-studio-theme-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 12px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 999px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.acp-studio-theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.acp-studio-theme-toggle__track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 52px;
+  height: 28px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  box-sizing: border-box;
+  transition:
+    background 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.acp-studio-theme-toggle:hover .acp-studio-theme-toggle__track {
+  border-color: var(--border-strong);
+}
+
+.acp-studio-theme-toggle.is-day .acp-studio-theme-toggle__track {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #f6c453 34%, var(--bg-panel)),
+    color-mix(in srgb, #ff8a3d 18%, var(--bg-subtle))
+  );
+  border-color: color-mix(in srgb, #f0a020 42%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.acp-studio-theme-toggle.is-night .acp-studio-theme-toggle__track {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #2a3558 55%, var(--bg-subtle)),
+    color-mix(in srgb, #121826 70%, var(--bg))
+  );
+  border-color: color-mix(in srgb, #6b7db3 35%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.acp-studio-theme-toggle__icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 18px;
+  color: var(--text-muted);
+  opacity: 0.55;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.acp-studio-theme-toggle.is-day .acp-studio-theme-toggle__icon--sun {
+  color: #a35a00;
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.acp-studio-theme-toggle.is-night .acp-studio-theme-toggle__icon--moon {
+  color: #d7e2ff;
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.acp-studio-theme-toggle__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 4px 10px rgba(0, 0, 0, 0.12);
+  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: 0;
+}
+
+.acp-studio-theme-toggle.is-night .acp-studio-theme-toggle__knob {
+  transform: translateX(24px);
+  background: linear-gradient(160deg, #f4f7ff 0%, #dbe4ff 100%);
+}
+
+.acp-studio-theme-toggle.is-day .acp-studio-theme-toggle__knob {
+  background: linear-gradient(160deg, #fffdf8 0%, #ffe7b8 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acp-studio-theme-toggle__track,
+  .acp-studio-theme-toggle__icon,
+  .acp-studio-theme-toggle__knob {
+    transition: none;
+  }
+}

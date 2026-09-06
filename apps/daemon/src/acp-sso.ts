@@ -1,4 +1,12 @@
+import { isTruthyEnvFlag } from './api-token-auth.js';
 import { isLoopbackHostname } from './http/local-daemon-request.js';
+
+/**
+ * When true (default), hosted Studio may be opened without forcing every
+ * document load back through ACP SSO. Set `OD_ACP_FORCE_DOCUMENT_SSO=1` to
+ * restore the re-handshake, or `OD_ACP_ALLOW_DIRECT_DESIGN=0` to refuse.
+ */
+export const ACP_ALLOW_DIRECT_DESIGN_DEFAULT = true;
 
 /**
  * Hosted Open Design can replace OpenDesign Cloud device-auth with an ACP
@@ -25,6 +33,21 @@ export function acpSsoUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string |
 
 export function isAcpSsoConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return acpSsoUrlFromEnv(env) != null;
+}
+
+/**
+ * When allowed, hosted Studio may be opened and used without forcing every
+ * document load back through ACP SSO (project-launch / re-handshake).
+ *
+ * Precedence: `OD_ACP_ALLOW_DIRECT_DESIGN` → `OD_ACP_FORCE_DOCUMENT_SSO` →
+ * {@link ACP_ALLOW_DIRECT_DESIGN_DEFAULT}.
+ */
+export function isAcpDirectDesignAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.OD_ACP_ALLOW_DIRECT_DESIGN !== undefined) {
+    return isTruthyEnvFlag(env.OD_ACP_ALLOW_DIRECT_DESIGN);
+  }
+  if (isTruthyEnvFlag(env.OD_ACP_FORCE_DOCUMENT_SSO)) return false;
+  return ACP_ALLOW_DIRECT_DESIGN_DEFAULT;
 }
 
 export function acpSsoStartUrl(ssoUrl: string, returnUrl: string): string {
@@ -100,6 +123,9 @@ export function spaDocumentReturnUrl(req: {
  * Full document loads (including refresh) re-run ACP SSO unless this request
  * already carries `t=`. A leftover od_embed cookie from a previous ACP user
  * must not skip the handshake.
+ *
+ * Set `OD_ACP_ALLOW_DIRECT_DESIGN=1` to disable the forced re-handshake so
+ * users can open Studio and design without bouncing through ACP on every load.
  */
 export function shouldRedirectSpaDocumentToAcpSso(input: {
   method?: string;
@@ -107,6 +133,7 @@ export function shouldRedirectSpaDocumentToAcpSso(input: {
   env?: NodeJS.ProcessEnv;
 }): boolean {
   if (!isAcpSsoConfigured(input.env)) return false;
+  if (isAcpDirectDesignAllowed(input.env)) return false;
   const method = (input.method ?? 'GET').toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (input.queryGrant) return false;
