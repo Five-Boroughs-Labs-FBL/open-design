@@ -408,6 +408,14 @@ function isEmbedGrantRunCreatePath(pathname: string): boolean {
   return pathname === '/api/runs' || pathname === '/api/chat';
 }
 
+/**
+ * Per-session plugin bind used by Community / Home "Use". Not install, trust,
+ * or other process-wide mutations — those stay denied for catalog grants.
+ */
+function isCatalogEmbedPluginUsePath(pathname: string): boolean {
+  return /^\/api\/plugins\/[^/]+\/(?:apply|apply-local)$/.test(pathname);
+}
+
 export function embedGrantAllowsPath(
   grant: EmbedGrantPayload,
   method: string,
@@ -437,6 +445,11 @@ export function embedGrantAllowsPath(
 
   if (!isReadMethod(methodUpper)) {
     if (catalog && methodUpper === 'POST' && pathname === '/api/projects') return true;
+    // Community / Home "Use" binds a plugin into the composer via apply.
+    // Catalog regulars must be able to do that; install/uninstall/trust stay denied.
+    if (catalog && methodUpper === 'POST' && isCatalogEmbedPluginUsePath(pathname)) {
+      return true;
+    }
     if (
       catalog
       && grant.adm === true
