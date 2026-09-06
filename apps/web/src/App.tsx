@@ -14,7 +14,7 @@ import {
 import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
-import { applyAcpStudioAppearance } from './acp-brand';
+import { applyAcpStudioAppearance, isAcpStudioShell } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
 import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
@@ -5483,6 +5483,7 @@ function AppInner() {
         data-amc-embed={typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? '1' : undefined}
       >
         {typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? null : (
+        route.kind === 'home' && route.view === 'onboarding' && isAcpStudioShell() ? null : (
         <WorkspaceTabsBar
           route={route}
           // The ambient list may still be loading (or belong to a different
@@ -5502,7 +5503,7 @@ function AppInner() {
           onboardingCompleted={config.onboardingCompleted === true}
           identityScopeKey={workspaceTabsIdentityScopeKey}
         />
-        )}
+        ))}
         {/* Avatar + credits keep their home-view spot (the top-right actions
             host inside the tabs chrome) while a project tab is open, even
             though EntryShell — the cluster's usual owner — is unmounted here.
