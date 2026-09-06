@@ -272,6 +272,161 @@ html[data-acp-studio][data-theme='light'] .onboarding-cloud__pane::before {
   );
 }
 
+/* ACP SSO is a marketing auth page, not the product shell. Collapse the
+   workspace tab row so the sign-in card sits on the graphite void. */
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) {
+  grid-template-rows: minmax(0, 1fr);
+  --workspace-tabs-chrome-height: 0px;
+}
+
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) > .workspace-tabs-chrome {
+  display: none;
+}
+
+html[data-acp-studio] .workspace-shell:has(.entry-shell--onboarding) .workspace-shell__body {
+  grid-row: 1;
+}
+
+html[data-acp-studio] .home-hero__title {
+  font-family: var(--sans);
+  color: var(--text-strong);
+}
+
+html[data-acp-studio] .home-hero__composer-beam[data-beam='composer'] {
+  --beam-color: #ff7a29;
+  --beam-color-2: #ffa35c;
+}
+
+html[data-acp-studio][data-theme='light'] .home-hero__composer-beam[data-beam='composer'] {
+  --beam-color: #c75414;
+  --beam-color-2: #e0641d;
+}
+
+.acp-sso-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  pointer-events: none;
+}
+
+.acp-sso-header > * {
+  pointer-events: auto;
+}
+
+.acp-sso-header .acp-studio-theme-toggle {
+  margin-right: 0;
+}
+
+.onboarding-view--acp {
+  position: relative;
+}
+
+.onboarding-view--acp .onboarding-cloud__center {
+  width: min(480px, 100%);
+  align-items: stretch;
+  text-align: left;
+  animation: acp-sso-card-in 0.55s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes acp-sso-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.acp-sso-card__eyebrow {
+  margin: 0 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.acp-sso-card__eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(255, 122, 41, 0.6);
+  animation: acp-sso-pulse 1.8s ease-out infinite;
+}
+
+@keyframes acp-sso-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 122, 41, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(255, 122, 41, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 122, 41, 0);
+  }
+}
+
+.acp-sso-card__title {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.acp-sso-card__title em {
+  font-style: normal;
+  background-image: linear-gradient(140deg, #ffa35c 0%, #ff7a29 50%, #e0561a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+html[data-acp-studio][data-theme='light'] .acp-sso-card__title em {
+  background-image: linear-gradient(140deg, #e0641d 0%, #c75414 50%, #b14d12 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__body {
+  max-width: 44ch;
+  text-align: left;
+  font-size: 15.5px;
+}
+
+html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__footer {
+  left: 0;
+  right: 0;
+  align-items: center;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acp-sso-card__eyebrow::before,
+  .onboarding-view--acp .onboarding-cloud__center {
+    animation: none;
+  }
+}
+
 html[data-acp-studio] .onboarding-cloud__primary {
   background: linear-gradient(140deg, #ffa35c 0%, #ff7a29 55%, #e0561a 100%);
   color: #fff;

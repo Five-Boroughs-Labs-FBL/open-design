@@ -290,6 +290,9 @@ export interface Dict {
   'settings.onboardingAcpSignIn': string;
   'acpStudio.switchToLight': string;
   'acpStudio.switchToDark': string;
+  'acpStudio.ssoEyebrow': string;
+  'acpStudio.ssoTitleBefore': string;
+  'acpStudio.ssoTitleAccent': string;
   'settings.onboardingCloudContinue': string;
   'settings.onboardingCloudAlternative': string;
   'settings.onboardingCloudOr': string;

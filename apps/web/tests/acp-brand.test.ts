@@ -145,6 +145,14 @@ describe('ACP Studio CSS', () => {
     expect(css).toContain('.acp-studio-theme-toggle');
     expect(css).toContain('--rotating-title-accent: #ff7a29');
   });
+
+  it('styles the SSO pane as an ACP auth card and hides product tabs', () => {
+    expect(css).toContain('.acp-sso-card__eyebrow');
+    expect(css).toContain('.acp-sso-card__title');
+    expect(css).toContain('.acp-sso-header');
+    expect(css).toContain('.workspace-shell:has(.entry-shell--onboarding)');
+    expect(css).toContain('.home-hero__composer-beam[data-beam=\'composer\']');
+  });
 });
 
 describe('ACP Studio FOUC script', () => {
