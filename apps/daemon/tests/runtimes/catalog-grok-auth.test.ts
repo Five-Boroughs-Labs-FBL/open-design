@@ -9,6 +9,7 @@ import {
   fetchCatalogGrokAuthFromAcp,
   readCatalogGrokAuth,
   rememberCatalogGrokAuth,
+  resolveCatalogAcpBeBaseUrl,
   resolveCatalogGrokForwarding,
 } from '../../src/runtimes/catalog-grok-auth.ts';
 
@@ -119,6 +120,18 @@ describe('resolveCatalogGrokForwarding', () => {
     });
     expect(seen).toEqual(['GET /api/open-design/grok-auth?userId=user-alice']);
     expect(authJson).toBe(AUTH_JSON);
+  });
+
+  it('uses https for a scheme-less public ACP host', () => {
+    expect(resolveCatalogAcpBeBaseUrl({
+      RAILWAY_SERVICE_ACP_BE_URL: 'api.dev.agentcontrolpanel.dev',
+    })).toBe('https://api.dev.agentcontrolpanel.dev');
+    expect(resolveCatalogAcpBeBaseUrl({
+      RAILWAY_SERVICE_ACP_BE_URL: 'acp-be.railway.internal:8080',
+    })).toBe('http://acp-be.railway.internal:8080');
+    expect(resolveCatalogAcpBeBaseUrl({
+      OD_ACP_BE_URL: 'https://api.dev.agentcontrolpanel.dev',
+    })).toBe('https://api.dev.agentcontrolpanel.dev');
   });
 
   it('returns empty when ACP has no SuperGrok session', async () => {
