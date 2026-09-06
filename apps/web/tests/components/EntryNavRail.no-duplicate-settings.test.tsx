@@ -64,3 +64,26 @@ describe('EntryNavRail settings entry', () => {
     expect(screen.queryByTestId('entry-settings-button')).toBeNull();
   });
 });
+
+describe('EntryNavRail catalog regular chrome', () => {
+  it('hides host-admin destinations for a catalog regular', () => {
+    render(
+      <I18nProvider initial="en">
+        <EntryNavRail
+          view="home"
+          onViewChange={() => {}}
+          onNewProject={() => {}}
+          open
+          context={null}
+          catalogChrome={{ showHostAdminChrome: false, showAcpSignOut: true }}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByTestId('entry-nav-community')).toBeNull();
+    expect(screen.queryByTestId('entry-nav-plugins')).toBeNull();
+    expect(screen.queryByTestId('entry-nav-design-systems')).toBeNull();
+    expect(screen.queryByTestId('entry-settings-button')).toBeNull();
+    expect(screen.getByTestId('entry-acp-sign-out')).toBeTruthy();
+  });
+});

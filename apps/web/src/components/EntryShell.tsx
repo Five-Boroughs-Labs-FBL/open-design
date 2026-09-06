@@ -3663,8 +3663,8 @@ function OnboardingView({
               type="button"
               className="onboarding-cloud__primary"
               onClick={() => {
-                if (acpSsoResolving) return;
-                if (acpSso) {
+                if (acpLoginLayout) {
+                  if (acpSsoResolving || !acpSso) return;
                   handleAcpSignIn();
                   return;
                 }
@@ -3687,13 +3687,21 @@ function OnboardingView({
                 }
                 void handleCloudSignIn();
               }}
-              disabled={cloudBusy || amrLoginCancelPending || acpSsoResolving || (!acpSso && amrStatusResolving)}
-              aria-busy={cloudBusy || acpSsoResolving || (!acpSso && amrStatusResolving) ? true : undefined}
+              disabled={
+                acpLoginLayout
+                  ? acpSsoResolving || !acpSso
+                  : cloudBusy || amrLoginCancelPending || amrStatusResolving
+              }
+              aria-busy={
+                acpLoginLayout
+                  ? acpSsoResolving || !acpSso
+                  : cloudBusy || amrStatusResolving ? true : undefined
+              }
             >
               <Icon name="log-in" size={17} />
               <span>
-                {acpSso
-                  ? (acpSsoResolving ? t('common.loading') : t('settings.onboardingAcpSignIn'))
+                {acpLoginLayout
+                  ? (acpSsoResolving || !acpSso ? t('common.loading') : t('settings.onboardingAcpSignIn'))
                   : cloudBusy
                     ? t('settings.amrSigningIn')
                     : amrStatusResolving
