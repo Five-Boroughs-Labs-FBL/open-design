@@ -348,6 +348,8 @@ export const ja: Dict = {
   'settings.onboardingAcpTitle': 'ACP でサインイン',
   'settings.onboardingAcpBody': 'Agent Control Panel のアカウントで Open Design を開きます。そのアカウントに紐づくプロジェクトだけが表示されます。',
   'settings.onboardingAcpSignIn': 'ACP でサインイン',
+  'acpStudio.switchToLight': "ライトテーマに切り替え",
+  'acpStudio.switchToDark': "ダークテーマに切り替え",
   'settings.onboardingCloudContinue': '続行（ログイン済み）',
   'settings.onboardingCloudAlternative': 'ローカル CLI または自分の API キーを使う',
   'settings.onboardingCloudRights': 'All rights reserved.',

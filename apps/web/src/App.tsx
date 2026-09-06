@@ -1835,6 +1835,7 @@ function AppInner() {
   // useLayoutEffect (vs useEffect) fires before the browser paints, so no
   // 1-frame flash. Safe here because the component tree is ssr:false.
   useLayoutEffect(() => {
+    if (applyAcpStudioAppearance()) return;
     applyAppearanceToDocument({ accentColor: config.accentColor });
   }, [config.accentColor]);
 

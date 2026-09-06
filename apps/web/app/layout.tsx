@@ -23,12 +23,12 @@ export const viewport: Viewport = {
  * carries the app's appearance — no flash of unstyled content.
  *
  * `data-theme` is pinned to `light` for local OpenDesign. Hosted ACP Studio
- * (`design.agentcontrolpanel.dev`) flips to dark + `data-acp-studio` in the
- * same tick so the first paint already matches Agent Control Panel.
+ * (`design.agentcontrolpanel.dev`) stamps `data-acp-studio` in the same tick
+ * and restores the stored ACP light/dark pick (default dark).
  * Keep the accent variable mix ratios in sync with `accentVars()` in
  * `src/state/appearance.ts`; this script cannot import application modules.
  */
-const themeInitScript = `(function(){var root=document.documentElement;root.setAttribute('data-theme','light');try{if(/(^|\\.)design\\.agentcontrolpanel\\.dev$/i.test(location.hostname)){root.setAttribute('data-theme','dark');root.setAttribute('data-acp-studio','1');document.title='ACP Open Design';return;}var c=JSON.parse(localStorage.getItem('open-design:config')||'{}');var a=typeof c.accentColor==='string'&&/^#[0-9a-fA-F]{6}$/.test(c.accentColor.trim())?c.accentColor.trim().toLowerCase():'#353535';if(c.configMigrationVersion!==3&&(a==='#87ea5c'||a==='#c96442'))a='#353535';var s=root.style;s.setProperty('--accent',a);s.setProperty('--accent-strong','color-mix(in srgb, '+a+' 82%, var(--text-strong))');s.setProperty('--accent-soft','color-mix(in srgb, '+a+' 12%, var(--bg-subtle))');s.setProperty('--accent-tint','color-mix(in srgb, '+a+' 6%, var(--bg-panel))');s.setProperty('--accent-hover','color-mix(in srgb, '+a+' 86%, var(--text-strong))');}catch(e){}})();`;
+const themeInitScript = `(function(){var root=document.documentElement;root.setAttribute('data-theme','light');try{var preview=/(?:^|[?&])acpStudio=1(?:&|$)/.test(location.search);if(preview){try{sessionStorage.setItem('od-acp-studio-preview','1');}catch(e){}}var latched=false;try{latched=sessionStorage.getItem('od-acp-studio-preview')==='1';}catch(e){}if(preview||latched||/(^|\\.)design\\.agentcontrolpanel\\.dev$/i.test(location.hostname)){var theme='dark';try{var stored=localStorage.getItem('od-acp-studio-theme');if(stored==='light'||stored==='dark')theme=stored;}catch(e){}root.setAttribute('data-theme',theme);root.setAttribute('data-acp-studio','1');document.title='ACP Open Design';return;}var c=JSON.parse(localStorage.getItem('open-design:config')||'{}');var a=typeof c.accentColor==='string'&&/^#[0-9a-fA-F]{6}$/.test(c.accentColor.trim())?c.accentColor.trim().toLowerCase():'#353535';if(c.configMigrationVersion!==3&&(a==='#87ea5c'||a==='#c96442'))a='#353535';var s=root.style;s.setProperty('--accent',a);s.setProperty('--accent-strong','color-mix(in srgb, '+a+' 82%, var(--text-strong))');s.setProperty('--accent-soft','color-mix(in srgb, '+a+' 12%, var(--bg-subtle))');s.setProperty('--accent-tint','color-mix(in srgb, '+a+' 6%, var(--bg-panel))');s.setProperty('--accent-hover','color-mix(in srgb, '+a+' 86%, var(--text-strong))');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

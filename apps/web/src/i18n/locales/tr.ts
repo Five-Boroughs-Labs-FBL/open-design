@@ -348,6 +348,8 @@ export const tr: Dict = {
   'settings.onboardingAcpTitle': 'ACP ile oturum aç',
   'settings.onboardingAcpBody': 'Open Design’ı Agent Control Panel hesabınla aç. Yalnızca o hesaba bağlı projeleri görürsün.',
   'settings.onboardingAcpSignIn': 'ACP ile oturum aç',
+  'acpStudio.switchToLight': "Açık temaya geç",
+  'acpStudio.switchToDark': "Koyu temaya geç",
   'settings.onboardingCloudContinue': 'Devam et (giriş yapıldı)',
   'settings.onboardingCloudAlternative': 'Yerel bir CLI ya da kendi API anahtarını kullan',
   'settings.onboardingCloudRights': 'Tüm hakları saklıdır.',

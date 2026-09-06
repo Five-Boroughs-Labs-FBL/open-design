@@ -1043,7 +1043,7 @@ export function EntryTopRightCluster({
           {/* GitHub star chip: its own option in the cluster, right after the
               campaign badge (per product) — it used to live in the account
               menu's social row. */}
-          {clusterVisible ? (
+          {clusterVisible && !(typeof window !== 'undefined' && isAcpStudioShell(window)) ? (
             <a
               className="entry-top-right-github"
               href={REPO_URL}

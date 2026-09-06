@@ -30,6 +30,7 @@ describe('resolveAccentColor', () => {
 describe('applyAppearanceToDocument', () => {
   afterEach(() => {
     document.documentElement.removeAttribute('data-theme');
+    document.documentElement.removeAttribute('data-acp-studio');
     document.documentElement.style.removeProperty('--accent');
     document.documentElement.style.removeProperty('--accent-strong');
     document.documentElement.style.removeProperty('--accent-soft');
@@ -91,5 +92,16 @@ describe('applyAppearanceToDocument', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe(DEFAULT_ACCENT_COLOR);
+  });
+
+  it('leaves a hosted ACP Studio theme untouched', () => {
+    document.documentElement.setAttribute('data-acp-studio', '1');
+    document.documentElement.setAttribute('data-theme', 'dark');
+
+    applyAppearanceToDocument({ accentColor: '#059669' });
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('');
+    document.documentElement.removeAttribute('data-acp-studio');
   });
 });

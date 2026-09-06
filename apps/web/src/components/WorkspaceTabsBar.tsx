@@ -32,6 +32,7 @@ import { useGlideIndicator } from '../hooks/useGlideIndicator';
 import { useLiquidGlass } from '../hooks/useLiquidGlass';
 import { isAcpStudioShell } from '../acp-brand';
 import { AcpStudioLockup } from './AcpStudioLockup';
+import { AcpStudioThemeToggle } from './AcpStudioThemeToggle';
 import { WORKSPACE_CHROME_ACCOUNT_ACTIONS_ID } from './workspaceChromeActions';
 
 type WorkspaceChromeTab =
@@ -1879,6 +1880,9 @@ export function WorkspaceTabsBar({
         className="workspace-chrome-account-actions"
         data-testid="workspace-chrome-account-actions"
       />
+      {typeof window !== 'undefined' && isAcpStudioShell(window) ? (
+        <AcpStudioThemeToggle />
+      ) : null}
       {radialMenu ? createPortal(
         <div className="workspace-radial-layer" onMouseDown={() => setRadialMenu(null)}>
           <div
