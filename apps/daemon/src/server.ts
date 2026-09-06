@@ -3024,6 +3024,8 @@ export async function startServer({
       '/api/version',
       '/public-runtime',
       '/api/public-runtime',
+      '/embed-session/logout',
+      '/api/embed-session/logout',
     ]);
     app.use('/api', (req, res, next) => {
       if (openProbePaths.has(req.path)) return next();

@@ -33,6 +33,7 @@ import {
   type RunContextSelection,
   type ProjectScenarioTaskProfile,
   type WorkspaceProjectSummary,
+  type PublicRuntimeEmbedSession,
 } from '@open-design/contracts';
 import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
 import { useAnalytics } from '../analytics/provider';
@@ -106,6 +107,7 @@ import {
   RailAccountSyncTip,
 } from './CloudSignInTip';
 import {
+  resolveAcpCatalogChrome,
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
   shouldShowCloudSignInTip,
@@ -654,17 +656,25 @@ export function EntryShell({
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
   const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
   const [acpSsoResolved, setAcpSsoResolved] = useState(false);
+  const [acpEmbedSession, setAcpEmbedSession] = useState<PublicRuntimeEmbedSession | null>(null);
   useEffect(() => {
     let cancelled = false;
     void fetchPublicRuntime().then((runtime) => {
       if (cancelled) return;
       setAcpSsoUrl(runtime.acpSsoUrl);
+      setAcpEmbedSession(runtime.embedSession);
       setAcpSsoResolved(true);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+  const catalogChrome = resolveAcpCatalogChrome({
+    resolved: acpSsoResolved,
+    acpSsoUrl,
+    embedSession: acpEmbedSession,
+    embedSessionHint: typeof window !== 'undefined' && rememberEmbedGrantSession(window),
+  });
   // The one shared workspace context. Any non-null context is a real workspace
   // (personal or team); workspace surfaces gate on B's permission bits, not on
   // workspaceType.
@@ -1718,6 +1728,7 @@ export function EntryShell({
           billing={workspaceBilling}
           balanceUsd={workspaceBalanceUsd}
           onOpenSettings={onOpenSettings}
+          catalogChrome={catalogChrome}
           onInvite={() => changeView('members')}
           onSignInCloud={() => navigate({ kind: 'home', view: 'onboarding' })}
           onSignedOut={onSignedOut}

@@ -33,6 +33,23 @@ export function acpSsoStartUrl(ssoUrl: string, returnUrl: string): string {
   return url.toString();
 }
 
+/** ACP page that clears the ACP session after Open Design drops `od_embed`. */
+export function acpSsoLogoutUrl(ssoUrl: string | null | undefined): string | null {
+  if (!ssoUrl) return null;
+  try {
+    const url = new URL(ssoUrl);
+    const path = url.pathname.replace(/\/+$/, '');
+    url.pathname = path.endsWith('/open-design/sso')
+      ? `${path.slice(0, -'/open-design/sso'.length)}/open-design/logout`
+      : '/open-design/logout';
+    url.search = '';
+    url.hash = '';
+    return `${url.origin}${url.pathname}`.replace(/\/$/, '') || url.origin;
+  } catch {
+    return null;
+  }
+}
+
 function firstHeader(value: unknown): string | undefined {
   if (typeof value === 'string' && value.length > 0) return value;
   if (Array.isArray(value) && typeof value[0] === 'string' && value[0].length > 0) {

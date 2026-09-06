@@ -45,6 +45,20 @@ export function rememberEmbedGrantSession(win: Window = window): boolean {
   }
 }
 
+export function clearEmbedGrantSession(win: Window = window): void {
+  try {
+    win.sessionStorage.removeItem(OD_EMBED_SESSION_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Drop the OD grant cookie, then ACP SSO logout, so refresh cannot re-handshake. */
+export function beginAcpCatalogSignOut(win: Window = window): void {
+  clearEmbedGrantSession(win);
+  win.location.assign('/api/embed-session/logout');
+}
+
 export function applyAmcEmbedFromLocation(win: Window = window): boolean {
   rememberEmbedGrantSession(win);
   if (!isAmcEmbedSearch(win.location.search)) return false;
