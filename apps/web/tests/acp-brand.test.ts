@@ -7,9 +7,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ACP_OPEN_DESIGN_NAME,
+  ACP_SKIP_AMR_AUTH_GATE,
   ACP_STUDIO_PREVIEW_KEY,
   ACP_STUDIO_THEME_KEY,
   applyAcpStudioAppearance,
+  hasAcpStudioIdentity,
   isAcpHostedHostname,
   isAcpStudioShell,
   readAcpStudioTheme,
@@ -45,6 +47,21 @@ describe('isAcpHostedHostname', () => {
   });
 });
 
+describe('hasAcpStudioIdentity', () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute('data-acp-studio');
+    document.documentElement.removeAttribute('data-amc-embed');
+    document.documentElement.removeAttribute('data-acp-embed');
+    sessionStorage.removeItem(OD_EMBED_SESSION_KEY);
+    sessionStorage.removeItem(ACP_STUDIO_PREVIEW_KEY);
+  });
+
+  it('skips the AMR bounce gate on hosted studio when the flag is on', () => {
+    expect(ACP_SKIP_AMR_AUTH_GATE).toBe(true);
+    expect(hasAcpStudioIdentity(hostedWin())).toBe(true);
+  });
+});
+
 describe('local acpStudio=1 preview', () => {
   afterEach(() => {
     sessionStorage.removeItem(ACP_STUDIO_PREVIEW_KEY);
@@ -77,7 +94,7 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
     document.title = 'OpenDesign';
   });
 
-  it('stamps ACP Open Design identity on the hosted studio host', () => {
+  it('stamps ACP Design identity on the hosted studio host', () => {
     const win = hostedWin();
     Object.defineProperty(win.document, 'documentElement', {
       configurable: true,

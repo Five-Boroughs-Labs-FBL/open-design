@@ -208,7 +208,11 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
-import { applyAcpStudioAppearance, isAcpStudioShell } from '../acp-brand';
+import {
+  applyAcpStudioAppearance,
+  hasAcpStudioIdentity,
+  isAcpStudioShell,
+} from '../acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
 import { AcpStudioLockup } from './AcpStudioLockup';
 import { AcpStudioThemeToggle } from './AcpStudioThemeToggle';
@@ -702,6 +706,9 @@ export function EntryShell({
       usesOpenDesignCloud
       && requiresAmrReauthentication(amrSessionState, workspaceContextState.failure)
     );
+  // ACP Studio / catalog SSO already authenticated the user. Flag keeps the
+  // OpenDesign Cloud AMR gate from bouncing home submit back to Welcome.
+  const skipAmrAuthGateForAcpStudio = hasAcpStudioIdentity(window, { acpSsoUrl });
   useEffect(() => {
     // The entry shell is an authenticated surface. Both an explicit signed-out
     // status and a definitive credential rejection return to the existing
@@ -1422,7 +1429,7 @@ export function EntryShell({
   // projectKind='other', so the agent infers the task type and asks only
   // when the brief cannot be routed reliably.
   async function handlePluginLoopSubmit(payload: PluginLoopSubmit) {
-    if (amrAuthRequired) {
+    if (amrAuthRequired && !skipAmrAuthGateForAcpStudio) {
       navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
       return 'blocked' as const;
     }
@@ -1593,6 +1600,7 @@ export function EntryShell({
       if (
         error instanceof ProjectCreateError
         && error.code === 'AMR_AUTH_REQUIRED'
+        && !skipAmrAuthGateForAcpStudio
       ) {
         navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
         return 'blocked' as const;

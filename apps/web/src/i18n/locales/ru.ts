@@ -352,7 +352,7 @@ export const ru: Dict = {
   'acpStudio.switchToDark': "Переключить на тёмную тему",
   'acpStudio.ssoEyebrow': "Войти",
   'acpStudio.ssoTitleBefore': "Добро пожаловать в",
-  'acpStudio.ssoTitleAccent': "Open Design.",
+  'acpStudio.ssoTitleAccent': "ACP Design.",
   'settings.onboardingCloudContinue': 'Продолжить (вы вошли)',
   'settings.onboardingCloudAlternative': 'Использовать локальный CLI или свой ключ API',
   'settings.onboardingCloudRights': 'Все права защищены.',

@@ -182,62 +182,97 @@ html[data-acp-studio][data-theme='dark'] .entry-nav-rail {
   color: var(--text-strong);
 }
 
-.acp-studio-lockup--wordmark {
-  gap: 0;
+.acp-studio-lockup--mark {
+  gap: 10px;
 }
 
-.acp-studio-lockup--wordmark .acp-studio-lockup__sub {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
-.acp-studio-lockup--wordmark.acp-studio-lockup--compact .acp-studio-lockup__sub {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
-.acp-studio-lockup__mark {
+.acp-studio-lockup__badge {
+  display: grid;
+  place-items: center;
   flex: 0 0 auto;
-  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #1a1e2a 0%, #12141b 55%, #0d0f15 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.acp-studio-lockup__ring {
-  stroke: var(--border-strong);
+.acp-studio-lockup--compact .acp-studio-lockup__badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
 }
 
-.acp-studio-lockup__ring--inner {
-  stroke: var(--border);
+html[data-acp-studio][data-theme='light'] .acp-studio-lockup__badge {
+  background: linear-gradient(145deg, #fff 0%, #f6f4f1 55%, #ede9e3 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-.acp-studio-lockup__text {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.acp-studio-lockup__name {
-  font-size: 13px;
+.acp-studio-lockup__wordmark {
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--text-strong);
   white-space: nowrap;
 }
 
-.acp-studio-lockup__sub {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  white-space: nowrap;
+.acp-studio-lockup--compact .acp-studio-lockup__wordmark {
+  font-size: 15px;
+  letter-spacing: 0.05em;
 }
 
-.acp-studio-lockup--compact .acp-studio-lockup__name {
-  font-size: 12px;
-  letter-spacing: 0.01em;
+/* ACP radar mark — ported from Agent Control Panel radar-mark.css */
+.acp-radar-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.acp-radar-mark.is-spinning .acp-radar-mark__sweep,
+.acp-radar-mark.is-spinning .acp-radar-mark__orbit {
+  transform-origin: 50% 50%;
+  transform-box: view-box;
+  animation: acp-radar-sweep 1.6s linear infinite;
+}
+
+.acp-radar-mark.is-spinning .acp-radar-mark__pip {
+  transform-origin: 50% 50%;
+  transform-box: view-box;
+  animation: acp-radar-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes acp-radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes acp-radar-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acp-radar-mark.is-spinning .acp-radar-mark__sweep,
+  .acp-radar-mark.is-spinning .acp-radar-mark__orbit,
+  .acp-radar-mark.is-spinning .acp-radar-mark__pip {
+    animation: none;
+  }
+  .acp-radar-mark.is-spinning .acp-radar-mark__pip {
+    opacity: 0.85;
+  }
 }
 
 .entry-nav-rail__acp-brand {
@@ -427,6 +462,12 @@ html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__body {
   max-width: 44ch;
   text-align: left;
   font-size: 15.5px;
+  /* Body uses --text-muted by default; on graphite that reads too faint. */
+  color: #c5cad6;
+}
+
+html[data-acp-studio][data-theme='light'] .onboarding-view--acp .onboarding-cloud__body {
+  color: #5c554c;
 }
 
 html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__footer {
@@ -446,15 +487,51 @@ html[data-acp-studio] .onboarding-view--acp .onboarding-cloud__footer {
 html[data-acp-studio] .onboarding-cloud__primary {
   background: linear-gradient(140deg, #ffa35c 0%, #ff7a29 55%, #e0561a 100%);
   color: #fff;
+  opacity: 1;
 }
 
-html[data-acp-studio] .onboarding-cloud__primary:hover {
+html[data-acp-studio] .onboarding-cloud__primary:hover:not(:disabled) {
   filter: brightness(1.04);
+  background: linear-gradient(140deg, #ffa35c 0%, #ff7a29 55%, #e0561a 100%);
+  color: #fff;
+  opacity: 1;
+}
+
+html[data-acp-studio] .onboarding-cloud__primary:disabled {
+  /* Keep amber readable while loading — do not wash to light grey + white ink. */
+  opacity: 1;
+  background: linear-gradient(140deg, #c47a45 0%, #b85a22 55%, #9a4015 100%);
+  color: #fff;
+  cursor: wait;
 }
 
 html[data-acp-studio][data-theme='light'] .onboarding-cloud__primary {
   background: linear-gradient(140deg, #e0641d 0%, #c75414 55%, #b14d12 100%);
   color: #fff6f0;
+}
+
+html[data-acp-studio][data-theme='light'] .onboarding-cloud__primary:disabled {
+  background: linear-gradient(140deg, #d08a55 0%, #b86a3a 55%, #9a5528 100%);
+  color: #fff6f0;
+}
+
+/* Home type pills: --bg-subtle rings vanish on graphite; lift contrast. */
+html[data-acp-studio][data-theme='dark'] .home-hero__type-pill {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #edeff4;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-acp-studio][data-theme='dark'] .home-hero__type-pill:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+html[data-acp-studio][data-theme='dark'] .home-hero__type-pill.is-active {
+  background: var(--brand-surface);
+  border-color: transparent;
+  color: var(--brand-ink);
 }
 
 html[data-acp-studio] .onboarding-cloud__center .acp-studio-lockup {
