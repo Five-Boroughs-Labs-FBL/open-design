@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
-  ACP_ACCENT,
   ACP_OPEN_DESIGN_NAME,
   applyAcpStudioAppearance,
   isAcpHostedHostname,
@@ -28,6 +27,7 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
     document.documentElement.removeAttribute('data-acp-studio');
     document.documentElement.removeAttribute('data-amc-embed');
     document.documentElement.removeAttribute('data-acp-embed');
+    document.documentElement.setAttribute('data-theme', 'light');
     sessionStorage.removeItem(OD_EMBED_SESSION_KEY);
     document.title = 'OpenDesign';
   });
@@ -45,8 +45,8 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
     expect(isAcpStudioShell(win)).toBe(true);
     expect(applyAcpStudioAppearance(win)).toBe(true);
     expect(document.documentElement.dataset.acpStudio).toBe('1');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.title).toBe(ACP_OPEN_DESIGN_NAME);
-    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(ACP_ACCENT);
   });
 
   it('does not restyle an ACP iframe embed', () => {

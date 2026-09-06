@@ -26,25 +26,25 @@ export function isAcpStudioShell(win: Window = window): boolean {
   return rememberEmbedGrantSession(win);
 }
 
-function accentVars(accent: string): Record<string, string> {
-  return {
-    '--accent': accent,
-    '--accent-strong': `color-mix(in srgb, ${accent} 82%, var(--text-strong))`,
-    '--accent-soft': `color-mix(in srgb, ${accent} 12%, var(--bg-subtle))`,
-    '--accent-tint': `color-mix(in srgb, ${accent} 6%, var(--bg-panel))`,
-    '--accent-hover': `color-mix(in srgb, ${accent} 86%, var(--text-strong))`,
-  };
-}
+const INLINE_ACCENT_VARS = [
+  '--accent',
+  '--accent-strong',
+  '--accent-soft',
+  '--accent-tint',
+  '--accent-hover',
+] as const;
 
-/** Stamp title, accent, and `data-acp-studio` for hosted ACP Studio. */
+/** Stamp dark ACP theme, title, and `data-acp-studio` for hosted Studio. */
 export function applyAcpStudioAppearance(win: Window = window): boolean {
   if (!isAcpStudioShell(win)) return false;
   const root = win.document.documentElement;
   root.dataset.acpStudio = '1';
+  root.setAttribute('data-theme', 'dark');
   win.document.title = ACP_OPEN_DESIGN_NAME;
-  const vars = accentVars(ACP_ACCENT);
-  for (const [name, value] of Object.entries(vars)) {
-    root.style.setProperty(name, value);
+  for (const name of INLINE_ACCENT_VARS) {
+    root.style.removeProperty(name);
   }
+  const themeColor = win.document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.setAttribute('content', '#07080B');
   return true;
 }

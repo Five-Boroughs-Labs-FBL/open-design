@@ -122,7 +122,7 @@ describe('resolveAcpCatalogChrome', () => {
     })).toEqual({ showHostAdminChrome: false, showAcpSignOut: true });
   });
 
-  it('lets an ACP admin keep Settings and the community chrome', () => {
+  it('lets an ACP admin keep Settings, Community, and the host chrome', () => {
     expect(resolveAcpCatalogChrome({
       resolved: true,
       acpSsoUrl: 'https://acp.test/open-design/sso',

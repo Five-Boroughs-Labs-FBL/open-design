@@ -1,3 +1,79 @@
+/* Hosted ACP Studio — Agent Control Panel dark graphite + signal amber. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+html[data-acp-studio] {
+  color-scheme: dark;
+  --bg: #07080b;
+  --bg-app: #07080b;
+  --bg-panel: #0d0f15;
+  --bg-subtle: #12141b;
+  --bg-muted: #1a1e2a;
+  --bg-fill-tertiary: rgba(255, 255, 255, 0.03);
+  --bg-fill-secondary: rgba(255, 255, 255, 0.06);
+  --bg-fill: rgba(255, 255, 255, 0.12);
+  --bg-elevated: #12141b;
+  --glass-regular: rgba(14, 16, 21, 0.88);
+  --glass-regular-blur: 28px;
+  --glass-edge-highlight: rgba(255, 255, 255, 0.08);
+  --entry-ground: #07080b;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-selected: rgba(255, 122, 41, 0.3);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --text: #edeff4;
+  --text-strong: #ffffff;
+  --text-muted: #9aa2b4;
+  --text-soft: #6e7689;
+  --text-faint: #6e7689;
+  --accent: #ff7a29;
+  --accent-contrast: #1a0b03;
+  --accent-strong: #ff9147;
+  --accent-soft: rgba(255, 122, 41, 0.14);
+  --accent-tint: rgba(255, 122, 41, 0.08);
+  --accent-hover: #ff9147;
+  --brand: #ff7a29;
+  --brand-weak: rgba(255, 122, 41, 0.28);
+  --brand-soft: rgba(255, 122, 41, 0.14);
+  --brand-text: #ffa35c;
+  --brand-ink: #ffa35c;
+  --brand-surface: rgba(255, 122, 41, 0.12);
+  --send-ground: #ff7a29;
+  --send-ink: #1a0b03;
+  --upgrade-ground: #ff7a29;
+  --upgrade-ink: #1a0b03;
+  --selected: #ff7a29;
+  --selected-soft: rgba(255, 122, 41, 0.16);
+  --green: #34d8a0;
+  --green-bg: rgba(52, 216, 160, 0.12);
+  --green-border: rgba(52, 216, 160, 0.28);
+  --blue: #4fa8ff;
+  --blue-bg: rgba(79, 168, 255, 0.12);
+  --blue-border: rgba(79, 168, 255, 0.28);
+  --purple: #c77dff;
+  --purple-bg: rgba(199, 125, 255, 0.12);
+  --purple-border: rgba(199, 125, 255, 0.28);
+  --red: #ff4d5e;
+  --red-bg: rgba(255, 77, 94, 0.12);
+  --red-border: rgba(255, 77, 94, 0.28);
+  --amber: #ff7a29;
+  --amber-bg: rgba(255, 122, 41, 0.14);
+  --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.65), 0 8px 16px rgba(0, 0, 0, 0.35);
+  --serif: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --code-header-bg: #12141b;
+  --code-body-bg: #0a0b0f;
+}
+
+html[data-acp-studio] body {
+  background: #07080b;
+  color: #edeff4;
+}
+
 /* Hosted ACP Studio — brand lockup and amber primary on the SSO shell. */
 
 .acp-studio-lockup {

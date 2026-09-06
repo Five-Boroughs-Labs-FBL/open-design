@@ -4784,7 +4784,10 @@ function AppInner() {
   useEffect(() => {
     if (catalogChrome.showHostAdminChrome) return;
     setSettingsOpen(false);
-    if (route.kind === 'home' && route.view === 'settings') {
+    if (
+      route.kind === 'home'
+      && (route.view === 'settings' || route.view === 'community')
+    ) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }
   }, [catalogChrome.showHostAdminChrome, route]);
