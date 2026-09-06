@@ -4787,7 +4787,8 @@ function AppInner() {
     setSettingsOpen(false);
     if (
       route.kind === 'home'
-      && (route.view === 'settings' || route.view === 'community')
+      && (route.view === 'settings' || route.view === 'community'
+        || route.view === 'plugins' || route.view === 'design-systems')
     ) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }

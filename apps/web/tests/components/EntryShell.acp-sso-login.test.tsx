@@ -59,54 +59,58 @@ beforeEach(() => {
   }) as typeof fetch;
 });
 
+function renderOnboarding() {
+  window.history.replaceState(null, '', '/onboarding');
+  return render(
+    <I18nProvider initial="en">
+      <EntryShell
+        skills={[]}
+        designTemplates={[]}
+        designSystems={[]}
+        projects={[]}
+        templates={[]}
+        promptTemplates={[]}
+        defaultDesignSystemId={null}
+        connectors={[]}
+        connectorsLoading={false}
+        config={{
+          mode: 'daemon',
+          agentId: null,
+          agentModels: {},
+          apiProtocol: 'anthropic',
+          apiProtocolConfigs: {},
+          apiKey: '',
+          baseUrl: '',
+          model: '',
+        } as AppConfig}
+        agents={[{ id: 'codex', name: 'Codex', bin: 'codex', available: true } as AgentInfo]}
+        daemonLive
+        onModeChange={vi.fn()}
+        onAgentChange={vi.fn()}
+        onAgentModelChange={vi.fn()}
+        onApiProtocolChange={vi.fn()}
+        onApiModelChange={vi.fn()}
+        onConfigPersist={vi.fn()}
+        onRefreshAgents={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreatePluginShareProject={vi.fn()}
+        onImportClaudeDesign={vi.fn()}
+        onOpenProject={vi.fn()}
+        onOpenLiveArtifact={vi.fn()}
+        onDeleteProject={vi.fn()}
+        onRenameProject={vi.fn()}
+        onChangeDefaultDesignSystem={vi.fn()}
+        onPersistComposioKey={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onCompleteOnboarding={vi.fn()}
+      />
+    </I18nProvider>,
+  );
+}
+
 describe('ACP SSO login pane', () => {
   it('renders the ACP auth card instead of OpenDesign art and local CLI shortcuts', async () => {
-    window.history.replaceState(null, '', '/onboarding');
-    const { container } = render(
-      <I18nProvider initial="en">
-        <EntryShell
-          skills={[]}
-          designTemplates={[]}
-          designSystems={[]}
-          projects={[]}
-          templates={[]}
-          promptTemplates={[]}
-          defaultDesignSystemId={null}
-          connectors={[]}
-          connectorsLoading={false}
-          config={{
-            mode: 'daemon',
-            agentId: null,
-            agentModels: {},
-            apiProtocol: 'anthropic',
-            apiProtocolConfigs: {},
-            apiKey: '',
-            baseUrl: '',
-            model: '',
-          } as AppConfig}
-          agents={[{ id: 'codex', name: 'Codex', bin: 'codex', available: true } as AgentInfo]}
-          daemonLive
-          onModeChange={vi.fn()}
-          onAgentChange={vi.fn()}
-          onAgentModelChange={vi.fn()}
-          onApiProtocolChange={vi.fn()}
-          onApiModelChange={vi.fn()}
-          onConfigPersist={vi.fn()}
-          onRefreshAgents={vi.fn()}
-          onCreateProject={vi.fn()}
-          onCreatePluginShareProject={vi.fn()}
-          onImportClaudeDesign={vi.fn()}
-          onOpenProject={vi.fn()}
-          onOpenLiveArtifact={vi.fn()}
-          onDeleteProject={vi.fn()}
-          onRenameProject={vi.fn()}
-          onChangeDefaultDesignSystem={vi.fn()}
-          onPersistComposioKey={vi.fn()}
-          onOpenSettings={vi.fn()}
-          onCompleteOnboarding={vi.fn()}
-        />
-      </I18nProvider>,
-    );
+    const { container } = renderOnboarding();
 
     await waitFor(() => {
       expect(container.querySelector('.onboarding-view--acp')).not.toBeNull();
@@ -119,5 +123,25 @@ describe('ACP SSO login pane', () => {
     expect(container.querySelector('.acp-sso-header')).not.toBeNull();
     expect(screen.getByTestId('acp-studio-theme-toggle')).toBeTruthy();
     expect(screen.getByTestId('acp-open-design-brand')).toBeTruthy();
+  });
+
+  it('does not offer OpenDesign Cloud sign-in on the ACP studio shell', async () => {
+    sessionStorage.setItem('od-acp-studio-preview', '1');
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/public-runtime')) {
+        return jsonResponse({ acpSsoUrl: null, embedSession: null });
+      }
+      return jsonResponse({});
+    }) as typeof fetch;
+
+    renderOnboarding();
+
+    await waitFor(() => {
+      expect(screen.getByText('Sign in')).toBeTruthy();
+    });
+    expect(screen.queryByRole('button', { name: /Sign in to OpenDesign/i })).toBeNull();
+    const cta = screen.getByRole('button', { name: /Continue with ACP|Loading/i });
+    expect(cta).toBeDisabled();
   });
 });

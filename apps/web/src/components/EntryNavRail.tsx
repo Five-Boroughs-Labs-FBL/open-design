@@ -2039,6 +2039,8 @@ export function EntryNavRail({
                 <Icon name="grid" size={16} />
               </NavButton>
             ) : null}
+            {catalogChrome.showHostAdminChrome ? (
+              <>
             <NavButton
               active={view === 'design-systems'}
               ariaLabel={t('entry.navDesignSystems')}
@@ -2057,6 +2059,8 @@ export function EntryNavRail({
             >
               <Icon name="puzzle" size={16} />
             </NavButton>
+              </>
+            ) : null}
             {/* 最近浏览过 sits under 插件 (per product) — the last thing in the
                 destination list, because it is a list of CONTENT rather than a
                 place to go. */}
@@ -2101,6 +2105,18 @@ export function EntryNavRail({
           </div>
         ) : (
           <>
+            {/* recvq4hGF7BJkI removed this entry while the rail footer still
+                carried EntryShell's `entry-settings-chip` for the signed-out
+                case. #5517 then dropped that chip (the footer only hosts the
+                updater popup now), and a signed-out rail has no account menu
+                either — leaving no settings entry at all. This item is the
+                ONLY signed-out settings entry (testId `entry-settings-button`
+                is the e2e contract); signed-in keeps settings in the account
+                menu, so it must not render on that branch. Hosted ACP catalog
+                sessions hide it unless the grant is admin — settings, plugins,
+                and design systems are process-wide on the shared daemon. */}
+            {catalogChrome.showHostAdminChrome ? (
+              <>
             <NavButton
               active={view === 'design-systems'}
               ariaLabel={t('entry.navDesignSystems')}
@@ -2119,18 +2135,6 @@ export function EntryNavRail({
             >
               <Icon name="puzzle" size={16} />
             </NavButton>
-            {/* recvq4hGF7BJkI removed this entry while the rail footer still
-                carried EntryShell's `entry-settings-chip` for the signed-out
-                case. #5517 then dropped that chip (the footer only hosts the
-                updater popup now), and a signed-out rail has no account menu
-                either — leaving no settings entry at all. This item is the
-                ONLY signed-out settings entry (testId `entry-settings-button`
-                is the e2e contract); signed-in keeps settings in the account
-                menu, so it must not render on that branch. Hosted ACP catalog
-                sessions hide it unless the grant is admin — settings are
-                process-wide on the shared daemon. */}
-            {catalogChrome.showHostAdminChrome ? (
-              <>
             <NavButton
               ariaLabel={t('entry.accountSettings')}
               label={t('entry.accountSettings')}
