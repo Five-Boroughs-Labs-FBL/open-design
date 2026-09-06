@@ -1811,7 +1811,7 @@ export function EntryNavRail({
       <div className="entry-nav-rail__group">
         {catalogChrome.showAcpSignOut || (typeof window !== 'undefined' && isAcpStudioShell(window)) ? (
           <div className="entry-nav-rail__acp-brand">
-            <AcpStudioLockup size={20} />
+            <AcpStudioLockup variant="rail" />
           </div>
         ) : null}
 

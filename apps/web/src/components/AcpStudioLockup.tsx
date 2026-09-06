@@ -1,22 +1,34 @@
-import { ACP_PRODUCT_WORDMARK } from '../acp-brand';
+import { ACP_OPEN_DESIGN_NAME, ACP_PRODUCT_WORDMARK } from '../acp-brand';
+import { AcpRadarMark } from './AcpRadarMark';
 
 type Props = {
   size?: number;
   compact?: boolean;
-  /** Kept for call-site compatibility; the radar mark is no longer shown. */
   spinning?: boolean;
+  /** `chrome` is the top-bar / SSO mark + “ACP Design”. `rail` is the sidebar wordmark. */
+  variant?: 'chrome' | 'rail';
 };
 
-/** Hosted Studio lockup: “AGENT CONTROL PANEL” wordmark, no logo. */
+/** Hosted Studio lockup. */
 export function AcpStudioLockup({
+  size = 22,
   compact = false,
+  spinning = true,
+  variant = 'chrome',
 }: Props) {
+  const markSize = compact ? Math.max(16, size - 2) : size;
+  const wordmark = variant === 'rail' ? ACP_PRODUCT_WORDMARK : ACP_OPEN_DESIGN_NAME;
   return (
     <span
-      className={`acp-studio-lockup${compact ? ' acp-studio-lockup--compact' : ''}`}
+      className={`acp-studio-lockup acp-studio-lockup--${variant}${compact ? ' acp-studio-lockup--compact' : ''}`}
       data-testid="acp-open-design-brand"
     >
-      <span className="acp-studio-lockup__wordmark">{ACP_PRODUCT_WORDMARK}</span>
+      {variant === 'chrome' ? (
+        <span className="acp-studio-lockup__badge" aria-hidden>
+          <AcpRadarMark size={markSize} spinning={spinning} />
+        </span>
+      ) : null}
+      <span className="acp-studio-lockup__wordmark">{wordmark}</span>
     </span>
   );
 }
