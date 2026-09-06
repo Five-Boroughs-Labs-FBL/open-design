@@ -20,6 +20,10 @@ export interface CreateCatalogEmbedGrantRequest {
   projectIds?: string[];
   /** ACP admin catalog sessions may persist process-wide host settings. */
   admin?: boolean;
+  /** SuperGrok auth.json packed from the ACP user vault. Server-token only. */
+  amcGrok?: {
+    authJson?: string;
+  };
 }
 
 export interface CreateCatalogEmbedGrantResponse {

@@ -107,4 +107,25 @@ describe('parseAmcGrokBlock', () => {
     expect(env.GROK_HOME).toBe('/grok-home');
     expect(env.PATH).toBe('/bin');
   });
+
+  it('drops host XAI keys when SuperGrok auth.json is the login', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'od-data-supergrok-'));
+    const out = materializeAmcGrokHome(dataDir, {
+      sessionId: '',
+      grokHome: '/app/data/missing-on-od',
+      sourceCwd: '/amc',
+      authJson: '{"refresh_token":"r"}',
+    });
+    const env = applyAmcGrokHome(
+      {
+        PATH: '/bin',
+        XAI_API_KEY: 'host-paid-key',
+        GROK_CODE_XAI_API_KEY: 'also-host',
+      },
+      out,
+    );
+    expect(env.GROK_HOME).toBe(out.grokHome);
+    expect(env.XAI_API_KEY).toBeUndefined();
+    expect(env.GROK_CODE_XAI_API_KEY).toBeUndefined();
+  });
 });

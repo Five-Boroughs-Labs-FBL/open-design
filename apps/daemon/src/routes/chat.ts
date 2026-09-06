@@ -1,5 +1,7 @@
 import type { Express } from 'express';
 import type { RouteDeps } from '../server-context.js';
+import { isCatalogEmbedGrant } from '../embed-grants.js';
+import { resolveCatalogGrokForwarding } from '../runtimes/catalog-grok-auth.js';
 import { seedProviderIfMissing } from '../media/config.js';
 import {
   buildLegacyMaxTokensParam,
@@ -389,6 +391,14 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             isKnownServiceTier(def, safeModel, body.serviceTier)
               ? body.serviceTier
               : undefined;
+          const catalogGrok = body.agentId === 'grok-build'
+            && req.embedGrant
+            && isCatalogEmbedGrant(req.embedGrant)
+            ? await resolveCatalogGrokForwarding(
+                ctx.paths.RUNTIME_DATA_DIR,
+                req.embedGrant.uid,
+              )
+            : null;
           const result = await testAgentConnection({
             agentId: body.agentId,
             model: safeModel ?? undefined,
@@ -398,6 +408,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
               body.agentCliEnv && typeof body.agentCliEnv === 'object'
                 ? body.agentCliEnv
                 : undefined,
+            amcGrok: catalogGrok,
             signal: controller.signal,
           });
           return res.json(result);

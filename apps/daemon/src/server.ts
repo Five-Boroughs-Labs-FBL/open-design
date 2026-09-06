@@ -560,6 +560,7 @@ import { odNextExampleReferenceFact } from './strategies/od-next/example-skill-s
 import { runtimeResumesSessionById } from './runtimes/types.js';
 import { adoptGrokSession } from './runtimes/grok-session-adopt.js';
 import { applyAmcGrokHome } from './runtimes/amc-grok.js';
+import { resolveCatalogGrokForwarding } from './runtimes/catalog-grok-auth.js';
 import {
   applyAmcCredential,
   materializeAmcCredential,
@@ -8375,6 +8376,7 @@ export async function startServer({
   registerSocialShareRoutes(app, { http: httpDeps });
   registerEmbedGrantRoutes(app, {
     getProject: (projectId) => getProject(db, projectId),
+    dataDir: RUNTIME_DATA_DIR,
     sendApiError,
   });
   registerProjectRoutes(app, {
@@ -11540,6 +11542,22 @@ export async function startServer({
             grokHome: home.trim(),
             sourceCwd: (run.amcGrok && run.amcGrok.sourceCwd) || '',
           };
+        } else {
+          const acpUserId = seeded && seeded.metadata && seeded.metadata.acpUserId;
+          if (typeof acpUserId === 'string' && acpUserId.trim()) {
+            const catalog = await resolveCatalogGrokForwarding(
+              RUNTIME_DATA_DIR,
+              acpUserId.trim(),
+            );
+            if (catalog && catalog.grokHome) {
+              run.amcGrok = {
+                sessionId: (run.amcGrok && run.amcGrok.sessionId) || '',
+                grokHome: catalog.grokHome,
+                sourceCwd: (run.amcGrok && run.amcGrok.sourceCwd) || '',
+                ...(catalog.authJson ? { authJson: catalog.authJson } : {}),
+              };
+            }
+          }
         }
       } catch {
         // Follow-up runs still attempt daemon GROK_HOME if metadata is missing.
