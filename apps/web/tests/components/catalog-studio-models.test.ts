@@ -48,12 +48,21 @@ describe('catalog studio models', () => {
     expect(needsCatalogStudioGrokLatch(next)).toBe(false);
   });
 
-  it('wires MiniMax as host BYOK, not a grok-build model id', () => {
+  it('wires MiniMax as Anthropic-compatible HTTP, not a grok-build model id', () => {
     const next = applyCatalogStudioModel(base, CATALOG_STUDIO_MINIMAX_ID);
     expect(next.mode).toBe('api');
     expect(next.baseUrl).toMatch(/minimax/i);
     expect(next.model).toMatch(/MiniMax/i);
     expect(catalogStudioModelId(next)).toBe(CATALOG_STUDIO_MINIMAX_ID);
     expect(needsCatalogStudioGrokLatch(next)).toBe(false);
+  });
+
+  it('drops a leftover Settings API key when switching to MiniMax', () => {
+    const next = applyCatalogStudioModel(
+      { ...base, apiKey: 'sk-ant-leftover' },
+      CATALOG_STUDIO_MINIMAX_ID,
+    );
+    expect(next.apiKey).toBe('');
+    expect(next.baseUrl).toMatch(/minimax/i);
   });
 });
