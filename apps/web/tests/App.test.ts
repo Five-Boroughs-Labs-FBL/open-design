@@ -200,6 +200,24 @@ describe('shouldRequireAcpCatalogLogin', () => {
     })).toBe(false);
   });
 
+  it('does not hijack project, community, or marketplace deep links', () => {
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'project',
+      routeView: undefined,
+    })).toBe(false);
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'community',
+      routeView: undefined,
+    })).toBe(false);
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'marketplace',
+      routeView: undefined,
+    })).toBe(false);
+  });
+
   it('waits for public-runtime before deciding', () => {
     expect(shouldRequireAcpCatalogLogin({
       ...signedOutStudio,
