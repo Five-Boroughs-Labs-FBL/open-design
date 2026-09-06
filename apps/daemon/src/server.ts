@@ -258,6 +258,10 @@ import {
   buildOpenCodeByokProviderConfig,
   BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
 } from './runtimes/byok-opencode.js';
+import {
+  shouldRunMinimaxHttpFallback,
+  streamMinimaxHttpTurn,
+} from './runtimes/minimax-http.js';
 import { isSingleHtmlDocument } from './artifacts/html-document.js';
 import { createLiveHtmlCanvasWriter } from './runtimes/live-html-canvas.js';
 import {
@@ -13712,9 +13716,41 @@ export async function startServer({
     // If detection can't find the binary, surface a friendly SSE error
     // pointing at /api/agents instead of silently falling back to
     // spawn(def.bin) — that fallback re-introduces the exact ENOENT symptom
-    // from issue #10.
+    // from issue #10. MiniMax is the exception: hosted Studio has the admin
+    // key wired and talks to MiniMax over HTTP without OpenCode.
     if (!resolvedBin || !agentLaunch.launchPath) {
       cleanupPromptFile();
+      if (shouldRunMinimaxHttpFallback({
+        agentId: def.id,
+        provider: byokProvider,
+        model,
+        hasResolvedBin: false,
+      })) {
+        try {
+          await streamMinimaxHttpTurn({
+            apiKey: String(byokProvider?.apiKey || ''),
+            baseUrl: String(byokProvider?.baseUrl || ''),
+            model: String(byokProvider?.model || model || ''),
+            prompt: composed,
+            onDelta: (delta) => {
+              noteFirstOutputEvent({ type: 'text_delta' });
+              send('agent', { type: 'text_delta', delta });
+            },
+          });
+          revokeToolToken('child_exit');
+          unregisterChatAgentEventSink();
+          return finishStrategyAwarePhysicalRun('succeeded', 0, null);
+        } catch (err) {
+          revokeToolToken('child_exit');
+          unregisterChatAgentEventSink();
+          send('error', createSseErrorPayload(
+            'UPSTREAM_UNAVAILABLE',
+            err instanceof Error ? err.message : 'MiniMax request failed',
+            { retryable: true },
+          ));
+          return finishStrategyAwarePhysicalRun('failed', 1, null);
+        }
+      }
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       send('error', createSseErrorPayload(

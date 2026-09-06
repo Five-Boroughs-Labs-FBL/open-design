@@ -58,7 +58,8 @@ export function needsCatalogStudioGrokLatch(config: AppConfig): boolean {
  * Apply a catalog-regular pick.
  *
  * Grok 4.6 stays on the host grok-build CLI (admin SuperGrok). MiniMax is
- * BYOK OpenCode; the daemon fills the admin ACP MiniMax key. The regular
+ * Anthropic-compatible HTTP; the daemon fills the admin ACP MiniMax key and
+ * talks to MiniMax directly when OpenCode is not installed. The regular
  * picker only flips mode/baseUrl/model. Paid XAI_API_KEY is unused.
  */
 export function applyCatalogStudioModel(
