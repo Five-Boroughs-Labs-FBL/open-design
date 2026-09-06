@@ -3100,8 +3100,8 @@ export async function startServer({
           queryGrant,
         })
       ) {
-        // Cookie-only grants stay valid after ACP logout/user switch. Refresh
-        // must mint a grant for the ACP session that is live now.
+        // Opt-in only (`OD_ACP_FORCE_DOCUMENT_SSO=1`). Default is to serve the
+        // Open Design "Continue with ACP" card; that button starts SSO.
         return res.redirect(302, acpSsoStartUrl(ssoUrl, spaDocumentReturnUrl(req)));
       }
       if (embedGrant) {
