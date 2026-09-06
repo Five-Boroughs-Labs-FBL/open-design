@@ -2,7 +2,9 @@ import { execFile } from 'node:child_process';
 import http from 'node:http';
 import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { dirname, resolve as pathResolve } from 'node:path';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve as pathResolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import express from 'express';
@@ -350,6 +352,64 @@ describe('registerEmbedGrantRoutes grant principal', () => {
     });
     expect(resp.status).toBe(403);
     expect(errorCode(resp.body)).toBe('EMBED_GRANT_SCOPE');
+  });
+
+  it('stashes SuperGrok auth.json from catalog mint amcGrok', async () => {
+    process.env.OD_API_TOKEN = API_TOKEN;
+    const dataDir = mkdtempSync(join(tmpdir(), 'od-embed-catalog-grok-'));
+    const app = express();
+    app.use(express.json());
+    registerEmbedGrantRoutes(app, {
+      getProject: (projectId) => ({ id: projectId }),
+      dataDir,
+      sendApiError,
+    });
+    const { baseUrl, server } = await listenApp(app);
+    servers.push(server);
+
+    const resp = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${API_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: 'user-alice',
+        amcGrok: { authJson: '{"refresh_token":"vault"}' },
+      }),
+    });
+    expect(resp.status).toBe(200);
+    expect(readFileSync(
+      join(dataDir, 'catalog-grok-homes', 'user-alice', 'auth.json'),
+      'utf8',
+    )).toBe('{"refresh_token":"vault"}');
+  });
+
+  it('still mints when amcGrok is omitted', async () => {
+    process.env.OD_API_TOKEN = API_TOKEN;
+    const app = express();
+    app.use(express.json());
+    registerEmbedGrantRoutes(app, {
+      getProject: (projectId) => ({ id: projectId }),
+      dataDir: mkdtempSync(join(tmpdir(), 'od-embed-catalog-nogrok-')),
+      sendApiError,
+    });
+    const { baseUrl, server } = await listenApp(app);
+    servers.push(server);
+
+    const resp = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${API_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'user-alice' }),
+    });
+    expect(resp.status).toBe(200);
+    expect(verifyEmbedGrant(API_TOKEN, (resp.body as { token?: string }).token ?? '')).toMatchObject({
+      pid: '*',
+      uid: 'user-alice',
+    });
   });
 });
 

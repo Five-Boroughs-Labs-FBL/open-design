@@ -39,7 +39,7 @@ import {
 import type { OdNativeEvent } from '@open-design/agui-adapter';
 import { renderDesignGenerationDirective } from '../design/generation-directive.js';
 import { newInsertId, readAnalyticsContext } from '../analytics.js';
-import { embedGrantAllowsProjectRecord } from '../embed-grants.js';
+import { embedGrantAllowsProjectRecord, isCatalogEmbedGrant } from '../embed-grants.js';
 import type { AnalyticsContext } from '../analytics.js';
 import { spawnEnvForAgent } from '../agents.js';
 import {
@@ -47,6 +47,7 @@ import {
   materializeAmcGrokHome,
   type AmcGrokForwarding,
 } from '../runtimes/amc-grok.js';
+import { resolveCatalogGrokForwarding } from '../runtimes/catalog-grok-auth.js';
 import {
   attachAmcRunCredentials,
   parseAmcCredentialBlock,
@@ -1897,6 +1898,16 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           err instanceof Error ? err.message : 'amcGrok materialize failed',
         );
       }
+    }
+    if (
+      !parsedAmcGrok
+      && req.embedGrant
+      && isCatalogEmbedGrant(req.embedGrant)
+    ) {
+      parsedAmcGrok = await resolveCatalogGrokForwarding(
+        RUNTIME_DATA_DIR,
+        req.embedGrant.uid,
+      );
     }
     // Generic AMC credential handoff (non-Grok families). Same server-token
     // gate as amcGrok: a caller that can set a run's spawn environment must

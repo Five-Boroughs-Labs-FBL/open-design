@@ -38,6 +38,7 @@ import { attachAcpSession } from './agent-protocol/index.js';
 import { attachPiRpcSession } from './agent-protocol/index.js';
 import { attachDshProfileSession } from './agent-protocol/index.js';
 import { createClaudeStreamHandler } from './runtimes/claude-stream.js';
+import { applyAmcGrokHome, type AmcGrokForwarding } from './runtimes/amc-grok.js';
 import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
 import { createJsonEventStreamHandler } from './runtimes/json-event-stream.js';
@@ -874,7 +875,11 @@ export function redactSecrets(
 }
 
 type ProviderConnectionInput = ProviderTestRequest & { signal?: AbortSignal };
-type AgentConnectionInput = AgentTestRequest & { signal?: AbortSignal };
+type AgentConnectionInput = AgentTestRequest & {
+  signal?: AbortSignal;
+  launchEnv?: NodeJS.ProcessEnv;
+  amcGrok?: AmcGrokForwarding | null;
+};
 
 function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   const url = new URL(baseUrl);
@@ -2656,10 +2661,14 @@ async function testAgentConnectionInternal(
           model,
         ).catch(() => null)
       : null;
-    const env = applyAgentLaunchEnv({
-      ...baseEnv,
-      ...(mmdRouteLaunchEnv || {}),
-    }, executableResolution);
+    const env = applyAmcGrokHome(
+      applyAgentLaunchEnv({
+        ...baseEnv,
+        ...(input.launchEnv || {}),
+        ...(mmdRouteLaunchEnv || {}),
+      }, executableResolution),
+      input.amcGrok,
+    );
     model = await resolveConnectionTestModelForAgent(
       def,
       model,
