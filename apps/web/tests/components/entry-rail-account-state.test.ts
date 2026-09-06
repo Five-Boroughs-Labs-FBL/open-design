@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  resolveAcpCatalogChrome,
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
   shouldShowCloudSignInTip,
@@ -101,6 +102,41 @@ describe('shouldShowCloudSignInTip', () => {
       acpSsoResolved: true,
       acpSsoUrl: null,
     })).toBe(true);
+  });
+});
+
+describe('resolveAcpCatalogChrome', () => {
+  it('keeps OpenDesign chrome on a local daemon', () => {
+    expect(resolveAcpCatalogChrome({
+      resolved: true,
+      acpSsoUrl: null,
+      embedSession: null,
+    })).toEqual({ showHostAdminChrome: true, showAcpSignOut: false });
+  });
+
+  it('hides host chrome for a regular ACP catalog user and offers Sign out', () => {
+    expect(resolveAcpCatalogChrome({
+      resolved: true,
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+      embedSession: { catalog: true, admin: false },
+    })).toEqual({ showHostAdminChrome: false, showAcpSignOut: true });
+  });
+
+  it('lets an ACP admin keep Settings and the community chrome', () => {
+    expect(resolveAcpCatalogChrome({
+      resolved: true,
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+      embedSession: { catalog: true, admin: true },
+    })).toEqual({ showHostAdminChrome: true, showAcpSignOut: true });
+  });
+
+  it('does not flash Settings while a catalog session is still hydrating', () => {
+    expect(resolveAcpCatalogChrome({
+      resolved: false,
+      acpSsoUrl: null,
+      embedSession: null,
+      embedSessionHint: true,
+    })).toEqual({ showHostAdminChrome: false, showAcpSignOut: true });
   });
 });
 

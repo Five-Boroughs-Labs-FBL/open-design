@@ -62,6 +62,42 @@ export function shouldShowCloudSignInTip(input: {
   return !input.acpSsoUrl;
 }
 
+export type AcpCatalogChrome = {
+  /** Settings, Message center, and Discord/X/mail — host-wide, admin-only under ACP SSO. */
+  showHostAdminChrome: boolean;
+  /** Sign out of the ACP catalog session. Hidden on local/desktop. */
+  showAcpSignOut: boolean;
+};
+
+/**
+ * Hosted ACP catalog sessions share one daemon. Settings writes are
+ * process-wide, so only an ACP admin may see that chrome. Every catalog
+ * user still gets Sign out so they can leave the handshake.
+ */
+export function resolveAcpCatalogChrome(input: {
+  resolved: boolean;
+  acpSsoUrl: string | null;
+  embedSession: { catalog: boolean; admin: boolean } | null;
+  embedSessionHint?: boolean;
+}): AcpCatalogChrome {
+  if (!input.resolved) {
+    if (input.embedSessionHint) {
+      return { showHostAdminChrome: false, showAcpSignOut: true };
+    }
+    return { showHostAdminChrome: true, showAcpSignOut: false };
+  }
+  if (input.embedSession?.catalog === true) {
+    return {
+      showHostAdminChrome: input.embedSession.admin === true,
+      showAcpSignOut: true,
+    };
+  }
+  if (input.acpSsoUrl) {
+    return { showHostAdminChrome: false, showAcpSignOut: false };
+  }
+  return { showHostAdminChrome: true, showAcpSignOut: false };
+}
+
 export function resolveEntryRailAccountFooterState(
   workspaceState: WorkspaceContextState,
   amrLoggedIn: boolean | null | undefined,

@@ -7,16 +7,19 @@ import {
   EMBED_GRANT_QUERY,
   EMBED_GRANT_TTL_MS,
   applyVerifiedEmbedGrant,
+  clearEmbedGrantCookie,
   embedGrantAllowsPath,
   embedGrantAllowsProjectId,
   embedGrantAllowsProjectRecord,
   embedGrantCookieShouldBeSecure,
   embedGrantForbidsRequest,
   filterProjectsForEmbedGrant,
+  isCatalogAdminEmbedGrant,
   isCatalogEmbedGrant,
   isEmbedGrantDeferredRunLookupPath,
   mintEmbedGrant,
   projectAcpUserId,
+  publicEmbedSessionFromGrant,
   readEmbedGrantFromRequest,
   setEmbedGrantCookie,
   stampCatalogOwnerMetadata,
@@ -166,7 +169,47 @@ describe('mintEmbedGrant / verifyEmbedGrant', () => {
     });
     expect(minted.payload.pid).toBe('*');
     expect(minted.payload.pids).toEqual(['legacy-1', 'legacy-2']);
+    expect(minted.payload.adm).toBeUndefined();
     expect(verifyEmbedGrant(API_TOKEN, minted.token, FIXED_NOW)).toEqual(minted.payload);
+  });
+
+  it('stamps adm only on catalog grants and round-trips it', () => {
+    const projectScoped = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: PROJECT_ID,
+      userId: USER_ID,
+      admin: true,
+    });
+    expect(projectScoped.payload.adm).toBeUndefined();
+    expect(isCatalogAdminEmbedGrant(projectScoped.payload)).toBe(false);
+
+    const catalog = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: USER_ID,
+      admin: true,
+    });
+    expect(catalog.payload.adm).toBe(true);
+    expect(isCatalogAdminEmbedGrant(catalog.payload)).toBe(true);
+    expect(verifyEmbedGrant(API_TOKEN, catalog.token, FIXED_NOW)).toEqual(catalog.payload);
+    expect(publicEmbedSessionFromGrant(catalog.payload)).toEqual({
+      uid: USER_ID,
+      catalog: true,
+      admin: true,
+    });
+  });
+
+  it('does not treat a forged adm field without a matching HMAC as admin', () => {
+    const minted = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: USER_ID,
+    });
+    const [encoded = '', signature = ''] = minted.token.split('.');
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as EmbedGrantPayload;
+    payload.adm = true;
+    const tampered = `${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}.${signature}`;
+    expect(verifyEmbedGrant(API_TOKEN, tampered, FIXED_NOW)).toBeNull();
   });
 
   it('rejects a payload with a bad version', () => {
@@ -260,6 +303,22 @@ describe('embed grant cookie and query', () => {
     const parsed = parseSetCookie(headers.get('set-cookie') ?? '');
     expect(parsed.flags.has('secure')).toBe(true);
     expect(parsed.flags.has('httponly')).toBe(true);
+  });
+
+  it('clears the embed cookie as an expired HttpOnly session cookie', () => {
+    const headers = new Map<string, string>();
+    const res = {
+      setHeader(name: string, value: string) {
+        headers.set(name.toLowerCase(), value);
+      },
+    };
+    clearEmbedGrantCookie(res, { secure: true });
+    const parsed = parseSetCookie(headers.get('set-cookie') ?? '');
+    expect(parsed.name).toBe(EMBED_GRANT_COOKIE);
+    expect(parsed.value).toBe('');
+    expect(parsed.kv['max-age']).toBe('0');
+    expect(parsed.flags.has('httponly')).toBe(true);
+    expect(parsed.flags.has('secure')).toBe(true);
   });
 });
 
@@ -428,6 +487,8 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-systems')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/skills/install')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/embed-grants')).toBe(false);
+    expect(embedGrantAllowsPath(catalog, 'PUT', '/api/app-config')).toBe(false);
+    expect(embedGrantAllowsPath(catalog, 'GET', '/api/embed-session/logout')).toBe(true);
     expect(embedGrantForbidsRequest(catalog, {
       method: 'GET',
       originalUrl: '/api/projects/owned-2',
@@ -441,6 +502,22 @@ describe('embed grant request helpers', () => {
       originalUrl: '/api/projects/owned-2',
     })).toBe(true);
     expect(embedGrantAllowsProjectId(catalog, 'guessed-id')).toBe(false);
+  });
+
+  it('lets only catalog admin grants persist process-wide app-config', () => {
+    const admin = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: USER_ID,
+      admin: true,
+    }).payload;
+    expect(embedGrantAllowsPath(admin, 'PUT', '/api/app-config')).toBe(true);
+    expect(embedGrantAllowsPath(admin, 'POST', '/api/plugins/install')).toBe(false);
+    expect(publicEmbedSessionFromGrant(admin)).toEqual({
+      uid: USER_ID,
+      catalog: true,
+      admin: true,
+    });
   });
 
   it('lets a catalog grant POST /api/chat only for ACP-owned projects', () => {

@@ -90,18 +90,23 @@ async function createProject(
   return id;
 }
 
-async function mintCatalog(userId: string, projectIds: string[] = []): Promise<string> {
+async function mintCatalog(
+  userId: string,
+  projectIds: string[] = [],
+  admin = false,
+): Promise<string> {
   const resp = await jsonRequest(`${baseUrl}/api/embed-grants`, {
     method: 'POST',
     headers: {
       authorization: AUTHORIZATION,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ userId, projectIds }),
+    body: JSON.stringify({ userId, projectIds, admin }),
   });
   expect(resp.status).toBe(200);
   const token = (resp.body as { token?: string }).token;
   expect(typeof token).toBe('string');
+  expect((resp.body as { admin?: boolean }).admin).toBe(admin);
   return token!;
 }
 
@@ -270,13 +275,19 @@ describe('ACP catalog grant integration', () => {
   });
 
   it('keeps APIs locked without a grant while serving the SSO shell and public runtime', async () => {
-    const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
-    expect(spa.status).toBe(200);
-    expect(await spa.text()).toContain('studio embed shell');
+    const spa = await fetch(`${baseUrl}/`, {
+      headers: { accept: 'text/html' },
+      redirect: 'manual',
+    });
+    expect(spa.status).toBe(302);
+    expect(spa.headers.get('location') ?? '').toContain('https://acp.test/open-design/sso?');
 
     const runtime = await jsonRequest(`${baseUrl}/api/public-runtime`);
     expect(runtime.status).toBe(200);
-    expect(runtime.body).toEqual({ acpSsoUrl: 'https://acp.test/open-design/sso' });
+    expect(runtime.body).toEqual({
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+      embedSession: null,
+    });
 
     const projects = await jsonRequest(`${baseUrl}/api/projects`);
     expect(projects.status).toBe(401);
@@ -299,5 +310,73 @@ describe('ACP catalog grant integration', () => {
       body: JSON.stringify({ userId: 'user-dave', projectIds: [owned] }),
     });
     expect([401, 403]).toContain(remint.status);
+  });
+
+  it('exposes catalog admin on public-runtime and blocks settings writes for members', async () => {
+    const memberToken = await mintCatalog('user-member');
+    const adminToken = await mintCatalog('user-admin', [], true);
+    const memberCookie = { cookie: `${EMBED_GRANT_COOKIE}=${memberToken}` };
+    const adminCookie = { cookie: `${EMBED_GRANT_COOKIE}=${adminToken}` };
+
+    const memberRuntime = await jsonRequest(`${baseUrl}/api/public-runtime`, {
+      headers: memberCookie,
+    });
+    expect(memberRuntime.status).toBe(200);
+    expect(memberRuntime.body).toEqual({
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+      embedSession: { uid: 'user-member', catalog: true, admin: false },
+    });
+
+    const adminRuntime = await jsonRequest(`${baseUrl}/api/public-runtime`, {
+      headers: adminCookie,
+    });
+    expect(adminRuntime.status).toBe(200);
+    expect(adminRuntime.body).toEqual({
+      acpSsoUrl: 'https://acp.test/open-design/sso',
+      embedSession: { uid: 'user-admin', catalog: true, admin: true },
+    });
+
+    const memberWrite = await jsonRequest(`${baseUrl}/api/app-config`, {
+      method: 'PUT',
+      headers: {
+        ...memberCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ telemetry: { metrics: false } }),
+    });
+    expect(memberWrite.status).toBe(403);
+    expect(errorCode(memberWrite.body)).toBe('EMBED_GRANT_SCOPE');
+
+    const adminWrite = await jsonRequest(`${baseUrl}/api/app-config`, {
+      method: 'PUT',
+      headers: {
+        ...adminCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ telemetry: { metrics: false } }),
+    });
+    expect(errorCode(adminWrite.body)).not.toBe('EMBED_GRANT_SCOPE');
+  });
+
+  it('clears the embed cookie and sends SSO users to ACP logout', async () => {
+    const token = await mintCatalog('user-member');
+    const resp = await fetch(`${baseUrl}/api/embed-session/logout`, {
+      headers: { cookie: `${EMBED_GRANT_COOKIE}=${token}` },
+      redirect: 'manual',
+    });
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get('location')).toBe('https://acp.test/open-design/logout');
+    const setCookie = resp.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain(`${EMBED_GRANT_COOKIE}=`);
+    expect(setCookie.toLowerCase()).toContain('max-age=0');
+
+    const posted = await jsonRequest(`${baseUrl}/api/embed-session/logout`, {
+      method: 'POST',
+    });
+    expect(posted.status).toBe(200);
+    expect(posted.body).toEqual({
+      ok: true,
+      redirectTo: 'https://acp.test/open-design/logout',
+    });
   });
 });

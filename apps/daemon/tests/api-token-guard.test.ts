@@ -408,14 +408,20 @@ describe('embed grant middleware for non-loopback Studio', () => {
     shutdown = started.shutdown;
     makeConnectionsAppearNonLoopback(server);
 
-    const spa = await fetch(`${baseUrl}/`, { headers: { accept: 'text/html' } });
-    expect(spa.status).toBe(200);
-    expect(await spa.text()).toContain('studio embed shell');
+    const spa = await fetch(`${baseUrl}/`, {
+      headers: { accept: 'text/html' },
+      redirect: 'manual',
+    });
+    expect(spa.status).toBe(302);
+    const location = spa.headers.get('location') ?? '';
+    expect(location.startsWith('https://dev.agentcontrolpanel.dev/open-design/sso?')).toBe(true);
+    expect(location).toContain('return=');
 
     const runtime = await jsonRequest(`${baseUrl}/api/public-runtime`);
     expect(runtime.status).toBe(200);
     expect(runtime.body).toEqual({
       acpSsoUrl: 'https://dev.agentcontrolpanel.dev/open-design/sso',
+      embedSession: null,
     });
 
     const projects = await jsonRequest(`${baseUrl}/api/projects`);
@@ -424,6 +430,55 @@ describe('embed grant middleware for non-loopback Studio', () => {
     // A Basic challenge here makes the browser steal the ACP SSO landing
     // with a native username/password dialog.
     expect(projects.wwwAuthenticate).toBeNull();
+  });
+
+  it('re-handshakes ACP SSO on refresh even when a previous user cookie is still valid', async () => {
+    await Promise.resolve(shutdown?.());
+    if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+    process.env.OD_ACP_SSO_URL = 'https://dev.agentcontrolpanel.dev/open-design/sso';
+    const started = (await startServer({
+      port: 0,
+      host: '127.0.0.1',
+      returnServer: true,
+      staticDir,
+    })) as {
+      url: string;
+      server: Server;
+      shutdown?: () => Promise<void> | void;
+    };
+    baseUrl = started.url;
+    server = started.server;
+    shutdown = started.shutdown;
+    makeConnectionsAppearNonLoopback(server);
+
+    const minted = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'user-regular' }),
+    });
+    expect(minted.status).toBe(200);
+    const token = (minted.body as { token?: string }).token;
+    expect(typeof token).toBe('string');
+
+    const cookieOnly = await fetch(`${baseUrl}/`, {
+      headers: {
+        accept: 'text/html',
+        cookie: `${EMBED_GRANT_COOKIE}=${token}`,
+      },
+      redirect: 'manual',
+    });
+    expect(cookieOnly.status).toBe(302);
+    expect(cookieOnly.headers.get('location') ?? '').toContain('/open-design/sso?');
+
+    const returned = await fetch(`${baseUrl}/?t=${encodeURIComponent(token!)}`, {
+      headers: { accept: 'text/html' },
+      redirect: 'manual',
+    });
+    expect(returned.status).toBe(200);
+    expect(await returned.text()).toContain('studio embed shell');
   });
 
   it('lets a matching API token list every project', async () => {
