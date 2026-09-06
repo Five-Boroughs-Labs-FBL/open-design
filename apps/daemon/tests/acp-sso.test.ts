@@ -4,16 +4,23 @@ import {
   acpSsoLogoutUrl,
   acpSsoStartUrl,
   acpSsoUrlFromEnv,
+  isAcpDirectDesignAllowed,
   isAcpSsoConfigured,
   shouldRedirectSpaDocumentToAcpSso,
   spaDocumentReturnUrl,
 } from '../src/acp-sso.js';
 
 const PREVIOUS = process.env.OD_ACP_SSO_URL;
+const PREVIOUS_DIRECT = process.env.OD_ACP_ALLOW_DIRECT_DESIGN;
+const PREVIOUS_FORCE = process.env.OD_ACP_FORCE_DOCUMENT_SSO;
 
 afterEach(() => {
   if (PREVIOUS === undefined) delete process.env.OD_ACP_SSO_URL;
   else process.env.OD_ACP_SSO_URL = PREVIOUS;
+  if (PREVIOUS_DIRECT === undefined) delete process.env.OD_ACP_ALLOW_DIRECT_DESIGN;
+  else process.env.OD_ACP_ALLOW_DIRECT_DESIGN = PREVIOUS_DIRECT;
+  if (PREVIOUS_FORCE === undefined) delete process.env.OD_ACP_FORCE_DOCUMENT_SSO;
+  else process.env.OD_ACP_FORCE_DOCUMENT_SSO = PREVIOUS_FORCE;
 });
 
 describe('acpSsoUrlFromEnv', () => {
@@ -72,10 +79,21 @@ describe('ACP SSO document handshake', () => {
 
   it('re-handshakes cookie-only document loads and skips when t= is present', () => {
     process.env.OD_ACP_SSO_URL = 'https://agentcontrolpanel.dev/open-design/sso';
+    process.env.OD_ACP_ALLOW_DIRECT_DESIGN = '0';
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(true);
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: true })).toBe(false);
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'POST', queryGrant: false })).toBe(false);
     delete process.env.OD_ACP_SSO_URL;
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(false);
+  });
+
+  it('allows direct design by default and when OD_ACP_ALLOW_DIRECT_DESIGN=1', () => {
+    process.env.OD_ACP_SSO_URL = 'https://agentcontrolpanel.dev/open-design/sso';
+    delete process.env.OD_ACP_ALLOW_DIRECT_DESIGN;
+    delete process.env.OD_ACP_FORCE_DOCUMENT_SSO;
+    expect(isAcpDirectDesignAllowed()).toBe(true);
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(false);
+    process.env.OD_ACP_ALLOW_DIRECT_DESIGN = '1';
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(false);
   });
 });

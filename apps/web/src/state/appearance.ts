@@ -76,6 +76,9 @@ export function applyAppearanceToDocument({
   accentColor?: string;
 }): void {
   const root = document.documentElement;
+  // Hosted ACP Studio owns its own light/dark preference. Do not force the
+  // OpenDesign light-only stamp over `data-acp-studio`.
+  if (root.getAttribute('data-acp-studio') === '1') return;
   root.setAttribute('data-theme', FORCED_APP_THEME);
   // Desktop shell: keep the native window appearance (the macOS vibrancy
   // glass material) in step with the app theme. Without this the glass

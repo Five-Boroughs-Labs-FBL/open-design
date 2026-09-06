@@ -14,6 +14,7 @@ import {
 import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
+import { applyAcpStudioAppearance, isAcpStudioShell } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
 import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
@@ -1834,6 +1835,7 @@ function AppInner() {
   // useLayoutEffect (vs useEffect) fires before the browser paints, so no
   // 1-frame flash. Safe here because the component tree is ssr:false.
   useLayoutEffect(() => {
+    if (applyAcpStudioAppearance()) return;
     applyAppearanceToDocument({ accentColor: config.accentColor });
   }, [config.accentColor]);
 
@@ -2186,6 +2188,7 @@ function AppInner() {
         setAcpSsoUrl(publicRuntime.acpSsoUrl);
         setAcpEmbedSession(publicRuntime.embedSession);
         setAcpPublicRuntimeResolved(true);
+        applyAcpStudioAppearance();
         const daemonMediaProvidersLoaded =
           daemonMediaProvidersResult.status === 'ok'
             ? daemonMediaProvidersResult.providers
@@ -4782,7 +4785,11 @@ function AppInner() {
   useEffect(() => {
     if (catalogChrome.showHostAdminChrome) return;
     setSettingsOpen(false);
-    if (route.kind === 'home' && route.view === 'settings') {
+    if (
+      route.kind === 'home'
+      && (route.view === 'settings' || route.view === 'community'
+        || route.view === 'plugins' || route.view === 'design-systems')
+    ) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }
   }, [catalogChrome.showHostAdminChrome, route]);
@@ -5477,6 +5484,7 @@ function AppInner() {
         data-amc-embed={typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? '1' : undefined}
       >
         {typeof document !== 'undefined' && document.documentElement.dataset.amcEmbed === '1' ? null : (
+        route.kind === 'home' && route.view === 'onboarding' && isAcpStudioShell() ? null : (
         <WorkspaceTabsBar
           route={route}
           // The ambient list may still be loading (or belong to a different
@@ -5496,7 +5504,7 @@ function AppInner() {
           onboardingCompleted={config.onboardingCompleted === true}
           identityScopeKey={workspaceTabsIdentityScopeKey}
         />
-        )}
+        ))}
         {/* Avatar + credits keep their home-view spot (the top-right actions
             host inside the tabs chrome) while a project tab is open, even
             though EntryShell — the cluster's usual owner — is unmounted here.

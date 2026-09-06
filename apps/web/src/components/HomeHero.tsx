@@ -3475,7 +3475,7 @@ function modelOptionIcon(value: string, label: string): ModelOptionIconSpec {
   }
   if (normalized.includes('senseaudio')) return { label: 'SA', tone: 'sense' };
   if (normalized.includes('grok') || normalized.includes('xai') || normalized.includes('xai/')) {
-    return { label: 'xAI', tone: 'grok', src: '/model-icons/x.svg' };
+    return { label: 'xAI', tone: 'grok', src: '/agent-icons/grok-build.svg' };
   }
   if (normalized.includes('gemini') || normalized.includes('imagen') || normalized.includes('veo') || normalized.includes('google') || normalized.includes('nano-banana')) {
     return { label: 'Google Gemini', tone: 'google', src: '/model-icons/google-gemini.svg' };

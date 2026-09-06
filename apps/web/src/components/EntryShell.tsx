@@ -208,7 +208,10 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
+import { applyAcpStudioAppearance, isAcpStudioShell } from '../acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
+import { AcpStudioLockup } from './AcpStudioLockup';
+import { AcpStudioThemeToggle } from './AcpStudioThemeToggle';
 import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
 import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
@@ -664,6 +667,7 @@ export function EntryShell({
       setAcpSsoUrl(runtime.acpSsoUrl);
       setAcpEmbedSession(runtime.embedSession);
       setAcpSsoResolved(true);
+      applyAcpStudioAppearance();
     });
     return () => {
       cancelled = true;
@@ -3622,28 +3626,45 @@ function OnboardingView({
   // direct setup paths; authenticated users keep the full source chooser.
   if (step === 0) {
     const acpSso = Boolean(acpSsoUrl);
+    const acpLoginLayout = acpSso || (typeof window !== 'undefined' && isAcpStudioShell(window));
     const cloudBusy = acpSso ? false : amrLoginBusy;
     const amrStatusResolving = acpSso ? !acpSsoResolved : !amrStatusResolved;
     const acpSsoResolving = !acpSsoResolved;
     return (
       <section
-        className="onboarding-view onboarding-view--cloud"
+        className={`onboarding-view onboarding-view--cloud${acpLoginLayout ? ' onboarding-view--acp' : ''}`}
         aria-label={t('settings.welcomeTitle')}
       >
+        {acpLoginLayout ? (
+          <header className="acp-sso-header">
+            <AcpStudioLockup size={22} />
+            <AcpStudioThemeToggle />
+          </header>
+        ) : null}
         <div className="onboarding-cloud__pane">
           <div className="onboarding-cloud__center">
-            <h1 className="onboarding-cloud__title">
-              {acpSso ? t('settings.onboardingAcpTitle') : t('settings.onboardingCloudTitle')}
-            </h1>
+            {acpLoginLayout ? (
+              <>
+                <p className="acp-sso-card__eyebrow">{t('acpStudio.ssoEyebrow')}</p>
+                <h1 className="acp-sso-card__title">
+                  {t('acpStudio.ssoTitleBefore')}{' '}
+                  <em>{t('acpStudio.ssoTitleAccent')}</em>
+                </h1>
+              </>
+            ) : (
+              <h1 className="onboarding-cloud__title">
+                {t('settings.onboardingCloudTitle')}
+              </h1>
+            )}
             <p className="onboarding-cloud__body">
-              {acpSso ? t('settings.onboardingAcpBody') : t('settings.onboardingCloudBody')}
+              {acpLoginLayout ? t('settings.onboardingAcpBody') : t('settings.onboardingCloudBody')}
             </p>
             <button
               type="button"
               className="onboarding-cloud__primary"
               onClick={() => {
-                if (acpSsoResolving) return;
-                if (acpSso) {
+                if (acpLoginLayout) {
+                  if (acpSsoResolving || !acpSso) return;
                   handleAcpSignIn();
                   return;
                 }
@@ -3666,13 +3687,21 @@ function OnboardingView({
                 }
                 void handleCloudSignIn();
               }}
-              disabled={cloudBusy || amrLoginCancelPending || acpSsoResolving || (!acpSso && amrStatusResolving)}
-              aria-busy={cloudBusy || acpSsoResolving || (!acpSso && amrStatusResolving) ? true : undefined}
+              disabled={
+                acpLoginLayout
+                  ? acpSsoResolving || !acpSso
+                  : cloudBusy || amrLoginCancelPending || amrStatusResolving
+              }
+              aria-busy={
+                acpLoginLayout
+                  ? acpSsoResolving || !acpSso
+                  : cloudBusy || amrStatusResolving ? true : undefined
+              }
             >
               <Icon name="log-in" size={17} />
               <span>
-                {acpSso
-                  ? (acpSsoResolving ? t('common.loading') : t('settings.onboardingAcpSignIn'))
+                {acpLoginLayout
+                  ? (acpSsoResolving || !acpSso ? t('common.loading') : t('settings.onboardingAcpSignIn'))
                   : cloudBusy
                     ? t('settings.amrSigningIn')
                     : amrStatusResolving
@@ -3727,7 +3756,7 @@ function OnboardingView({
               >
                 {t('settings.amrCancelSignIn')}
               </button>
-            ) : (
+            ) : acpLoginLayout ? null : (
               <div className="onboarding-cloud__alts">
                 <Button
                   variant="subtle"
@@ -3767,13 +3796,15 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign · {t('settings.onboardingCloudRights')}
+              © {new Date().getFullYear()} {acpLoginLayout ? 'Agent Control Panel' : 'OpenDesign'} · {t('settings.onboardingCloudRights')}
             </span>
           </footer>
         </div>
+        {acpLoginLayout ? null : (
         <div className="onboarding-cloud__art" aria-hidden="true">
           <img src="/onboarding/onboarding-cloud-art.webp" alt="" />
         </div>
+        )}
       </section>
     );
   }

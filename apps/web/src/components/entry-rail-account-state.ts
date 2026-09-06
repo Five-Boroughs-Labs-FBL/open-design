@@ -63,7 +63,7 @@ export function shouldShowCloudSignInTip(input: {
 }
 
 export type AcpCatalogChrome = {
-  /** Settings, Message center, and Discord/X/mail — host-wide, admin-only under ACP SSO. */
+  /** Settings, Message center, and Discord/X/mail — admin-only under ACP SSO. Community stays available to every catalog user. */
   showHostAdminChrome: boolean;
   /** Sign out of the ACP catalog session. Hidden on local/desktop. */
   showAcpSignOut: boolean;

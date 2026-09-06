@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import styles from './RotatingTitleWord.module.css';
@@ -19,17 +19,13 @@ import styles from './RotatingTitleWord.module.css';
  *
  * ONE deviation from the port (per product): the six-hue rotation is gone. The
  * word takes the headline's own ink like the words either side of it, and the
- * only colour left is #00FF08 — the plate fades out from it and the caret is
- * it. With the ink no longer a gradient and every hue collapsed to that one
- * value, the palette array and the hue-advance step it fed had nothing left to
- * vary, so both were removed rather than left rotating between six copies of
- * the same colour.
+ * only colour left is `--rotating-title-accent` (OpenDesign neon green
+ * `#00FF08` by default; hosted ACP Studio retints it to signal amber). The
+ * plate fades out from it and the caret is it. With the ink no longer a
+ * gradient and every hue collapsed to that one value, the palette array and
+ * the hue-advance step it fed had nothing left to vary, so both were removed
+ * rather than left rotating between six copies of the same colour.
  */
-const ACCENT = '#00FF08';
-/* Its own knob even though it currently resolves to the accent: the plate has
-   been asked to diverge before (it spent a turn as a neutral #DBDBDB), and
-   keeping the name means changing it back is one line rather than a re-split. */
-const PLATE = ACCENT;
 
 /* 10s between words (per product). The reveal itself is 0.8s, so a word stands
    still for ~9s — still a sentence that occasionally changes rather than a
@@ -68,16 +64,12 @@ export function RotatingTitleWord({
   // `key={word}` drives the reveal, so picking a type animates the swap in with
   // the same wipe a rotation uses rather than snapping the headline.
   const word = pinned || words[index] || words[0] || '';
-  const hueStyle = {
-    '--rotating-title-plate': PLATE,
-    '--rotating-title-cursor': ACCENT,
-  } as CSSProperties;
 
   return (
     /* Decorative: a screen reader that re-announced the headline every four
        seconds would be unusable, so the slot is hidden from the a11y tree and
        the headline names itself through `aria-label` (see HomeHero). */
-    <span className={styles.slot} style={hueStyle} aria-hidden>
+    <span className={styles.slot} aria-hidden>
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
           key={word}
