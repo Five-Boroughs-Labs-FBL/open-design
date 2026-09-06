@@ -208,7 +208,9 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
+import { applyAcpStudioAppearance } from '../acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
+import { AcpStudioLockup } from './AcpStudioLockup';
 import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
 import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
@@ -664,6 +666,7 @@ export function EntryShell({
       setAcpSsoUrl(runtime.acpSsoUrl);
       setAcpEmbedSession(runtime.embedSession);
       setAcpSsoResolved(true);
+      applyAcpStudioAppearance();
     });
     return () => {
       cancelled = true;
@@ -3632,6 +3635,7 @@ function OnboardingView({
       >
         <div className="onboarding-cloud__pane">
           <div className="onboarding-cloud__center">
+            {acpSso ? <AcpStudioLockup size={26} /> : null}
             <h1 className="onboarding-cloud__title">
               {acpSso ? t('settings.onboardingAcpTitle') : t('settings.onboardingCloudTitle')}
             </h1>
