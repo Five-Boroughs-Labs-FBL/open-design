@@ -7,5 +7,9 @@ describe('grok-build runtime', () => {
     expect(grokBuildAgentDef.capturesSessionIdFromStream).toBe(true);
     expect(grokBuildAgentDef.executionProfile).toBe('text_artifact');
     expect(grokBuildAgentDef.streamFormat).toBe('json-event-stream');
+    expect(grokBuildAgentDef.authProbe).toEqual({
+      args: ['models'],
+      timeoutMs: 10_000,
+    });
   });
 });

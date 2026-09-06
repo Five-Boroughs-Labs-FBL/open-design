@@ -90,6 +90,7 @@ import {
   amrLoginStatusEventReason,
   isAmrSessionAuthenticated,
 } from './amrLoginPolling';
+import { isAcpStudioShell } from '../acp-brand';
 import {
   amrPlansUrlForProfile,
   amrRechargeUrlForProfile,
@@ -1378,6 +1379,9 @@ export function ChatPane({
         // gateway reported (the instant a model window reopens) can read it back
         // out. Same string the card renders under 「查看详情」.
         failedRunErrorEvent?.detail,
+        // Hosted ACP Studio already signed in via ACP SSO — do not offer a
+        // second OpenDesign Cloud identity.
+        { promoteAmr: typeof window === 'undefined' || !isAcpStudioShell(window) },
       )
     : null;
   const hasInlineAmrAuthorizeFailure = Boolean(

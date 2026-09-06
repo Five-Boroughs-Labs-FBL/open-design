@@ -444,6 +444,21 @@ describe('resolveRunFailureUi', () => {
     }
   });
 
+  it('does not promote OpenDesign Cloud on hosted ACP Studio', () => {
+    const ui = resolveRunFailureUi(
+      'AGENT_AUTH_REQUIRED',
+      null,
+      'grok-build',
+      null,
+      { promoteAmr: false },
+    );
+    expect(ui).toMatchObject({
+      primaryAction: 'retry',
+      titleKey: 'chat.runError.title.signInRequired',
+      showSwitchCard: false,
+    });
+  });
+
   // AMR's own auth code must NOT fall into the non-AMR sign-in branch.
   it('does not give an AMR run the non-AMR sign-in copy', () => {
     expect(resolveRunFailureUi('AMR_AUTH_REQUIRED', null, 'amr').messageKey).not.toBe(

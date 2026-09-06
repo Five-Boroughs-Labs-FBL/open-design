@@ -23,7 +23,7 @@ export {
   shouldForceCloudOnboarding,
   shouldRequireAcpCatalogLogin,
 } from './onboarding/cloud-onboarding-gate';
-import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
+import { pickDefaultDaemonAgent, resolveAcpStudioDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
   stashOnboardingEntryForProject,
   type OnboardingEntry,
@@ -2367,10 +2367,28 @@ function AppInner() {
   // project conversation with the top bar hidden, so the user cannot finish
   // onboarding or pick a CLI. Auto-fill an authenticated local agent or the
   // first available one so Send does not fail with "Pick a local agent first".
+  //
+  // Hosted ACP Studio is the same shape without an iframe: catalog SSO is
+  // identity, but Grok Build still needs SuperGrok OAuth the host often
+  // lacks. Prefer an authenticated CLI (typically AMR) and replace a
+  // missing-auth grok-build pick so Send does not paint "Sign-in required".
   useEffect(() => {
     if (!daemonConfigLoaded || agentsLoading) return;
     const amcEmbed = typeof window !== 'undefined' && isAmcEmbedActive(window);
-    if (config.onboardingCompleted !== true && !amcEmbed) return;
+    const acpStudio = typeof window !== 'undefined' && isAcpStudioShell(window);
+    if (config.onboardingCompleted !== true && !amcEmbed && !acpStudio) return;
+    if (acpStudio) {
+      const nextAgent = resolveAcpStudioDaemonAgent(agents, config.agentId);
+      if (!nextAgent || nextAgent.id === config.agentId) return;
+      setConfig((prev) => {
+        if (prev.agentId === nextAgent.id) return prev;
+        const next: AppConfig = { ...prev, agentId: nextAgent.id };
+        saveConfig(next);
+        void syncConfigToDaemon(next);
+        return next;
+      });
+      return;
+    }
     if (config.agentId) return;
     const firstAvailable = amcEmbed
       ? pickDefaultDaemonAgent(agents)
