@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { acpSsoUrlFromEnv, isAcpSsoConfigured } from '../src/acp-sso.js';
+import {
+  acpSsoStartUrl,
+  acpSsoUrlFromEnv,
+  isAcpSsoConfigured,
+  shouldRedirectSpaDocumentToAcpSso,
+  spaDocumentReturnUrl,
+} from '../src/acp-sso.js';
 
 const PREVIOUS = process.env.OD_ACP_SSO_URL;
 
@@ -29,5 +35,36 @@ describe('acpSsoUrlFromEnv', () => {
 
     process.env.OD_ACP_SSO_URL = 'http://127.0.0.1:4173/open-design/sso';
     expect(acpSsoUrlFromEnv()).toBe('http://127.0.0.1:4173/open-design/sso');
+  });
+});
+
+describe('ACP SSO document handshake', () => {
+  it('builds a return URL without t= and honors forwarded proto/host', () => {
+    expect(spaDocumentReturnUrl({
+      originalUrl: '/projects/proj_1?t=stale&acpEmbed=1',
+      get: (name) => {
+        if (name.toLowerCase() === 'x-forwarded-proto') return 'https, http';
+        if (name.toLowerCase() === 'x-forwarded-host') return 'design.agentcontrolpanel.dev';
+        return undefined;
+      },
+    })).toBe('https://design.agentcontrolpanel.dev/projects/proj_1?acpEmbed=1');
+  });
+
+  it('starts SSO with the full Open Design return URL', () => {
+    expect(acpSsoStartUrl(
+      'https://agentcontrolpanel.dev/open-design/sso',
+      'https://design.agentcontrolpanel.dev/',
+    )).toBe(
+      'https://agentcontrolpanel.dev/open-design/sso?return=https%3A%2F%2Fdesign.agentcontrolpanel.dev%2F',
+    );
+  });
+
+  it('re-handshakes cookie-only document loads and skips when t= is present', () => {
+    process.env.OD_ACP_SSO_URL = 'https://agentcontrolpanel.dev/open-design/sso';
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(true);
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: true })).toBe(false);
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'POST', queryGrant: false })).toBe(false);
+    delete process.env.OD_ACP_SSO_URL;
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(false);
   });
 });

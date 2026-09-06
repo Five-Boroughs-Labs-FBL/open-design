@@ -1143,10 +1143,17 @@ import {
   isApiAuthDisabled,
   isApiTokenMiddlewareEnabled,
 } from './api-token-auth.js';
-import { isAcpSsoConfigured } from './acp-sso.js';
+import {
+  acpSsoStartUrl,
+  acpSsoUrlFromEnv,
+  isAcpSsoConfigured,
+  shouldRedirectSpaDocumentToAcpSso,
+  spaDocumentReturnUrl,
+} from './acp-sso.js';
 import {
   applyVerifiedEmbedGrant,
   embedGrantForbidsRequest,
+  embedGrantQueryPresent,
 } from './embed-grants.js';
 import { createOpenDesignPublicMetadataService } from './services/open-design-public-metadata.js';
 import { createWhatsNewService } from './services/whats-new.js';
@@ -3081,7 +3088,20 @@ export async function startServer({
       if (isLoopbackPeerAddress(req.socket?.remoteAddress)) return next();
       if (resolveStaticSpaFallbackPath(req, staticDir) === null) return next();
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
+      const queryGrant = embedGrantQueryPresent(req);
       const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      const ssoUrl = acpSsoUrlFromEnv();
+      if (
+        ssoUrl
+        && shouldRedirectSpaDocumentToAcpSso({
+          method: req.method,
+          queryGrant,
+        })
+      ) {
+        // Cookie-only grants stay valid after ACP logout/user switch. Refresh
+        // must mint a grant for the ACP session that is live now.
+        return res.redirect(302, acpSsoStartUrl(ssoUrl, spaDocumentReturnUrl(req)));
+      }
       if (embedGrant) {
         if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
           return sendApiError(
