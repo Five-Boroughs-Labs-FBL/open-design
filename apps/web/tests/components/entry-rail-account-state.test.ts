@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isAcpHostAdminOnlyHomeView,
   resolveAcpCatalogChrome,
   resolveEntryRailAccountFooterState,
   requiresAmrReauthentication,
@@ -137,6 +138,19 @@ describe('resolveAcpCatalogChrome', () => {
       embedSession: null,
       embedSessionHint: true,
     })).toEqual({ showHostAdminChrome: false, showAcpSignOut: true });
+  });
+});
+
+describe('isAcpHostAdminOnlyHomeView', () => {
+  it('blocks Settings, Plugins, and Design systems for catalog regulars', () => {
+    expect(isAcpHostAdminOnlyHomeView('settings')).toBe(true);
+    expect(isAcpHostAdminOnlyHomeView('plugins')).toBe(true);
+    expect(isAcpHostAdminOnlyHomeView('design-systems')).toBe(true);
+  });
+
+  it('keeps Community and Home reachable for every catalog user', () => {
+    expect(isAcpHostAdminOnlyHomeView('community')).toBe(false);
+    expect(isAcpHostAdminOnlyHomeView('home')).toBe(false);
   });
 });
 

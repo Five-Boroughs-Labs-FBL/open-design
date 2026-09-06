@@ -16,7 +16,10 @@ import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
 import { applyAcpStudioAppearance, isAcpStudioShell } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
-import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
+import {
+  isAcpHostAdminOnlyHomeView,
+  resolveAcpCatalogChrome,
+} from './components/entry-rail-account-state';
 import { shouldForceCloudOnboarding, shouldRequireAcpCatalogLogin } from './onboarding/cloud-onboarding-gate';
 export {
   shouldBounceCloudHomeToOnboarding,
@@ -4840,11 +4843,9 @@ function AppInner() {
   useEffect(() => {
     if (catalogChrome.showHostAdminChrome) return;
     setSettingsOpen(false);
-    if (
-      route.kind === 'home'
-      && (route.view === 'settings' || route.view === 'community'
-        || route.view === 'plugins' || route.view === 'design-systems')
-    ) {
+    // Community stays reachable for every catalog user (rail + /community).
+    // Settings / Plugins / Design systems remain admin-only on the shared daemon.
+    if (route.kind === 'home' && isAcpHostAdminOnlyHomeView(route.view)) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }
   }, [catalogChrome.showHostAdminChrome, route]);
