@@ -24,6 +24,12 @@ export interface CreateCatalogEmbedGrantRequest {
   amcGrok?: {
     authJson?: string;
   };
+  /** Admin MiniMax key packed from the ACP vault. Server-token only. */
+  amcMinimax?: {
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+  };
 }
 
 export interface CreateCatalogEmbedGrantResponse {

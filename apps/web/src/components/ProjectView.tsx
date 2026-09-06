@@ -1711,9 +1711,15 @@ function byokOpenCodeProviderFromConfig(
   if (!isOpenCodeByokChatProtocol(config.apiProtocol)) return undefined;
   const selectedProvider = selectedKnownProviderForConfig(config);
   const model = config.model.trim();
+  const missingKey = byokProviderRequiresApiKey(
+    config.apiProtocol,
+    selectedProvider,
+    config.baseUrl,
+  ) && !config.apiKey.trim();
+  const catalogMinimax = String(config.baseUrl || '').toLowerCase().includes('minimax')
+    || /^minimax/i.test(model);
   if (
-    (byokProviderRequiresApiKey(config.apiProtocol, selectedProvider, config.baseUrl)
-      && !config.apiKey.trim())
+    (missingKey && !catalogMinimax)
     || !model
     || model.toLowerCase() === 'default'
     || (config.apiProtocol === 'azure' && !config.baseUrl.trim())
