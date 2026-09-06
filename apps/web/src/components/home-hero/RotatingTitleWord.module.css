@@ -6,6 +6,8 @@
   display: inline-flex;
   align-items: center;
   vertical-align: bottom;
+  --rotating-title-plate: var(--rotating-title-accent, #00ff08);
+  --rotating-title-cursor: var(--rotating-title-accent, #00ff08);
 }
 
 /* The animating box. `overflow: hidden` is what turns the width animation into

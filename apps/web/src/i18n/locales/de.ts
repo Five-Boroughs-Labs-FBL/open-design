@@ -348,6 +348,8 @@ export const de: Dict = {
   'settings.onboardingAcpTitle': 'Mit ACP anmelden',
   'settings.onboardingAcpBody': 'Melde dich mit deinem Agent Control Panel-Konto an. Du siehst nur die Projekte dieses Kontos.',
   'settings.onboardingAcpSignIn': 'Mit ACP anmelden',
+  'acpStudio.switchToLight': "Zu hellem Design wechseln",
+  'acpStudio.switchToDark': "Zu dunklem Design wechseln",
   'settings.onboardingCloudContinue': 'Weiter (angemeldet)',
   'settings.onboardingCloudAlternative': 'Lokale CLI oder eigenen API-Schlüssel verwenden',
   'settings.onboardingCloudRights': 'Alle Rechte vorbehalten.',

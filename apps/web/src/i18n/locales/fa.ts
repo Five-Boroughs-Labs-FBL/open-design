@@ -348,6 +348,8 @@ export const fa: Dict = {
   'settings.onboardingAcpTitle': 'ورود با ACP',
   'settings.onboardingAcpBody': 'با حساب Agent Control Panel وارد Open Design شوید. فقط پروژه‌های همان حساب را می‌بینید.',
   'settings.onboardingAcpSignIn': 'ورود با ACP',
+  'acpStudio.switchToLight': "تغییر به تم روشن",
+  'acpStudio.switchToDark': "تغییر به تم تیره",
   'settings.onboardingCloudContinue': 'ادامه (وارد شده‌اید)',
   'settings.onboardingCloudAlternative': 'از یک CLI محلی یا کلید API خودتان استفاده کنید',
   'settings.onboardingCloudRights': 'همهٔ حقوق محفوظ است.',

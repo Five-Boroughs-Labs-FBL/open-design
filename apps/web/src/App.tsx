@@ -1835,6 +1835,7 @@ function AppInner() {
   // useLayoutEffect (vs useEffect) fires before the browser paints, so no
   // 1-frame flash. Safe here because the component tree is ssr:false.
   useLayoutEffect(() => {
+    if (applyAcpStudioAppearance()) return;
     applyAppearanceToDocument({ accentColor: config.accentColor });
   }, [config.accentColor]);
 
@@ -4784,7 +4785,10 @@ function AppInner() {
   useEffect(() => {
     if (catalogChrome.showHostAdminChrome) return;
     setSettingsOpen(false);
-    if (route.kind === 'home' && route.view === 'settings') {
+    if (
+      route.kind === 'home'
+      && (route.view === 'settings' || route.view === 'community')
+    ) {
       navigate({ kind: 'home', view: 'home' }, { replace: true });
     }
   }, [catalogChrome.showHostAdminChrome, route]);

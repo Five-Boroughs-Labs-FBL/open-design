@@ -18,8 +18,8 @@ export function AcpStudioLockup({ size = 22, compact = false }: Props) {
         fill="none"
         aria-hidden
       >
-        <circle cx="16" cy="16" r="13.5" stroke="rgba(24,20,16,.28)" strokeWidth="1.5" />
-        <circle cx="16" cy="16" r="8.5" stroke="rgba(24,20,16,.18)" strokeWidth="1.5" />
+        <circle className="acp-studio-lockup__ring" cx="16" cy="16" r="13.5" strokeWidth="1.5" />
+        <circle className="acp-studio-lockup__ring acp-studio-lockup__ring--inner" cx="16" cy="16" r="8.5" strokeWidth="1.5" />
         <path
           d="M16 16 L16 2.5 A13.5 13.5 0 0 1 27.5 9.2 Z"
           fill={signal}

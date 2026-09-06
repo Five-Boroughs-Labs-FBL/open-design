@@ -144,6 +144,9 @@ describe('forced light theme — pre-hydration script', () => {
 
   afterEach(() => {
     document.documentElement.removeAttribute('data-theme');
+    document.documentElement.removeAttribute('data-acp-studio');
+    store.delete('od-acp-studio-preview');
+    store.delete('od-acp-studio-theme');
     store.clear();
   });
 

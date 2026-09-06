@@ -348,6 +348,8 @@ export const ptBR: Dict = {
   'settings.onboardingAcpTitle': 'Entrar com ACP',
   'settings.onboardingAcpBody': 'Use sua conta do Agent Control Panel para abrir o Open Design. Você verá apenas os projetos dessa conta.',
   'settings.onboardingAcpSignIn': 'Entrar com ACP',
+  'acpStudio.switchToLight': "Mudar para tema claro",
+  'acpStudio.switchToDark': "Mudar para tema escuro",
   'settings.onboardingCloudContinue': 'Continuar (conectado)',
   'settings.onboardingCloudAlternative': 'Usar uma CLI local ou sua própria chave de API',
   'settings.onboardingCloudRights': 'Todos os direitos reservados.',

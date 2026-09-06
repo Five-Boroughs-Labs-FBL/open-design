@@ -3636,7 +3636,7 @@ function OnboardingView({
         <div className="onboarding-cloud__pane">
           <div className="onboarding-cloud__center">
             {acpSso ? <AcpStudioLockup size={26} /> : null}
-            <h1 className="onboarding-cloud__title">
+            <h1 className={acpSso ? 'sr-only' : 'onboarding-cloud__title'}>
               {acpSso ? t('settings.onboardingAcpTitle') : t('settings.onboardingCloudTitle')}
             </h1>
             <p className="onboarding-cloud__body">
@@ -3731,7 +3731,7 @@ function OnboardingView({
               >
                 {t('settings.amrCancelSignIn')}
               </button>
-            ) : (
+            ) : acpSso ? null : (
               <div className="onboarding-cloud__alts">
                 <Button
                   variant="subtle"
@@ -3771,13 +3771,15 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign · {t('settings.onboardingCloudRights')}
+              © {new Date().getFullYear()} {acpSso ? 'Agent Control Panel' : 'OpenDesign'} · {t('settings.onboardingCloudRights')}
             </span>
           </footer>
         </div>
+        {acpSso ? null : (
         <div className="onboarding-cloud__art" aria-hidden="true">
           <img src="/onboarding/onboarding-cloud-art.webp" alt="" />
         </div>
+        )}
       </section>
     );
   }

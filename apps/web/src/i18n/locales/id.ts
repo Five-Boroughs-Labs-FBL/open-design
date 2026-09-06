@@ -348,6 +348,8 @@ export const id: Dict = {
   'settings.onboardingAcpTitle': 'Masuk dengan ACP',
   'settings.onboardingAcpBody': 'Gunakan akun Agent Control Panel untuk membuka Open Design. Anda hanya melihat proyek akun itu.',
   'settings.onboardingAcpSignIn': 'Masuk dengan ACP',
+  'acpStudio.switchToLight': "Beralih ke tema terang",
+  'acpStudio.switchToDark': "Beralih ke tema gelap",
   'settings.onboardingCloudContinue': 'Lanjutkan (sudah masuk)',
   'settings.onboardingCloudAlternative': 'Gunakan CLI lokal atau kunci API Anda sendiri',
   'settings.onboardingCloudRights': 'Semua hak dilindungi.',

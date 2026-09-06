@@ -348,6 +348,8 @@ export const ru: Dict = {
   'settings.onboardingAcpTitle': 'Войти через ACP',
   'settings.onboardingAcpBody': 'Войдите с аккаунтом Agent Control Panel. Вы увидите только проекты этой учётной записи.',
   'settings.onboardingAcpSignIn': 'Войти через ACP',
+  'acpStudio.switchToLight': "Переключить на светлую тему",
+  'acpStudio.switchToDark': "Переключить на тёмную тему",
   'settings.onboardingCloudContinue': 'Продолжить (вы вошли)',
   'settings.onboardingCloudAlternative': 'Использовать локальный CLI или свой ключ API',
   'settings.onboardingCloudRights': 'Все права защищены.',
