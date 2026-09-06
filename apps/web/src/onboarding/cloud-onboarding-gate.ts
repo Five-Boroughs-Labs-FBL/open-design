@@ -49,8 +49,10 @@ export function shouldBounceCloudHomeToOnboarding(input: {
  * true while `/api/public-runtime` reports `embedSession: null` — force the
  * Continue with ACP card instead of painting an authenticated Home shell.
  *
- * Uses the server-reported session only (not sessionStorage hints). Iframe
- * embeds keep their own grant handshake and must not be hijacked.
+ * Home-only, matching `shouldForceCloudOnboarding` / first-run onboarding:
+ * project, community, and other deep links must not be rewritten. Uses the
+ * server-reported session only (not sessionStorage hints). Iframe embeds keep
+ * their own grant handshake and must not be hijacked.
  */
 export function shouldRequireAcpCatalogLogin(input: {
   routeKind: string;
@@ -63,6 +65,7 @@ export function shouldRequireAcpCatalogLogin(input: {
   if (input.amcEmbed) return false;
   if (!input.acpSsoConfigured || !input.publicRuntimeResolved) return false;
   if (input.hasCatalogSession) return false;
-  if (input.routeKind === 'home' && input.routeView === 'onboarding') return false;
+  if (input.routeKind !== 'home') return false;
+  if (input.routeView === 'onboarding') return false;
   return true;
 }

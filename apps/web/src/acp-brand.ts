@@ -12,13 +12,14 @@ export const ACP_OPEN_DESIGN_LOADING = 'Loading ACP Design…';
 export const ACP_ACCENT = '#FF7A29';
 
 /**
- * When true, ACP Studio identity (SSO URL or embed grant) skips the OpenDesign
- * Cloud AMR sign-in bounce on home submit. Logged-in ACP catalog users can
- * create projects without being sent back to Continue with ACP.
+ * When true, ACP Studio context skips the OpenDesign Cloud AMR sign-in bounce
+ * on home submit. Hosted Studio authenticates via ACP SSO / catalog grant —
+ * never OpenDesign Cloud. Signed-out Home is handled separately by
+ * `shouldRequireAcpCatalogLogin` (live catalog session), not by this flag.
  */
 export const ACP_SKIP_AMR_AUTH_GATE = true;
 
-/** True when the shell already has ACP Studio / catalog identity. */
+/** True when this window is ACP Studio (hosted, preview, embed, or SSO URL). */
 export function hasAcpStudioIdentity(
   win: Window = window,
   opts: { acpSsoUrl?: string | null } = {},
