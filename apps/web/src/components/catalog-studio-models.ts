@@ -32,7 +32,7 @@ function minimaxProvider(config: AppConfig) {
   });
   return (
     byUrl
-    ?? KNOWN_PROVIDERS.find((provider) => provider.label === 'MiniMax — Anthropic (CN)')
+    ?? KNOWN_PROVIDERS.find((provider) => provider.label === 'MiniMax — Anthropic')
     ?? KNOWN_PROVIDERS.find((provider) => provider.label.startsWith('MiniMax'))
     ?? null
   );
@@ -58,8 +58,8 @@ export function needsCatalogStudioGrokLatch(config: AppConfig): boolean {
  * Apply a catalog-regular pick.
  *
  * Grok 4.6 stays on the host grok-build CLI (admin SuperGrok). MiniMax is
- * the host BYOK MiniMax preset — admin sets the key once in Settings; the
- * regular picker only flips mode/baseUrl/model. Paid XAI_API_KEY is unused.
+ * BYOK OpenCode; the daemon fills the admin ACP MiniMax key. The regular
+ * picker only flips mode/baseUrl/model. Paid XAI_API_KEY is unused.
  */
 export function applyCatalogStudioModel(
   config: AppConfig,
@@ -71,8 +71,8 @@ export function applyCatalogStudioModel(
       ...config,
       mode: 'api',
       apiProtocol: provider?.protocol ?? 'anthropic',
-      baseUrl: provider?.baseUrl ?? 'https://api.minimaxi.com/anthropic',
-      apiProviderBaseUrl: provider?.baseUrl ?? 'https://api.minimaxi.com/anthropic',
+      baseUrl: provider?.baseUrl ?? 'https://api.minimax.io/anthropic',
+      apiProviderBaseUrl: provider?.baseUrl ?? 'https://api.minimax.io/anthropic',
       model: provider?.preferredModels[0] ?? 'MiniMax-M2.7-highspeed',
     };
   }
