@@ -15,6 +15,7 @@ import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
 import { isAmcEmbedActive } from './amc-embed';
+import { isAmcEngineBoot } from './amc-engine-boot';
 import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
   stashOnboardingEntryForProject,
@@ -298,6 +299,7 @@ export function shouldRouteToFirstRunOnboarding(
   config: AppConfig,
   pathname: string,
 ): boolean {
+  if (typeof window !== 'undefined' && isAmcEngineBoot(window)) return false;
   if (config.onboardingCompleted === true) return false;
   if (
     pathname.startsWith('/projects/')

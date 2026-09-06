@@ -49,6 +49,7 @@ import {
   currentWorkspaceAccountGeneration,
   currentWorkspaceContextRequestToken,
 } from '../collab/useWorkspaceContext';
+import { isAmcEngineBoot } from '../amc-engine-boot';
 import type { WorkspaceResourceReadIdentity } from '../collab/workspace-identity';
 import type {
   ChatMessage,
@@ -271,6 +272,9 @@ export async function listProjects(options?: {
   workspaceContext?: WorkspaceCollabContext | null;
   workspaceView?: WorkspaceProjectListView;
 }): Promise<Project[]> {
+  if (typeof window !== 'undefined' && isAmcEngineBoot(window)) {
+    return [];
+  }
   const context = options?.workspaceContext ?? null;
   if (context) {
     const summaries = await listWorkspaceProjectSummaries({

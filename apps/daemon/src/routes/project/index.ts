@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { sanitizeProjectForGrant } from '../../amc-engine/sanitize-project.js';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { load } from 'cheerio';
@@ -4940,14 +4941,17 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     const resolvedDir = projectDetailResolvedDir(PROJECTS_DIR, project, resolveProjectDir);
     const binding = getWorkspaceProjectByProjectId(db, project.id);
     /** @type {import('@open-design/contracts').ProjectResponse} */
+    const projectPayload = {
+      ...project,
+      workspaceId:
+        typeof binding?.workspaceId === 'string' && binding.workspaceId.trim()
+          ? binding.workspaceId.trim()
+          : null,
+    };
     const body = {
-      project: {
-        ...project,
-        workspaceId:
-          typeof binding?.workspaceId === 'string' && binding.workspaceId.trim()
-            ? binding.workspaceId.trim()
-            : null,
-      },
+      project: (req as { amcStudioSession?: { projectId: string } }).amcStudioSession
+        ? sanitizeProjectForGrant(projectPayload)
+        : projectPayload,
       resolvedDir,
     };
     res.json(body);

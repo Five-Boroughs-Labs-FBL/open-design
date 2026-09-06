@@ -3,6 +3,8 @@
  * (`?amcEmbed=1` or `?embed=1`), strip product chrome so Studio fills the frame.
  */
 
+import { isAmcEngineBoot } from './amc-engine-boot';
+
 export const AMC_EMBED_MESSAGE_READY = "amc-design-ready";
 export const AMC_EMBED_MESSAGE_COMPLETE = "amc-design-complete";
 
@@ -14,7 +16,8 @@ export function isAmcEmbedSearch(search = ""): boolean {
 export function isAmcEmbedActive(win: Window = window): boolean {
   return (
     win.document.documentElement.dataset.amcEmbed === "1" ||
-    isAmcEmbedSearch(win.location.search)
+    isAmcEmbedSearch(win.location.search) ||
+    isAmcEngineBoot(win)
   );
 }
 

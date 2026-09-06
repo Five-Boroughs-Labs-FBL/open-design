@@ -25,10 +25,19 @@ export function resolveStaticSpaFallbackPath(req: StaticSpaFallbackRequestLike, 
   return indexPath;
 }
 
-export function registerStaticSpaFallback(app: Express, staticDir: string): void {
+export function registerStaticSpaFallback(
+  app: Express,
+  staticDir: string,
+  options?: { transformHtml?: (html: string) => string },
+): void {
   app.get('/*splat', (req, res, next) => {
     const indexPath = resolveStaticSpaFallbackPath(req, staticDir);
     if (indexPath == null) return next();
+    if (options?.transformHtml) {
+      const html = fs.readFileSync(indexPath, 'utf8');
+      res.type('html').send(options.transformHtml(html));
+      return;
+    }
     res.sendFile('index.html', { root: staticDir });
   });
 }

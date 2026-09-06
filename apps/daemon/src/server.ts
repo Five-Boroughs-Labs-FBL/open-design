@@ -85,6 +85,10 @@ import {
   registerStaticSpaFallback,
   resolveStaticSpaFallbackPath,
 } from './static-spa.js';
+import { isAmcEngineProfile } from './amc-engine/profile.js';
+import { injectAmcEngineMarker } from './amc-engine/deny-page.js';
+import { amcEngineHtmlGate } from './amc-engine/html-gate.js';
+import { amcEngineApiAuth, registerAmcEngineRoutes } from './amc-engine/register.js';
 export {
   isStaticSpaFallbackRequest,
   resolveStaticSpaFallbackPath,
@@ -2935,6 +2939,12 @@ export async function startServer({
   const apiTokenAuthEnabled = apiToken.length > 0 && !apiAuthDisabled;
   const isApiTokenAuthorization = (authorization: string | undefined): boolean =>
     apiTokenAuthEnabled && apiTokenAuthorizationMatches(authorization, apiToken);
+  if (isAmcEngineProfile() && apiToken.length === 0) {
+    throw new Error(
+      `OD_DEPLOYMENT_PROFILE=amc-engine requires OD_API_TOKEN. ` +
+      `Generate one with \`openssl rand -hex 32\` and re-launch.`,
+    );
+  }
   if (!isLoopbackHostname(host) && apiToken.length === 0 && !apiAuthDisabled) {
     throw new Error(
       `OD_BIND_HOST=${host} requires OD_API_TOKEN to be set. ` +
@@ -2983,6 +2993,7 @@ export async function startServer({
   });
   app.use(jsonParser('4mb'));
   const projectPreviewScopes = createProjectPreviewScopeRegistry();
+  registerAmcEngineRoutes(app, { apiToken });
 
   // Plan §3.K1 — API-token middleware.
   //
@@ -2997,7 +3008,7 @@ export async function startServer({
   // browser iframes can load HTML/CSS/JS without privileged headers.
   // Rich daemon status stays authenticated because it includes local
   // runtime paths.
-  if (apiTokenAuthEnabled) {
+  if (apiTokenAuthEnabled && !isAmcEngineProfile()) {
     const openProbePaths = new Set([
       '/health',
       '/api/health',
@@ -3058,6 +3069,14 @@ export async function startServer({
         'OpenDesign authentication required. Use username "open-design" and OD_API_TOKEN as the password.',
       );
     });
+  }
+
+  if (isAmcEngineProfile()) {
+    app.use('/api', amcEngineApiAuth({
+      apiToken,
+      isOperatorAuthorization: (authorization) =>
+        apiTokenAuthorizationMatches(authorization, apiToken),
+    }));
   }
 
   const designSystemServices = createDesignSystemServerServices({
@@ -3468,6 +3487,7 @@ export async function startServer({
     console.warn('[od] Failed to recover stale live artifact refreshes:', error);
   });
 
+  app.use(amcEngineHtmlGate);
   if (fs.existsSync(staticDir)) {
     app.use(express.static(staticDir));
   }
@@ -17106,7 +17126,11 @@ export async function startServer({
     telemetry: { reportFinalizedMessage, reportFeedback },
   });
 
-  registerStaticSpaFallback(app, staticDir);
+  registerStaticSpaFallback(
+    app,
+    staticDir,
+    isAmcEngineProfile() ? { transformHtml: injectAmcEngineMarker } : undefined,
+  );
 
   // Wait for `listen` to bind so callers always see the resolved URL —
   // critical when port=0 (ephemeral port) and when the embedding sidecar
