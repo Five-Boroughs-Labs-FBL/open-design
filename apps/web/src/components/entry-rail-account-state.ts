@@ -63,20 +63,20 @@ export function shouldShowCloudSignInTip(input: {
 }
 
 export type AcpCatalogChrome = {
-  /** Settings, Message center, and Discord/X/mail — admin-only under ACP SSO. Community stays available to every catalog user. */
+  /** Settings, Message center, and Discord/X/mail — admin-only under ACP SSO. Community, Plugins, and Design systems stay available to every catalog user. */
   showHostAdminChrome: boolean;
   /** Sign out of the ACP catalog session. Hidden on local/desktop. */
   showAcpSignOut: boolean;
 };
 
 /**
- * Home-shell destinations that mutate or expose the shared Studio daemon for
- * every catalog user. Regular (non-admin) catalog sessions must not land here —
- * Community is intentionally excluded so every signed-in catalog user can
- * browse templates and plugins.
+ * Home-shell destinations that mutate process-wide host settings on the
+ * shared Studio daemon. Regular catalog sessions must not land here.
+ * Community, Plugins, and Design systems stay reachable so every catalog
+ * user can browse and apply.
  */
 export function isAcpHostAdminOnlyHomeView(view: string): boolean {
-  return view === 'settings' || view === 'plugins' || view === 'design-systems';
+  return view === 'settings';
 }
 
 /**
