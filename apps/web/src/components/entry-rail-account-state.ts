@@ -70,6 +70,16 @@ export type AcpCatalogChrome = {
 };
 
 /**
+ * Home-shell destinations that mutate or expose the shared Studio daemon for
+ * every catalog user. Regular (non-admin) catalog sessions must not land here —
+ * Community is intentionally excluded so every signed-in catalog user can
+ * browse templates and plugins.
+ */
+export function isAcpHostAdminOnlyHomeView(view: string): boolean {
+  return view === 'settings' || view === 'plugins' || view === 'design-systems';
+}
+
+/**
  * Hosted ACP catalog sessions share one daemon. Settings writes are
  * process-wide, so only an ACP admin may see that chrome. Every catalog
  * user still gets Sign out so they can leave the handshake.
