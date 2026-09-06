@@ -53,6 +53,12 @@ export const grokBuildAgentDef = {
     timeoutMs: 10_000,
     parse: parseGrokBuildModels,
   },
+  // `grok models` prints "You are not authenticated." (exit 0) when SuperGrok
+  // OAuth is missing — the generic auth classifier keys off that sentence.
+  authProbe: {
+    args: ['models'],
+    timeoutMs: 10_000,
+  },
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
     { id: 'grok-build', label: 'grok-build (xAI · default)' },

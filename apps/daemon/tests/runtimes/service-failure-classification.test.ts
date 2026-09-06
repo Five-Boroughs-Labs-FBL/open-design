@@ -16,6 +16,7 @@ describe('classifyAgentServiceFailure', () => {
       'Incorrect API key provided: sk-***. ',
       'Please run /login to authenticate.',
       'Unauthorized: OAuth token has expired',
+      'You are not authenticated.\n\nDefault model: grok-4.6',
     ]) {
       expect(classifyAgentServiceFailure(text)).toBe('AGENT_AUTH_REQUIRED');
     }
@@ -86,6 +87,14 @@ describe('classifyAgentServiceFailure', () => {
     ]) {
       expect(classifyAgentServiceFailure(text)).toBeNull();
     }
+  });
+
+  it('does not treat a signed-in grok models listing as missing auth', () => {
+    expect(
+      classifyAgentServiceFailure(
+        'You are logged in with grok.com\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)',
+      ),
+    ).toBeNull();
   });
 
   it('does not treat a process exit code as an HTTP status', () => {
