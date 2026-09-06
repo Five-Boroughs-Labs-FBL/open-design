@@ -48,7 +48,7 @@ describe('catalog studio models', () => {
     expect(needsCatalogStudioGrokLatch(next)).toBe(false);
   });
 
-  it('wires MiniMax as host BYOK, not a grok-build model id', () => {
+  it('wires MiniMax as Anthropic-compatible HTTP, not a grok-build model id', () => {
     const next = applyCatalogStudioModel(base, CATALOG_STUDIO_MINIMAX_ID);
     expect(next.mode).toBe('api');
     expect(next.baseUrl).toMatch(/minimax/i);

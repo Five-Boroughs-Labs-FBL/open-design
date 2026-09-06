@@ -936,6 +936,9 @@ async function applyCatalogMinimaxByok(
     packed,
   );
   record.byokProvider = next;
+  // Keep the BYOK run identity so prompt composition stays on the existing
+  // path. Hosted Studio has no OpenCode binary; server.ts then talks to
+  // MiniMax over HTTP with this filled key.
   record.agentId = BYOK_OPENCODE_AGENT_ID;
   record.model = next.model;
 }

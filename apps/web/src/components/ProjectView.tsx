@@ -118,6 +118,7 @@ import {
 import {
   apiProtocolAgentId,
   apiProtocolModelLabel,
+  isMinimaxApiConfig,
   usesAnthropicProxy,
 } from '../utils/apiProtocol';
 import { playSound, showCompletionNotification } from '../utils/notifications';
@@ -4667,8 +4668,8 @@ export function ProjectView({
       };
     }
     return {
-      agentId: apiProtocolAgentId(config.apiProtocol),
-      agentName: apiProtocolModelLabel(config.apiProtocol, config.model),
+      agentId: apiProtocolAgentId(config.apiProtocol, config.model, config.baseUrl),
+      agentName: apiProtocolModelLabel(config.apiProtocol, config.model, config.baseUrl),
     };
   }, [config, agentsById]);
 
@@ -7351,7 +7352,7 @@ export function ProjectView({
       const assistantAgentId =
         config.mode === 'daemon'
           ? config.agentId ?? undefined
-          : apiProtocolAgentId(config.apiProtocol);
+          : apiProtocolAgentId(config.apiProtocol, config.model, config.baseUrl);
       const assistantAgentName =
         config.mode === 'daemon'
           ? agentModelDisplayName(
@@ -7359,7 +7360,7 @@ export function ProjectView({
               selectedAgent?.name,
               effectiveSelectedAgentChoice?.model,
             )
-          : apiProtocolModelLabel(config.apiProtocol, config.model);
+          : apiProtocolModelLabel(config.apiProtocol, config.model, config.baseUrl);
       const preTurnFileNames = projectFiles.map((f) => f.name);
       const assistantId = meta?.assistantMessageId ?? randomUUID();
       const assistantMsg: ChatMessage = {
@@ -8644,7 +8645,13 @@ export function ProjectView({
           handlers.onError(new Error(BEDROCK_BYOK_UNSUPPORTED_MESSAGE));
           return true;
         }
-        if (!agentsById.get('byok-opencode')?.available) {
+        // MiniMax is Anthropic-compatible HTTP with a stashed admin key.
+        // Hosted Studio does not ship OpenCode; requiring that binary made
+        // catalog MiniMax fail in the web preflight before a run existed.
+        if (
+          !isMinimaxApiConfig(config.model, config.baseUrl)
+          && !agentsById.get('byok-opencode')?.available
+        ) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
         }
@@ -9337,7 +9344,7 @@ export function ProjectView({
           selectedPluginActionAgent?.name,
           effectiveSelectedPluginActionChoice?.model,
         )
-      : apiProtocolModelLabel(config.apiProtocol, config.model);
+      : apiProtocolModelLabel(config.apiProtocol, config.model, config.baseUrl);
 
   const handlePluginFolderAgentAction = useCallback(
     async (relativePath: string, action: PluginFolderAgentAction) => {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { apiProtocolLabel, apiProtocolModelLabel } from '../../src/utils/apiProtocol';
+import {
+  apiProtocolAgentId,
+  apiProtocolLabel,
+  apiProtocolModelLabel,
+  isMinimaxApiConfig,
+} from '../../src/utils/apiProtocol';
 import {
   agentDisplayName,
   agentModelDisplayName,
@@ -29,6 +34,22 @@ describe('api protocol labels', () => {
 
   it('labels OpenCode-backed BYOK protocol agent ids', () => {
     expect(agentDisplayName('senseaudio-api')).toBe('SenseAudio API via OpenCode');
+  });
+
+  it('labels MiniMax HTTP as MiniMax, not Anthropic via OpenCode', () => {
+    expect(isMinimaxApiConfig('MiniMax-M2.7-highspeed', 'https://api.minimax.io/anthropic')).toBe(true);
+    expect(apiProtocolAgentId('anthropic', 'MiniMax-M2.7-highspeed', 'https://api.minimax.io/anthropic')).toBe(
+      'minimax',
+    );
+    expect(apiProtocolModelLabel(
+      'anthropic',
+      'MiniMax-M2.7-highspeed',
+      'https://api.minimax.io/anthropic',
+    )).toBe('MiniMax · MiniMax-M2.7-highspeed');
+    expect(agentDisplayName('minimax')).toBe('MiniMax');
+    expect(apiProtocolModelLabel('anthropic', 'claude-opus-4', 'https://api.anthropic.com')).toBe(
+      'Anthropic API via OpenCode · claude-opus-4',
+    );
   });
 
   it('normalizes Qoder local CLI ids, aliases, and executable paths', () => {

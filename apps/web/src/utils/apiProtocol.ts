@@ -27,16 +27,35 @@ export function apiProtocolLabel(protocol: ApiProtocol | undefined): string {
   return API_PROTOCOL_LABELS[protocol ?? 'anthropic'];
 }
 
+export function isMinimaxApiConfig(
+  model?: string | null,
+  baseUrl?: string | null,
+): boolean {
+  return (
+    String(baseUrl || '').toLowerCase().includes('minimax')
+    || /^minimax/i.test(String(model || '').trim())
+  );
+}
+
 export function apiProtocolModelLabel(
   protocol: ApiProtocol | undefined,
   model: string,
+  baseUrl?: string | null,
 ): string {
-  const label = `${apiProtocolLabel(protocol)} via OpenCode`;
   const trimmed = model.trim();
+  if (isMinimaxApiConfig(trimmed, baseUrl)) {
+    return trimmed ? `MiniMax · ${trimmed}` : 'MiniMax';
+  }
+  const label = `${apiProtocolLabel(protocol)} via OpenCode`;
   return trimmed ? `${label} · ${trimmed}` : label;
 }
 
-export function apiProtocolAgentId(protocol: ApiProtocol | undefined): string {
+export function apiProtocolAgentId(
+  protocol: ApiProtocol | undefined,
+  model?: string | null,
+  baseUrl?: string | null,
+): string {
+  if (isMinimaxApiConfig(model, baseUrl)) return 'minimax';
   return API_PROTOCOL_AGENT_IDS[protocol ?? 'anthropic'];
 }
 
