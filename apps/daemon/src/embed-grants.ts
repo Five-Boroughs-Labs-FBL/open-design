@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const EMBED_GRANT_COOKIE = 'od_embed';
+export const PARTITIONED_EMBED_GRANT_COOKIE = '__Host-od_embed_partitioned';
 export const EMBED_GRANT_TTL_MS = 12 * 60 * 60 * 1000;
 export const EMBED_GRANT_QUERY = 't';
 export const CATALOG_EMBED_GRANT_PID = '*';
@@ -77,6 +78,7 @@ const STUDIO_EMBED_READ_PREFIXES = [
   '/api/app-config',
   '/api/agents',
   '/api/projects',
+  '/api/plugins',
   '/api/skills',
   '/api/design-templates',
   '/api/design-systems',
@@ -343,10 +345,32 @@ export function embedGrantQueryPresent(req: EmbedGrantRequestLike): boolean {
 export function readEmbedGrantFromRequest(req: EmbedGrantRequestLike): string | null {
   const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
   if (fromQuery !== null) return fromQuery.length > 0 ? fromQuery : null;
+  const partitioned = readNamedCookie(cookieHeaderValue(req.headers), PARTITIONED_EMBED_GRANT_COOKIE)
+    ?? req.cookies?.[PARTITIONED_EMBED_GRANT_COOKIE];
+  if (typeof partitioned === 'string') return partitioned.length > 0 ? partitioned : null;
   const fromHeader = readNamedCookie(cookieHeaderValue(req.headers), EMBED_GRANT_COOKIE);
   if (fromHeader !== null) return fromHeader.length > 0 ? fromHeader : null;
   const fromCookies = req.cookies?.[EMBED_GRANT_COOKIE];
   return typeof fromCookies === 'string' && fromCookies.length > 0 ? fromCookies : null;
+}
+
+/** HTTPS sessions work inside cross-site embeds without sharing their cookie across top-level sites. */
+function embedGrantCookieHeader(
+  token: string,
+  maxAge: number,
+  options?: { secure?: boolean; partitioned?: boolean },
+): string {
+  const partitioned = options?.secure === true && options.partitioned !== false;
+  const parts = [
+    `${partitioned ? PARTITIONED_EMBED_GRANT_COOKIE : EMBED_GRANT_COOKIE}=${token}`,
+    'HttpOnly',
+    'Path=/',
+    partitioned ? 'SameSite=None' : 'SameSite=Lax',
+    `Max-Age=${maxAge}`,
+  ];
+  if (options?.secure === true) parts.push('Secure');
+  if (partitioned) parts.push('Partitioned');
+  return parts.join('; ');
 }
 
 export function setEmbedGrantCookie(
@@ -356,15 +380,7 @@ export function setEmbedGrantCookie(
   options?: { secure?: boolean },
 ): void {
   const maxAge = Math.max(0, Math.floor((expiryUnixMs(exp) - Date.now()) / 1000));
-  const parts = [
-    `${EMBED_GRANT_COOKIE}=${token}`,
-    'HttpOnly',
-    'Path=/',
-    'SameSite=Lax',
-    `Max-Age=${maxAge}`,
-  ];
-  if (options?.secure === true) parts.push('Secure');
-  const header = parts.join('; ');
+  const header = embedGrantCookieHeader(token, maxAge, options);
   if (typeof res.setHeader === 'function') {
     res.setHeader('Set-Cookie', header);
     return;
@@ -376,20 +392,16 @@ export function clearEmbedGrantCookie(
   res: EmbedGrantResponseLike,
   options?: { secure?: boolean },
 ): void {
-  const parts = [
-    `${EMBED_GRANT_COOKIE}=`,
-    'HttpOnly',
-    'Path=/',
-    'SameSite=Lax',
-    'Max-Age=0',
+  // Expire legacy cookies too, so signing out cannot revive a pre-upgrade session.
+  const headers = [
+    embedGrantCookieHeader('', 0, { ...options, partitioned: false }),
   ];
-  if (options?.secure === true) parts.push('Secure');
-  const header = parts.join('; ');
+  if (options?.secure === true) headers.push(embedGrantCookieHeader('', 0, options));
   if (typeof res.setHeader === 'function') {
-    res.setHeader('Set-Cookie', header);
+    res.setHeader('Set-Cookie', headers.length === 1 ? headers[0]! : headers);
     return;
   }
-  res.append?.('Set-Cookie', header);
+  for (const header of headers) res.append?.('Set-Cookie', header);
 }
 
 function isEmbedGrantRunCreatePath(pathname: string): boolean {

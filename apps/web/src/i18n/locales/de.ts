@@ -352,7 +352,7 @@ export const de: Dict = {
   'acpStudio.switchToDark': "Zu dunklem Design wechseln",
   'acpStudio.ssoEyebrow': "Anmelden",
   'acpStudio.ssoTitleBefore': "Willkommen bei",
-  'acpStudio.ssoTitleAccent': "Open Design.",
+  'acpStudio.ssoTitleAccent': "ACP Design.",
   'settings.onboardingCloudContinue': 'Weiter (angemeldet)',
   'settings.onboardingCloudAlternative': 'Lokale CLI oder eigenen API-Schlüssel verwenden',
   'settings.onboardingCloudRights': 'Alle Rechte vorbehalten.',

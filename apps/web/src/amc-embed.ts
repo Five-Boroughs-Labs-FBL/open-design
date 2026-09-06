@@ -56,7 +56,9 @@ export function clearEmbedGrantSession(win: Window = window): void {
 /** Drop the OD grant cookie, then ACP SSO logout, so refresh cannot re-handshake. */
 export function beginAcpCatalogSignOut(win: Window = window): void {
   clearEmbedGrantSession(win);
-  win.location.assign('/api/embed-session/logout');
+  // `replace` (not `assign`) so browser Back cannot restore the authenticated
+  // SPA from history / bfcache after the cookie is cleared.
+  win.location.replace('/api/embed-session/logout');
 }
 
 export function applyAmcEmbedFromLocation(win: Window = window): boolean {

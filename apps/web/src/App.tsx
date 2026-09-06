@@ -17,10 +17,11 @@ import { detectClientType } from './analytics/identity';
 import { applyAcpStudioAppearance, isAcpStudioShell } from './acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
-import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
+import { shouldForceCloudOnboarding, shouldRequireAcpCatalogLogin } from './onboarding/cloud-onboarding-gate';
 export {
   shouldBounceCloudHomeToOnboarding,
   shouldForceCloudOnboarding,
+  shouldRequireAcpCatalogLogin,
 } from './onboarding/cloud-onboarding-gate';
 import { pickDefaultDaemonAgent } from './utils/pickDefaultDaemonAgent';
 import {
@@ -2011,6 +2012,42 @@ function AppInner() {
     route,
     workspaceContextState.failure,
   ]);
+
+  // Hosted ACP Studio: no live catalog grant → Continue with ACP, even when
+  // local onboardingCompleted is still true (sign-out / browser Back).
+  useEffect(() => {
+    const amcEmbed = typeof window !== 'undefined' && isAmcEmbedActive(window);
+    if (!shouldRequireAcpCatalogLogin({
+      routeKind: route.kind,
+      routeView: route.kind === 'home' ? route.view : undefined,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      publicRuntimeResolved: acpPublicRuntimeResolved,
+      hasCatalogSession: acpEmbedSession?.catalog === true,
+      amcEmbed,
+    })) return;
+    navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
+  }, [
+    acpEmbedSession,
+    acpPublicRuntimeResolved,
+    acpSsoUrl,
+    route,
+  ]);
+
+  // bfcache restore after Sign out can revive a frozen Home shell with a
+  // cleared cookie — re-read public-runtime and drop the stale session.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void fetchPublicRuntime().then((runtime) => {
+        setAcpSsoUrl(runtime.acpSsoUrl);
+        setAcpEmbedSession(runtime.embedSession);
+        setAcpPublicRuntimeResolved(true);
+        applyAcpStudioAppearance();
+      });
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   // Bootstrap — detect daemon, then fan out independent fetches so each
   // entry-view tab can render the moment its own data lands. Earlier this

@@ -33,11 +33,11 @@ describe('ACP embed query aliases', () => {
     expect(store.get(OD_EMBED_SESSION_KEY)).toBe('1');
   });
 
-  it('clears the remembered grant and navigates to OD logout', () => {
+  it('clears the remembered grant and replaces history with OD logout', () => {
     const store = new Map<string, string>([[OD_EMBED_SESSION_KEY, '1']]);
-    const assign = vi.fn();
+    const replace = vi.fn();
     const win = {
-      location: { assign },
+      location: { replace },
       sessionStorage: {
         getItem: (key: string) => store.get(key) ?? null,
         removeItem: (key: string) => {
@@ -47,7 +47,7 @@ describe('ACP embed query aliases', () => {
     } as unknown as Window;
     beginAcpCatalogSignOut(win);
     expect(store.has(OD_EMBED_SESSION_KEY)).toBe(false);
-    expect(assign).toHaveBeenCalledWith('/api/embed-session/logout');
+    expect(replace).toHaveBeenCalledWith('/api/embed-session/logout');
     clearEmbedGrantSession(win);
   });
 });
