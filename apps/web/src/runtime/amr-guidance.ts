@@ -500,6 +500,20 @@ export function resolveRunFailureUi(
   detail: string | null | undefined,
   agentId: string | null | undefined,
   rawMessage?: string | null,
+  options?: { promoteAmr?: boolean },
+): RunFailureUi {
+  const ui = resolveRunFailureUiInner(code, detail, agentId, rawMessage);
+  if (options?.promoteAmr === false && ui.showSwitchCard) {
+    return { ...ui, showSwitchCard: false };
+  }
+  return ui;
+}
+
+function resolveRunFailureUiInner(
+  code: string | null | undefined,
+  detail: string | null | undefined,
+  agentId: string | null | undefined,
+  rawMessage?: string | null,
 ): RunFailureUi {
   // An ACP agent CLI that answered `initialize` and then refused to open a
   // session. Resolved before every other branch, and before the static

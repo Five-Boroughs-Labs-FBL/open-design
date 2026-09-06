@@ -183,6 +183,7 @@ describe('App first-run agent auto-select', () => {
   afterEach(() => {
     cleanup();
     delete document.documentElement.dataset.amcEmbed;
+    sessionStorage.removeItem('od-acp-studio-preview');
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -262,5 +263,46 @@ describe('App first-run agent auto-select', () => {
     await waitFor(() => {
       expect(screen.getByTestId('agent-id').textContent).toBe('claude');
     });
+  });
+
+  it('replaces unauthenticated Grok Build with authenticated AMR on ACP Studio', async () => {
+    const { ACP_STUDIO_PREVIEW_KEY } = await import('../../src/acp-brand');
+    sessionStorage.setItem(ACP_STUDIO_PREVIEW_KEY, '1');
+    mockedFetchAgentsStream.mockResolvedValue([
+      {
+        id: 'grok-build',
+        name: 'Grok Build',
+        bin: 'grok',
+        available: true,
+        authStatus: 'missing',
+        version: '1.0.0',
+        models: [],
+      },
+      {
+        id: 'amr',
+        name: 'OpenDesign Cloud',
+        bin: 'vela',
+        available: true,
+        authStatus: 'ok',
+        version: '1.0.0',
+        models: [],
+      },
+    ]);
+    mockedLoadConfig.mockReturnValue({
+      ...firstRunConfig(),
+      onboardingCompleted: true,
+      agentId: 'grok-build',
+    });
+    mockedFetchDaemonConfig.mockResolvedValue({
+      onboardingCompleted: true,
+      agentId: 'grok-build',
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agent-id').textContent).toBe('amr');
+    });
+    sessionStorage.removeItem(ACP_STUDIO_PREVIEW_KEY);
   });
 });
