@@ -220,6 +220,8 @@ function renderMenu({
   onAgentModelChange = vi.fn<AgentModelChangeHandler>(),
   onOpenSettings = vi.fn<OpenSettingsHandler>(),
   onRefreshAgents = vi.fn<VoidHandler>(),
+  catalogRegular = false,
+  onCatalogStudioModelChange = vi.fn(),
   projectWorkspaceScope,
 }: {
   config?: AppConfig;
@@ -230,6 +232,8 @@ function renderMenu({
   onAgentModelChange?: ReturnType<typeof vi.fn<AgentModelChangeHandler>>;
   onOpenSettings?: ReturnType<typeof vi.fn<OpenSettingsHandler>>;
   onRefreshAgents?: ReturnType<typeof vi.fn<VoidHandler>>;
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: ReturnType<typeof vi.fn<(id: 'grok-4.6' | 'minimax') => void>>;
   projectWorkspaceScope?: ProjectWorkspaceScopeState;
 } = {}) {
   render(
@@ -242,6 +246,8 @@ function renderMenu({
       onAgentModelChange={onAgentModelChange}
       onOpenSettings={onOpenSettings}
       onRefreshAgents={onRefreshAgents}
+      catalogRegular={catalogRegular}
+      onCatalogStudioModelChange={onCatalogStudioModelChange}
       projectWorkspaceScope={projectWorkspaceScope}
     />,
   );
@@ -293,6 +299,42 @@ describe('AvatarMenu', () => {
     expect(openSettings).toBeTruthy();
     fireEvent.click(openSettings);
     expect(onOpenSettings).toHaveBeenCalledWith('execution');
+  });
+
+  it('limits catalog regulars to grok-4.6 and MiniMax and hides execution settings', () => {
+    const onCatalogStudioModelChange = vi.fn<(id: 'grok-4.6' | 'minimax') => void>();
+    renderMenu({
+      catalogRegular: true,
+      onCatalogStudioModelChange,
+      config: {
+        ...baseConfig,
+        agentId: 'grok-build',
+        agentModels: { 'grok-build': { model: 'grok-4.6' } },
+      },
+      agents: [{
+        id: 'grok-build',
+        name: 'Grok Build',
+        bin: 'grok',
+        available: true,
+        models: [
+          { id: 'default', label: 'Default (CLI config)' },
+          { id: 'grok-4.6', label: 'grok-4.6' },
+          { id: 'grok-4.5', label: 'grok-4.5' },
+        ],
+      }],
+    });
+
+    openMenu();
+
+    expect(screen.getByTestId('avatar-model-option-grok-4.6')).toBeTruthy();
+    expect(screen.getByTestId('avatar-model-option-minimax')).toBeTruthy();
+    expect(screen.queryByTestId('avatar-model-option-default')).toBeNull();
+    expect(screen.queryByTestId('avatar-model-option-grok-4.5')).toBeNull();
+    expect(screen.queryByTestId('avatar-open-execution-settings')).toBeNull();
+    expect(screen.queryByText('avatar.reasoningLabel')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('avatar-model-option-minimax'));
+    expect(onCatalogStudioModelChange).toHaveBeenCalledWith('minimax');
   });
 
   // Product decision (2026-07-24): the popover is a model picker only. The

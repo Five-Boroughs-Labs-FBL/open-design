@@ -98,6 +98,11 @@ import {
 } from './providerModelsCache';
 import { isDeepSeekV4FlashCampaignModel } from '../campaigns/deepseek-v4-flash';
 import { useDeepSeekV4FlashCampaignVisibility } from '../campaigns/use-deepseek-v4-flash-campaign';
+import {
+  CATALOG_STUDIO_MODEL_OPTIONS,
+  catalogStudioModelId,
+  type CatalogStudioModelId,
+} from './catalog-studio-models';
 
 interface Props {
   config: AppConfig;
@@ -117,6 +122,8 @@ interface Props {
    *  only READS the cache (warmed by Settings/onboarding), so on a fresh load
    *  the BYOK list falls back to the small static seed list. */
   onProviderModelsCacheChange?: Dispatch<SetStateAction<ProviderModelsCache>>;
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: (id: CatalogStudioModelId) => void;
   onOpenSettings: (
     section?:
       | 'execution'
@@ -186,6 +193,8 @@ export function InlineModelSwitcher({
   onApiModelChange,
   onProviderModelsCacheChange,
   onOpenSettings,
+  catalogRegular = false,
+  onCatalogStudioModelChange,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -1061,14 +1070,19 @@ export function InlineModelSwitcher({
         ? displayAgentChipName(currentAgent)
         : t('inlineSwitcher.noAgent')
       : apiProtocolLabel(apiProtocol);
+  const catalogPick = catalogRegular ? catalogStudioModelId(config) : null;
+  const catalogPickLabel = catalogPick
+    ? CATALOG_STUDIO_MODEL_OPTIONS.find((option) => option.id === catalogPick)?.label
+    : null;
   const chipModel =
-    config.mode === 'daemon'
+    catalogPickLabel
+    ?? (config.mode === 'daemon'
       ? isDeepSeekV4FlashCampaignModel(currentModelId)
         ? currentModelLabel ?? 'DeepSeek V4 Flash'
         : currentModelLabel && currentModelId !== 'default'
           ? currentModelLabel
           : t('inlineSwitcher.modelDefault')
-      : config.model.trim() || t('inlineSwitcher.modelDefault');
+      : config.model.trim() || t('inlineSwitcher.modelDefault'));
   // Visible chip text drops the company token the way the model rows do
   // (`claude-fable-5` → `fable-5`); the aria-label/tooltip above keep the full
   // name, so the company stays available to anyone who needs it spelled out.
@@ -1216,6 +1230,45 @@ export function InlineModelSwitcher({
           data-testid="inline-model-switcher-popover"
           style={popoverPlacement ? { maxHeight: `${popoverPlacement.maxHeight}px`, overflowY: 'auto' } : undefined}
         >
+          {catalogRegular ? (
+            <div className="inline-switcher__row">
+              <div className="inline-switcher__agent-grid" role="radiogroup">
+                {CATALOG_STUDIO_MODEL_OPTIONS.map((option) => {
+                  const active = catalogPick === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={
+                        'inline-switcher__agent' + (active ? ' is-active' : '')
+                      }
+                      data-testid={`inline-model-switcher-compact-model-${option.id}`}
+                      onClick={() => {
+                        onCatalogStudioModelChange?.(option.id);
+                        setOpen(false);
+                      }}
+                    >
+                      <span className="inline-switcher__agent-logo" aria-hidden="true">
+                        {(() => {
+                          const icon = modelProviderIcon(option.id);
+                          if (icon?.kind === 'img') {
+                            return (
+                              <img src={icon.src} alt="" width={16} height={16} />
+                            );
+                          }
+                          return <AgentIcon id="grok-build" size={16} />;
+                        })()}
+                      </span>
+                      <span className="inline-switcher__agent-name">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+          <>
           {compact ? null : (
           <div className="inline-switcher__row">
             <span className="inline-switcher__label">
@@ -1740,7 +1793,10 @@ export function InlineModelSwitcher({
               ) : null}
             </>
           )}
+          </>
+          )}
 
+          {catalogRegular ? null : (
           <button
             type="button"
             className="inline-switcher__more"
@@ -1758,6 +1814,7 @@ export function InlineModelSwitcher({
             <Icon name="settings" size={13} />
             <span>{t('inlineSwitcher.openFullSettings')}</span>
           </button>
+          )}
         </div>
       ) : null}
     </div>

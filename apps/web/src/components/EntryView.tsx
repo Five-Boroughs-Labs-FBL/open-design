@@ -98,6 +98,8 @@ interface Props {
     id: string,
     choice: { model?: string; reasoning?: string; serviceTier?: string },
   ) => void;
+  catalogRegular?: boolean;
+  onCatalogStudioModelChange?: (id: import('./catalog-studio-models').CatalogStudioModelId) => void;
   onApiProtocolChange: (protocol: ApiProtocol) => void;
   onApiModelChange: (model: string) => void;
   onConfigPersist: (cfg: AppConfig) => Promise<void> | void;
@@ -271,6 +273,8 @@ export function EntryView({
   onModeChange,
   onAgentChange,
   onAgentModelChange,
+  catalogRegular = false,
+  onCatalogStudioModelChange,
   onApiProtocolChange,
   onApiModelChange,
   onConfigPersist,
@@ -400,6 +404,8 @@ export function EntryView({
       onModeChange={onModeChange}
       onAgentChange={onAgentChange}
       onAgentModelChange={onAgentModelChange}
+      catalogRegular={catalogRegular}
+      onCatalogStudioModelChange={onCatalogStudioModelChange}
       onApiProtocolChange={onApiProtocolChange}
       onApiModelChange={onApiModelChange}
       onConfigPersist={onConfigPersist}
