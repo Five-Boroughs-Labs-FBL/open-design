@@ -116,15 +116,16 @@ describe('ACP SSO login pane', () => {
       expect(container.querySelector('.onboarding-view--acp')).not.toBeNull();
     });
     expect(screen.getByText('Sign in')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: /Open Design/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /ACP Design/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Continue with ACP/i })).toBeTruthy();
     expect(container.querySelector('.onboarding-cloud__art')).toBeNull();
     expect(container.querySelector('.onboarding-cloud__alts')).toBeNull();
     expect(container.querySelector('.acp-sso-header')).not.toBeNull();
     expect(screen.getByTestId('acp-studio-theme-toggle')).toBeTruthy();
     expect(screen.getByTestId('acp-open-design-brand')).toBeTruthy();
-    expect(screen.getByTestId('acp-open-design-brand').textContent).toMatch(/Agent Control Panel/i);
-    expect(screen.getByTestId('acp-open-design-brand').textContent).not.toMatch(/ACP Open Design/i);
+    expect(screen.getByTestId('acp-open-design-brand').textContent).toMatch(/\bACP\b/);
+    expect(screen.getByTestId('acp-open-design-brand').textContent).not.toMatch(/Agent Control Panel/i);
+    expect(container.querySelector('.acp-radar-mark.is-spinning')).not.toBeNull();
   });
 
   it('does not offer OpenDesign Cloud sign-in on the ACP studio shell', async () => {

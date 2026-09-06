@@ -5,10 +5,31 @@
  */
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 
-export const ACP_OPEN_DESIGN_NAME = 'ACP Open Design';
+export const ACP_OPEN_DESIGN_NAME = 'ACP Design';
+export const ACP_PRODUCT_SHORT = 'ACP';
 export const ACP_OPEN_DESIGN_SUBTITLE = 'Agent Control Panel';
-export const ACP_OPEN_DESIGN_LOADING = 'Loading ACP Open Design…';
+export const ACP_OPEN_DESIGN_LOADING = 'Loading ACP Design…';
 export const ACP_ACCENT = '#FF7A29';
+
+/**
+ * When true, ACP Studio context skips the OpenDesign Cloud AMR sign-in bounce
+ * on home submit. Hosted Studio authenticates via ACP SSO / catalog grant —
+ * never OpenDesign Cloud. Signed-out Home is handled separately by
+ * `shouldRequireAcpCatalogLogin` (live catalog session), not by this flag.
+ */
+export const ACP_SKIP_AMR_AUTH_GATE = true;
+
+/** True when this window is ACP Studio (hosted, preview, embed, or SSO URL). */
+export function hasAcpStudioIdentity(
+  win: Window = window,
+  opts: { acpSsoUrl?: string | null } = {},
+): boolean {
+  if (!ACP_SKIP_AMR_AUTH_GATE) return false;
+  if (opts.acpSsoUrl) return true;
+  if (rememberEmbedGrantSession(win)) return true;
+  if (isAmcEmbedActive(win)) return true;
+  return isAcpStudioShell(win);
+}
 
 export type AcpStudioTheme = 'light' | 'dark';
 

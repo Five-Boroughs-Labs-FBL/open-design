@@ -12,6 +12,7 @@ import {
   resolveSettingsCloseConfig,
   shouldBounceCloudHomeToOnboarding,
   shouldForceCloudOnboarding,
+  shouldRequireAcpCatalogLogin,
   shouldRouteToFirstRunOnboarding,
   shouldSyncMediaProvidersOnSave,
 } from '../src/App';
@@ -164,6 +165,63 @@ describe('shouldBounceCloudHomeToOnboarding', () => {
     expect(shouldBounceCloudHomeToOnboarding({
       ...signedOutCloudHome,
       amrLoggedIn: null,
+    })).toBe(false);
+  });
+});
+
+describe('shouldRequireAcpCatalogLogin', () => {
+  const signedOutStudio = {
+    routeKind: 'home',
+    routeView: 'home',
+    acpSsoConfigured: true,
+    publicRuntimeResolved: true,
+    hasCatalogSession: false,
+  };
+
+  it('forces Continue with ACP when the catalog grant is gone', () => {
+    expect(shouldRequireAcpCatalogLogin(signedOutStudio)).toBe(true);
+  });
+
+  it('keeps Home when a live catalog session is present', () => {
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      hasCatalogSession: true,
+    })).toBe(false);
+  });
+
+  it('does not hijack the SSO card itself or iframe embeds', () => {
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeView: 'onboarding',
+    })).toBe(false);
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      amcEmbed: true,
+    })).toBe(false);
+  });
+
+  it('does not hijack project, community, or marketplace deep links', () => {
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'project',
+      routeView: undefined,
+    })).toBe(false);
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'community',
+      routeView: undefined,
+    })).toBe(false);
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      routeKind: 'marketplace',
+      routeView: undefined,
+    })).toBe(false);
+  });
+
+  it('waits for public-runtime before deciding', () => {
+    expect(shouldRequireAcpCatalogLogin({
+      ...signedOutStudio,
+      publicRuntimeResolved: false,
     })).toBe(false);
   });
 });

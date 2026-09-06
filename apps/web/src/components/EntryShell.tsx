@@ -208,11 +208,15 @@ import {
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
-import { applyAcpStudioAppearance, isAcpStudioShell } from '../acp-brand';
+import {
+  applyAcpStudioAppearance,
+  hasAcpStudioIdentity,
+  isAcpStudioShell,
+} from '../acp-brand';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from '../amc-embed';
 import { AcpStudioLockup } from './AcpStudioLockup';
 import { AcpStudioThemeToggle } from './AcpStudioThemeToggle';
-import { shouldBounceCloudHomeToOnboarding } from '../onboarding/cloud-onboarding-gate';
+import { shouldBounceCloudHomeToOnboarding, shouldRequireAcpCatalogLogin } from '../onboarding/cloud-onboarding-gate';
 import { acpSsoStartUrl, defaultKnownProviderModel, fetchPublicRuntime, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testAgent, testApiProvider } from '../providers/connection-test';
@@ -702,6 +706,9 @@ export function EntryShell({
       usesOpenDesignCloud
       && requiresAmrReauthentication(amrSessionState, workspaceContextState.failure)
     );
+  // ACP Studio / catalog SSO already authenticated the user. Flag keeps the
+  // OpenDesign Cloud AMR gate from bouncing home submit back to Welcome.
+  const skipAmrAuthGateForAcpStudio = hasAcpStudioIdentity(window, { acpSsoUrl });
   useEffect(() => {
     // The entry shell is an authenticated surface. Both an explicit signed-out
     // status and a definitive credential rejection return to the existing
@@ -723,6 +730,30 @@ export function EntryShell({
     })) return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
   }, [amrAuthRequired, amrLoggedIn, usesOpenDesignCloud, view, acpSsoUrl, acpSsoResolved]);
+  useEffect(() => {
+    if (!shouldRequireAcpCatalogLogin({
+      routeKind: 'home',
+      routeView: view,
+      acpSsoConfigured: Boolean(acpSsoUrl),
+      publicRuntimeResolved: acpSsoResolved,
+      hasCatalogSession: acpEmbedSession?.catalog === true,
+      amcEmbed: isAmcEmbedActive(window),
+    })) return;
+    navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
+  }, [acpEmbedSession, acpSsoResolved, acpSsoUrl, view]);
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void fetchPublicRuntime().then((runtime) => {
+        setAcpSsoUrl(runtime.acpSsoUrl);
+        setAcpEmbedSession(runtime.embedSession);
+        setAcpSsoResolved(true);
+        applyAcpStudioAppearance();
+      });
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
   let accountFooterNotice: ReactNode = null;
   if (accountFooterState === 'syncing') {
     accountFooterNotice = <RailAccountSyncTip />;
@@ -1422,7 +1453,7 @@ export function EntryShell({
   // projectKind='other', so the agent infers the task type and asks only
   // when the brief cannot be routed reliably.
   async function handlePluginLoopSubmit(payload: PluginLoopSubmit) {
-    if (amrAuthRequired) {
+    if (amrAuthRequired && !skipAmrAuthGateForAcpStudio) {
       navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
       return 'blocked' as const;
     }
@@ -1593,6 +1624,7 @@ export function EntryShell({
       if (
         error instanceof ProjectCreateError
         && error.code === 'AMR_AUTH_REQUIRED'
+        && !skipAmrAuthGateForAcpStudio
       ) {
         navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
         return 'blocked' as const;
