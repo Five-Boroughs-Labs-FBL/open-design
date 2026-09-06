@@ -50,6 +50,7 @@ import {
   formatVelaBalanceUsd,
   velaLogout,
 } from '../providers/daemon';
+import { beginAcpCatalogSignOut } from '../amc-embed';
 import { resetCloudSignInTipDismissal } from './CloudSignInTip';
 import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
@@ -78,7 +79,7 @@ import {
   workspaceIdentityCacheKey,
 } from '../collab/useWorkspaceContext';
 import { canUpgradeFromPlanTier, resolvePlanLabelTier } from '../collab/team-plan';
-import { shouldShowCreditsBalance } from './entry-rail-account-state';
+import { shouldShowCreditsBalance, type AcpCatalogChrome } from './entry-rail-account-state';
 import { amrPlansUrlForProfile } from '../runtime/amr-guidance';
 import { useWorkspaceInvalidation } from '../collab/workspace-events';
 import { resolveDeepSeekV4FlashCampaignAudience } from '../campaigns/deepseek-v4-flash';
@@ -229,6 +230,8 @@ interface Props {
   balanceUsd?: string | null;
   /** Open the app settings dialog (optionally on a specific section). */
   onOpenSettings?: (section?: EntrySettingsSection) => void;
+  /** Hosted ACP catalog chrome. Local/desktop keep the OpenDesign defaults. */
+  catalogChrome?: AcpCatalogChrome;
   /** Open the members / invite slot (B's InviteDialog). */
   onInvite?: () => void;
   /** Start the cloud sign-in / team flow from the local-state callout. */
@@ -762,6 +765,7 @@ interface EntryTopRightClusterProps {
   updaterSlot?: ReactNode;
   onOpenSettings?: (section?: EntrySettingsSection) => void;
   onSignedOut?: () => void | Promise<void>;
+  catalogChrome?: AcpCatalogChrome;
   priorityAnnouncementActive?: boolean;
   onPriorityAnnouncementPendingChange?: (pending: boolean) => void;
   priorityAnnouncementCurrentPlanId?: string | null;
@@ -790,6 +794,7 @@ export function EntryTopRightCluster({
   updaterSlot,
   onOpenSettings,
   onSignedOut,
+  catalogChrome = { showHostAdminChrome: true, showAcpSignOut: false },
   priorityAnnouncementActive,
   onPriorityAnnouncementPendingChange,
   priorityAnnouncementCurrentPlanId,
@@ -1173,6 +1178,8 @@ export function EntryTopRightCluster({
                         </button>
                       </div>
                     ) : null}
+                    {catalogChrome.showHostAdminChrome ? (
+                      <>
                     <button
                       type="button"
                       className="entry-nav-rail__menu-item"
@@ -1203,6 +1210,8 @@ export function EntryTopRightCluster({
                         <span className="entry-nav-rail__menu-item-dot" aria-hidden />
                       ) : null}
                     </button>
+                      </>
+                    ) : null}
                     {/* #5517's account menu goes 设置 → GitHub 帮助 → 功能建议 → 社交行,
                         with no theme row, no language submenu, and no divider in
                         between. Both controls still have a home in 设置·通用 (theme
@@ -1263,6 +1272,10 @@ export function EntryTopRightCluster({
                     // daemon, then nudge every workspace surface to re-read
                     // (the context read now resolves to null → the shell
                     // falls back to the signed-out local form).
+                    if (catalogChrome.showAcpSignOut) {
+                      beginAcpCatalogSignOut();
+                      return;
+                    }
                     void velaLogout().then(async (result) => {
                       if (!result.ok) return;
                       await onSignedOut?.();
@@ -1303,7 +1316,7 @@ export function EntryTopRightCluster({
           Signed-out shells have no account module — `EntryNavRail` mounts its
           own MessageCenter for that branch, so this one is context-gated to
           keep exactly one instance (and one unread poller) alive. */}
-      {context ? (
+      {context && catalogChrome.showHostAdminChrome ? (
         <MessageCenter
           hideTrigger
           returnFocusRef={accountTriggerRef}
@@ -1327,6 +1340,7 @@ export function EntryTopRightCluster({
 export function WorkspaceTopRightAccountCluster({
   onOpenSettings,
   onSignedOut,
+  catalogChrome,
   updaterSlot,
   workspaceContextOverride,
   workspaceContextLoading,
@@ -1337,6 +1351,7 @@ export function WorkspaceTopRightAccountCluster({
 }: {
   onOpenSettings?: (section?: EntrySettingsSection) => void;
   onSignedOut?: () => void | Promise<void>;
+  catalogChrome?: AcpCatalogChrome;
   /** Keep the project-detail account cluster on the same updater surface as Home. */
   updaterSlot?: ReactNode;
   workspaceContextOverride?: WorkspaceCollabContext | null;
@@ -1399,6 +1414,7 @@ export function WorkspaceTopRightAccountCluster({
       updaterSlot={updaterSlot}
       onOpenSettings={onOpenSettings}
       onSignedOut={onSignedOut}
+      catalogChrome={catalogChrome}
     />
   );
 }
@@ -1496,6 +1512,7 @@ export function EntryNavRail({
   balanceUsd,
   onOpenSettings,
   onSignedOut,
+  catalogChrome = { showHostAdminChrome: true, showAcpSignOut: false },
   updaterSlot,
   footerNotice,
   recentProjects,
@@ -1533,6 +1550,7 @@ export function EntryNavRail({
   const [messageCenterOpen, setMessageCenterOpen] = useState(false);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const messageCenterRailRef = useRef<HTMLButtonElement | null>(null);
+  const [confirmAcpSignOut, setConfirmAcpSignOut] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   useEffect(() => {
     if (!teamOpen) return;
@@ -2099,7 +2117,11 @@ export function EntryNavRail({
                 either — leaving no settings entry at all. This item is the
                 ONLY signed-out settings entry (testId `entry-settings-button`
                 is the e2e contract); signed-in keeps settings in the account
-                menu, so it must not render on that branch. */}
+                menu, so it must not render on that branch. Hosted ACP catalog
+                sessions hide it unless the grant is admin — settings are
+                process-wide on the shared daemon. */}
+            {catalogChrome.showHostAdminChrome ? (
+              <>
             <NavButton
               ariaLabel={t('entry.accountSettings')}
               label={t('entry.accountSettings')}
@@ -2132,23 +2154,46 @@ export function EntryNavRail({
                 <span className="entry-nav-rail__btn-dot" aria-hidden />
               ) : null}
             </NavButton>
+              </>
+            ) : null}
+            {catalogChrome.showAcpSignOut ? (
+              <NavButton
+                ariaLabel={t('entry.accountSignOut')}
+                label={t('entry.accountSignOut')}
+                onClick={() => setConfirmAcpSignOut(true)}
+                testId="entry-acp-sign-out"
+              >
+                <Icon name="log-out" size={16} />
+              </NavButton>
+            ) : null}
           </>
         )}
       </div>
-      {/* The footer always has the social row to show now, so it no longer
-          collapses to nothing. The updater has one shared home in the
-          top-right cluster for both signed-in and signed-out shells. */}
+      {(footerNotice || catalogChrome.showHostAdminChrome) ? (
       <div className="entry-nav-rail__footer">
         {footerNotice}
-        <RailSocialRow page={analyticsPage} dimensions={workspaceDimensions} />
+        {catalogChrome.showHostAdminChrome ? (
+          <RailSocialRow page={analyticsPage} dimensions={workspaceDimensions} />
+        ) : null}
       </div>
+      ) : null}
       </div>
+
+      {confirmAcpSignOut ? (
+        <SignOutConfirmDialog
+          onCancel={() => setConfirmAcpSignOut(false)}
+          onConfirm={() => {
+            setConfirmAcpSignOut(false);
+            beginAcpCatalogSignOut();
+          }}
+        />
+      ) : null}
 
       {/* Signed-out message-center panel + unread polling (the rail's bell
           item above is its opener). Signed-in mounts move into
           `EntryTopRightCluster` — context-gating both sides is what keeps
           exactly one panel (and one unread poller) alive. */}
-      {context ? null : (
+      {context || !catalogChrome.showHostAdminChrome ? null : (
         <MessageCenter
           hideTrigger
           returnFocusRef={messageCenterRailRef}
@@ -2192,6 +2237,7 @@ export function EntryNavRail({
         updaterSlot={updaterSlot}
         onOpenSettings={onOpenSettings}
         onSignedOut={onSignedOut}
+        catalogChrome={catalogChrome}
         priorityAnnouncementActive={priorityAnnouncementActive}
         onPriorityAnnouncementPendingChange={onPriorityAnnouncementPendingChange}
         priorityAnnouncementCurrentPlanId={priorityAnnouncementCurrentPlanId}

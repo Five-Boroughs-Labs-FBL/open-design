@@ -15,6 +15,7 @@ import { deriveUploadCohort } from './analytics/upload-tracking';
 import { setPendingDesignSystemCreateEntry } from './analytics/ds-create-entry';
 import { detectClientType } from './analytics/identity';
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
+import { resolveAcpCatalogChrome } from './components/entry-rail-account-state';
 import { shouldForceCloudOnboarding } from './onboarding/cloud-onboarding-gate';
 export {
   shouldBounceCloudHomeToOnboarding,
@@ -35,6 +36,7 @@ import type {
   ChatSessionMode,
   CreateProjectExampleReference,
   LocalCatalogScope,
+  PublicRuntimeEmbedSession,
   RunContextSelection,
   TeamProject,
   WorkspaceCollabContext,
@@ -1303,6 +1305,8 @@ function AppInner() {
   // as "no preference yet" or we would overwrite a daemon-backed opt-out.
   const [daemonAppConfigReady, setDaemonAppConfigReady] = useState(false);
   const [acpSsoUrl, setAcpSsoUrl] = useState<string | null>(null);
+  const [acpEmbedSession, setAcpEmbedSession] = useState<PublicRuntimeEmbedSession | null>(null);
+  const [acpPublicRuntimeResolved, setAcpPublicRuntimeResolved] = useState(false);
   // Narrower flag dedicated to the Composio API key hydration. The key is
   // persisted by the daemon (and only reflected back via apiKeyConfigured
   // + apiKeyTail), so after a dev-server restart there is a window where
@@ -1315,6 +1319,14 @@ function AppInner() {
   const route = useRoute();
   const routeRef = useRef(route);
   routeRef.current = route;
+  const catalogChrome = resolveAcpCatalogChrome({
+    resolved: acpPublicRuntimeResolved,
+    acpSsoUrl,
+    embedSession: acpEmbedSession,
+    embedSessionHint: typeof window !== 'undefined' && rememberEmbedGrantSession(window),
+  });
+  const catalogChromeRef = useRef(catalogChrome);
+  catalogChromeRef.current = catalogChrome;
   const settingsReturnTargetRef = useRef<SettingsReturnTarget | null>(null);
   const workspaceProjectView = workspaceProjectListViewForRoute(route);
   // Read-only mirror for the boot effect. The boot pass needs to know which
@@ -2172,6 +2184,8 @@ function AppInner() {
       ]) => {
         if (cancelled) return;
         setAcpSsoUrl(publicRuntime.acpSsoUrl);
+        setAcpEmbedSession(publicRuntime.embedSession);
+        setAcpPublicRuntimeResolved(true);
         const daemonMediaProvidersLoaded =
           daemonMediaProvidersResult.status === 'ok'
             ? daemonMediaProvidersResult.providers
@@ -4723,6 +4737,14 @@ function AppInner() {
     section: SettingsSection = 'execution',
     opts?: { highlight?: SettingsHighlight },
   ) => {
+    if (
+      !catalogChromeRef.current.showHostAdminChrome
+      && section !== 'composio'
+      && section !== 'mcpClient'
+      && section !== 'integrations'
+    ) {
+      return;
+    }
     if (section === 'composio' || section === 'mcpClient' || section === 'integrations') {
       settingsReturnTargetRef.current = null;
       setIntegrationInitialTab(
@@ -4756,6 +4778,14 @@ function AppInner() {
   const openAmrSettings = useCallback(() => {
     openSettings('execution', { highlight: 'amr' });
   }, [openSettings]);
+
+  useEffect(() => {
+    if (catalogChrome.showHostAdminChrome) return;
+    setSettingsOpen(false);
+    if (route.kind === 'home' && route.view === 'settings') {
+      navigate({ kind: 'home', view: 'home' }, { replace: true });
+    }
+  }, [catalogChrome.showHostAdminChrome, route]);
 
   const openPetSettings = useCallback(() => {
     const currentRoute = routeRef.current;
@@ -5476,6 +5506,7 @@ function AppInner() {
           <WorkspaceTopRightAccountCluster
             onOpenSettings={openSettings}
             onSignedOut={handleActiveCloudSignOut}
+            catalogChrome={catalogChrome}
             updaterSlot={
               <UpdaterPopup
                 allowSilentUpdates={config.allowSilentUpdates}

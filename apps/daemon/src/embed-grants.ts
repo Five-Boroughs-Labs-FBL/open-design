@@ -13,6 +13,8 @@ export type EmbedGrantPayload = {
   iat: number;
   exp: number;
   pids?: string[];
+  /** Catalog-only. ACP admin sessions may write process-wide host settings. */
+  adm?: true;
 };
 
 /** Catalog grants use pid `*`. The type predicate must name this subtype — `grant is EmbedGrantPayload` makes the false branch `never` under tsc. */
@@ -26,6 +28,7 @@ export type MintEmbedGrantOptions = {
   ttlMs?: number;
   now?: Date | number;
   projectIds?: readonly string[];
+  admin?: boolean;
 };
 
 export type EmbedGrantProjectRecord = {
@@ -66,6 +69,7 @@ const OPEN_PROBE_PATHS = new Set([
   '/version',
   '/api/version',
   '/api/public-runtime',
+  '/api/embed-session/logout',
 ]);
 
 /** Read-only Studio catalogs an embed session needs to generate. Writes stay denied. */
@@ -223,6 +227,9 @@ function asEmbedGrantPayload(value: unknown): EmbedGrantPayload | null {
     }
     if (pids.length > 0) payload.pids = pids;
   }
+  if (rec.adm === true && rec.pid === CATALOG_EMBED_GRANT_PID) {
+    payload.adm = true;
+  }
   return payload;
 }
 
@@ -230,6 +237,23 @@ export function isCatalogEmbedGrant(
   grant: EmbedGrantPayload | null | undefined,
 ): grant is CatalogEmbedGrantPayload {
   return grant != null && grant.pid === CATALOG_EMBED_GRANT_PID;
+}
+
+export function isCatalogAdminEmbedGrant(
+  grant: EmbedGrantPayload | null | undefined,
+): grant is CatalogEmbedGrantPayload & { adm: true } {
+  return isCatalogEmbedGrant(grant) && grant.adm === true;
+}
+
+export function publicEmbedSessionFromGrant(
+  grant: EmbedGrantPayload | null | undefined,
+): { uid: string; catalog: boolean; admin: boolean } | null {
+  if (grant == null) return null;
+  return {
+    uid: grant.uid,
+    catalog: isCatalogEmbedGrant(grant),
+    admin: isCatalogAdminEmbedGrant(grant),
+  };
 }
 
 export function projectAcpUserId(project: EmbedGrantProjectRecord | null | undefined): string {
@@ -270,6 +294,7 @@ export function mintEmbedGrant(
   if (options.projectId === CATALOG_EMBED_GRANT_PID) {
     const pids = normalizeEmbedGrantProjectIds(options.projectIds);
     if (pids.length > 0) payload.pids = pids;
+    if (options.admin === true) payload.adm = true;
   }
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
   const token = `${payloadBytes.toString('base64url')}.${signPayloadBytes(apiToken, payloadBytes)}`;
@@ -310,6 +335,11 @@ export function verifyEmbedGrant(
   return payload;
 }
 
+export function embedGrantQueryPresent(req: EmbedGrantRequestLike): boolean {
+  const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
+  return fromQuery !== null && fromQuery.length > 0;
+}
+
 export function readEmbedGrantFromRequest(req: EmbedGrantRequestLike): string | null {
   const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
   if (fromQuery !== null) return fromQuery.length > 0 ? fromQuery : null;
@@ -332,6 +362,26 @@ export function setEmbedGrantCookie(
     'Path=/',
     'SameSite=Lax',
     `Max-Age=${maxAge}`,
+  ];
+  if (options?.secure === true) parts.push('Secure');
+  const header = parts.join('; ');
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Set-Cookie', header);
+    return;
+  }
+  res.append?.('Set-Cookie', header);
+}
+
+export function clearEmbedGrantCookie(
+  res: EmbedGrantResponseLike,
+  options?: { secure?: boolean },
+): void {
+  const parts = [
+    `${EMBED_GRANT_COOKIE}=`,
+    'HttpOnly',
+    'Path=/',
+    'SameSite=Lax',
+    'Max-Age=0',
   ];
   if (options?.secure === true) parts.push('Secure');
   const header = parts.join('; ');
@@ -374,7 +424,16 @@ export function embedGrantAllowsPath(
   }
 
   if (!isReadMethod(methodUpper)) {
-    return catalog && methodUpper === 'POST' && pathname === '/api/projects';
+    if (catalog && methodUpper === 'POST' && pathname === '/api/projects') return true;
+    if (
+      catalog
+      && grant.adm === true
+      && methodUpper === 'PUT'
+      && pathname === '/api/app-config'
+    ) {
+      return true;
+    }
+    return false;
   }
   if (OPEN_PROBE_PATHS.has(pathname)) return true;
   if (isStudioEmbedReadPath(pathname)) return true;
