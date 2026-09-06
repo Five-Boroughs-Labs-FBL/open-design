@@ -505,9 +505,13 @@ describe('embed grant request helpers', () => {
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/skills')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/plugins')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/plugins/some-plugin/preview')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/some-plugin/apply')).toBe(true);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/some-plugin/apply-local')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-templates')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/design-systems')).toBe(true);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/skills/install')).toBe(false);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/install')).toBe(false);
+    expect(embedGrantAllowsPath(catalog, 'POST', '/api/plugins/some-plugin/uninstall')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'POST', '/api/embed-grants')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'PUT', '/api/app-config')).toBe(false);
     expect(embedGrantAllowsPath(catalog, 'GET', '/api/embed-session/logout')).toBe(true);
