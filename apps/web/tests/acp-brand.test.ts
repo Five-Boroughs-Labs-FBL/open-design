@@ -179,6 +179,18 @@ describe('ACP Studio CSS', () => {
     expect(css).not.toContain('.acp-radar-mark');
     expect(css).not.toContain('@keyframes acp-radar-sweep');
   });
+
+  it('keeps the peak ice-cyan on the navy lockup tile in light theme', () => {
+    // html[data-acp-studio][data-theme=light] .acp-mark is navy for bare marks.
+    // The lockup tile is navy in both themes, so that rule would paint the
+    // peak navy-on-navy unless the badge override is at least as specific.
+    expect(css).toContain(
+      "html[data-acp-studio][data-theme='light'] .acp-studio-lockup__badge .acp-mark",
+    );
+    expect(css).toMatch(
+      /html\[data-acp-studio\]\[data-theme='light'\] \.acp-studio-lockup__badge \.acp-mark\s*\{[^}]*color:\s*var\(--color-logo,\s*#d7fbff\)/s,
+    );
+  });
 });
 
 describe('ACP Studio FOUC script', () => {

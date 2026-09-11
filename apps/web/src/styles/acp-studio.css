@@ -251,7 +251,8 @@ html[data-acp-studio][data-theme='light'] .acp-mark {
   color: var(--color-logo-ink, #071225);
 }
 
-.acp-studio-lockup__badge .acp-mark {
+.acp-studio-lockup__badge .acp-mark,
+html[data-acp-studio][data-theme='light'] .acp-studio-lockup__badge .acp-mark {
   color: var(--color-logo, #d7fbff);
 }
 
