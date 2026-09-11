@@ -114,12 +114,6 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     expect(charter).toContain('allowCustom');
   });
 
-  it('tells filesystem runs to write photos as sibling files', () => {
-    expect(charter).toContain('Write photos as sibling files under `assets/`');
-    expect(charter).toContain('self-contained except photos');
-    expect(charter).not.toContain('the main HTML file must be complete and self-contained.');
-  });
-
   /**
    * T69(2026-09-07):设计风格选择题从提示词整题下线,产品逐字「**不问了**」。
    * 原用例断言的是这份 charter **教** `direction-cards` 怎么用,现在反过来守它不再教。

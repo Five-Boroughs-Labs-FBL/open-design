@@ -9290,24 +9290,6 @@ export function ProjectView({
           requestOpenFile(fileName);
           void refreshProjectFiles();
         },
-        onToolInputDelta: (id: string, name: string, delta: string) => {
-          setLiveToolInput((prev) => ({
-            ...prev,
-            [id]: {
-              name,
-              text: (prev[id]?.text ?? '') + delta,
-              // Pin the tool's stream position the first time we see it: the
-              // count of events already on the message is everything the model
-              // emitted before the tool call (its preamble). Buffered text
-              // (appendTextEvent) isn't flushed into `events` until the next
-              // frame, so add 1 for any still-pending preamble chunk — it will
-              // commit as one text event just before this tool's position.
-              seq:
-                prev[id]?.seq ??
-                ((latestAssistantMsg.events?.length ?? 0) + (textBuffer.hasPendingText() ? 1 : 0)),
-            },
-          }));
-        },
         // 组件 22 · 重连 · S29:掉线期间流水最后一行的读数。传输层如实上报,
         // 该不该显示、显示到几分之几由 reconnect-state 判(它也负责与组件 20 互斥)。
         onReconnect: (state: DaemonReconnectState) => {

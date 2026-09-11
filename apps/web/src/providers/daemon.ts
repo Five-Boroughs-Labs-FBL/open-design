@@ -2097,16 +2097,6 @@ async function consumeDaemonPhysicalRun({
             ) {
               handlers.onLiveHtmlCanvasArtifact?.(event.data.name);
             }
-            if (event.data.type === 'tool_input_delta') {
-              if (
-                typeof event.data.id === 'string' &&
-                typeof event.data.name === 'string' &&
-                typeof event.data.delta === 'string'
-              ) {
-                handlers.onToolInputDelta?.(event.data.id, event.data.name, event.data.delta);
-              }
-              continue;
-            }
             const translated = translateAgentEvent(event.data);
             if (!translated) continue;
             if (translated.kind === 'status' && translated.label === 'agent_reconnecting') {

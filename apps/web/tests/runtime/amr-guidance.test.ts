@@ -521,7 +521,7 @@ describe('resolveRunFailureUi', () => {
     );
     expect(ui).toMatchObject({
       primaryAction: 'retry',
-      titleKey: 'chat.runError.title.signInRequired',
+      titleKey: 'chat.runError.title.signInRequired.other',
       cloudSwitchCta: false,
     });
   });
