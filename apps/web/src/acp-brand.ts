@@ -1,7 +1,7 @@
 /**
  * Hosted ACP Studio identity. Local desktop / tools-dev stay OpenDesign.
  *
- * Brand tokens match Agent Control Panel: signal amber and the radar mark.
+ * Brand tokens match Agent Control Panel: signal amber UI, ice-on-navy peak mark.
  */
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 
@@ -11,6 +11,7 @@ export const ACP_PRODUCT_WORDMARK = 'AGENT CONTROL PANEL';
 export const ACP_OPEN_DESIGN_SUBTITLE = 'Agent Control Panel';
 export const ACP_OPEN_DESIGN_LOADING = 'Loading ACP Design…';
 export const ACP_ACCENT = '#FF7A29';
+export const ACP_FAVICON_HREF = '/acp-favicon.svg';
 
 /**
  * When true, ACP Studio context skips the OpenDesign Cloud AMR sign-in bounce
@@ -104,6 +105,21 @@ export function applyAcpStudioTheme(theme: AcpStudioTheme, win: Window = window)
   if (themeColor) themeColor.setAttribute('content', ACP_THEME_COLOR[theme]);
 }
 
+/** Swap the OpenDesign squircle for the ACP peak on hosted Studio. */
+export function applyAcpStudioFavicon(win: Window = window): void {
+  const doc = win.document;
+  const head = doc.head;
+  if (!head) return;
+  let icon = head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!icon) {
+    icon = doc.createElement('link');
+    icon.setAttribute('rel', 'icon');
+    head.appendChild(icon);
+  }
+  icon.setAttribute('type', 'image/svg+xml');
+  icon.setAttribute('href', ACP_FAVICON_HREF);
+}
+
 export function setAcpStudioTheme(theme: AcpStudioTheme, win: Window = window): AcpStudioTheme {
   try {
     win.localStorage.setItem(ACP_STUDIO_THEME_KEY, theme);
@@ -133,5 +149,6 @@ export function applyAcpStudioAppearance(win: Window = window): boolean {
     root.style.removeProperty(name);
   }
   applyAcpStudioTheme(readAcpStudioTheme(win), win);
+  applyAcpStudioFavicon(win);
   return true;
 }

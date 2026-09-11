@@ -45,6 +45,7 @@ const PRODUCT_ASSET_ROOTS = new Set([
 ]);
 
 const PRODUCT_ROOT_FILES = new Set([
+  'acp-favicon.svg',
   'app-icon.png',
   'app-icon.svg',
   'avatar.png',

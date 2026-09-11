@@ -170,6 +170,15 @@ describe('ACP Studio CSS', () => {
     expect(css).toContain('.workspace-shell:has(.entry-shell--onboarding)');
     expect(css).toContain('.home-hero__composer-beam[data-beam=\'composer\']');
   });
+
+  it('paints the ACP peak mark ice-on-navy instead of the radar sweep', () => {
+    expect(css).toContain('.acp-mark');
+    expect(css).toContain('--color-logo: #d7fbff');
+    expect(css).toContain('--color-logo-ink: #071225');
+    expect(css).toContain('@keyframes acp-mark-glow');
+    expect(css).not.toContain('.acp-radar-mark');
+    expect(css).not.toContain('@keyframes acp-radar-sweep');
+  });
 });
 
 describe('ACP Studio FOUC script', () => {
@@ -206,5 +215,35 @@ describe('ACP Studio FOUC script', () => {
     runThemeInitScript();
     expect(document.documentElement.getAttribute('data-acp-studio')).toBe('1');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
+});
+
+describe('ACP Studio favicon', () => {
+  afterEach(() => {
+    sessionStorage.removeItem(ACP_STUDIO_PREVIEW_KEY);
+    document.documentElement.removeAttribute('data-acp-studio');
+    document.head.querySelectorAll('link[rel="icon"]').forEach((node) => node.remove());
+  });
+
+  it('ships the peak mark as the hosted Studio favicon', () => {
+    const favicon = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../public/acp-favicon.svg'),
+      'utf8',
+    );
+    expect(favicon).toContain('viewBox="0 0 32 32"');
+    expect(favicon).toContain('#071225');
+    expect(favicon).toContain('#D7FBFF');
+    expect(favicon).toContain(
+      'M 15.91 3.5 L 30 28.51 L 2 28.51 Z M 15.44 11.9 L 23.84 26.27 L 27.76 28.51 L 4.24 28.51 Z',
+    );
+    expect(favicon).toContain('M 15.81 16.38 L 16.75 18.06 L 11.15 26.27 L 4.99 28.33 Z');
+  });
+
+  it('points the document icon at the ACP peak favicon on Studio', () => {
+    sessionStorage.setItem(ACP_STUDIO_PREVIEW_KEY, '1');
+    expect(applyAcpStudioAppearance(window)).toBe(true);
+    const icon = document.head.querySelector('link[rel="icon"]');
+    expect(icon?.getAttribute('href')).toBe('/acp-favicon.svg');
+    expect(icon?.getAttribute('type')).toBe('image/svg+xml');
   });
 });
