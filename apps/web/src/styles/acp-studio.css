@@ -72,6 +72,9 @@ html[data-acp-studio][data-theme='dark'] {
   --glass-refract-ring-top: rgba(255, 255, 255, 0.18);
   --glass-refract-ring-edge: rgba(255, 255, 255, 0.08);
   --glass-refract-ring-bottom: rgba(255, 255, 255, 0.04);
+  --color-logo: #d7fbff;
+  --color-logo-deep: #3ce0ff;
+  --color-logo-ink: #071225;
 }
 
 html[data-acp-studio][data-theme='light'] {
@@ -142,6 +145,9 @@ html[data-acp-studio][data-theme='light'] {
   --code-header-bg: #ede9e3;
   --code-body-bg: #f6f4f1;
   --rotating-title-accent: #c75414;
+  --color-logo: #d7fbff;
+  --color-logo-deep: #3ce0ff;
+  --color-logo-ink: #071225;
 }
 
 html[data-acp-studio][data-theme='dark'] body {
@@ -193,7 +199,7 @@ html[data-acp-studio][data-theme='dark'] .entry-nav-rail {
   width: 34px;
   height: 34px;
   border-radius: 11px;
-  background: linear-gradient(145deg, #1a1e2a 0%, #12141b 55%, #0d0f15 100%);
+  background: var(--color-logo-ink, #071225);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -204,8 +210,8 @@ html[data-acp-studio][data-theme='dark'] .entry-nav-rail {
 }
 
 html[data-acp-studio][data-theme='light'] .acp-studio-lockup__badge {
-  background: linear-gradient(145deg, #fff 0%, #f6f4f1 55%, #ede9e3 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  background: var(--color-logo-ink, #071225);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .acp-studio-lockup__wordmark {
@@ -232,56 +238,55 @@ html[data-acp-studio][data-theme='light'] .acp-studio-lockup__badge {
   line-height: 1.2;
 }
 
-/* ACP radar mark — ported from Agent Control Panel radar-mark.css */
-.acp-radar-mark {
+/* ACP peak mark — ported from Agent Control Panel acp-mark.css */
+.acp-mark {
   display: inline-block;
   flex-shrink: 0;
   vertical-align: middle;
   overflow: visible;
+  color: var(--color-logo, #d7fbff);
 }
 
-.acp-radar-mark.is-spinning .acp-radar-mark__sweep,
-.acp-radar-mark.is-spinning .acp-radar-mark__orbit {
-  transform-origin: 50% 50%;
-  transform-box: view-box;
-  animation: acp-radar-sweep 1.6s linear infinite;
+html[data-acp-studio][data-theme='light'] .acp-mark {
+  color: var(--color-logo-ink, #071225);
 }
 
-.acp-radar-mark.is-spinning .acp-radar-mark__pip {
-  transform-origin: 50% 50%;
-  transform-box: view-box;
-  animation: acp-radar-pulse 1.6s ease-in-out infinite;
+.acp-studio-lockup__badge .acp-mark {
+  color: var(--color-logo, #d7fbff);
 }
 
-@keyframes acp-radar-sweep {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.acp-mark.is-spinning {
+  animation: acp-mark-glow 2.6s ease-in-out infinite;
 }
 
-@keyframes acp-radar-pulse {
+@keyframes acp-mark-glow {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 0.95;
+    filter: drop-shadow(0 0 2px rgba(60, 224, 255, 0.2));
   }
   50% {
-    transform: scale(1.35);
-    opacity: 0.55;
+    filter: drop-shadow(0 0 10px rgba(60, 224, 255, 0.8));
+  }
+}
+
+html[data-acp-studio][data-theme='light'] .acp-mark.is-spinning {
+  animation-name: acp-mark-glow-light;
+}
+
+@keyframes acp-mark-glow-light {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(60, 224, 255, 0.18));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(60, 224, 255, 0.55));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .acp-radar-mark.is-spinning .acp-radar-mark__sweep,
-  .acp-radar-mark.is-spinning .acp-radar-mark__orbit,
-  .acp-radar-mark.is-spinning .acp-radar-mark__pip {
+  .acp-mark.is-spinning {
     animation: none;
-  }
-  .acp-radar-mark.is-spinning .acp-radar-mark__pip {
-    opacity: 0.85;
+    filter: drop-shadow(0 0 4px rgba(60, 224, 255, 0.35));
   }
 }
 
