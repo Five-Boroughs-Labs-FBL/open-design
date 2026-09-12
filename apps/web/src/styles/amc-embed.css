@@ -1,20 +1,46 @@
-/* AMC Design iframe — hide Open Design product chrome, keep Studio. */
-html[data-amc-embed] .workspace-tabs-chrome,
-html[data-amc-embed] .workspace-account-cluster,
-html[data-amc-embed] .pet-overlay,
-html[data-amc-embed] .entry-nav-rail,
-html[data-amc-embed] .ws-tabs-shell,
-html[data-amc-embed] .MemoryToast,
-html[data-amc-embed] .update-dialog {
+/* ACP Design iframe — hide Open Design product chrome, keep Studio.
+   Veil tokens are transparent in the standalone app so the pastel wash
+   shows through. Inside ACP those tokens punch through to the parent
+   iframe fill; paint an opaque studio ground so Pages/Scripts labels
+   stay readable. */
+html:is([data-amc-embed], [data-acp-embed]) {
+  --app-wash: none;
+  --veil-shell: var(--bg-app);
+  --veil-page: var(--bg);
+  --veil-canvas: var(--bg);
+  --veil-panel: var(--bg-panel);
+  background: var(--bg-app);
+}
+
+html:is([data-amc-embed], [data-acp-embed]) .workspace-tabs-chrome,
+html:is([data-amc-embed], [data-acp-embed]) .workspace-account-cluster,
+html:is([data-amc-embed], [data-acp-embed]) .pet-overlay,
+html:is([data-amc-embed], [data-acp-embed]) .entry-nav-rail,
+html:is([data-amc-embed], [data-acp-embed]) .ws-tabs-shell,
+html:is([data-amc-embed], [data-acp-embed]) .MemoryToast,
+html:is([data-amc-embed], [data-acp-embed]) .update-dialog {
   display: none !important;
 }
 
-html[data-amc-embed] .workspace-shell {
+html:is([data-amc-embed], [data-acp-embed]) .workspace-shell {
   grid-template-rows: 0 minmax(0, 1fr);
   width: 100%;
   height: 100%;
+  background: var(--bg-app);
 }
 
-html[data-amc-embed] body {
+html:is([data-amc-embed], [data-acp-embed]) body {
   overflow: hidden;
+  background: var(--bg-app);
+}
+
+html:is([data-amc-embed], [data-acp-embed]) .df-panel,
+html:is([data-amc-embed], [data-acp-embed]) .df-main {
+  background: var(--bg);
+}
+
+/* Pages is already the default tab; Scripts is not a customer control in ACP.
+   Hide the whole files tablist so the canvas/grid is the studio. */
+html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
+  display: none !important;
 }
