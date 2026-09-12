@@ -82,12 +82,17 @@ describe('ACP embed studio ground', () => {
     expect(embedCss).toMatch(/html:is\(\[data-amc-embed\], \[data-acp-embed\]\)/);
     expect(embedCss).toMatch(/--veil-canvas:\s*var\(--bg\)/);
     expect(embedCss).toMatch(/--app-wash:\s*none/);
-    expect(embedCss).toMatch(/\.df-tabs \{\s*background:\s*var\(--bg\)/);
     const htmlBlock = embedCss.match(
       /html:is\(\[data-amc-embed\], \[data-acp-embed\]\) \{[^}]+\}/,
     )?.[0];
     expect(htmlBlock).toBeTruthy();
     expect(htmlBlock).toMatch(/background:\s*var\(--bg-app\)/);
     expect(htmlBlock).not.toMatch(/transparent/);
+  });
+
+  it('hides the Pages/Scripts tablist in embed; Pages stays the default surface', () => {
+    expect(embedCss).toMatch(
+      /html:is\(\[data-amc-embed\], \[data-acp-embed\]\) \.df-tabs \{\s*display:\s*none\s*!important/,
+    );
   });
 });
