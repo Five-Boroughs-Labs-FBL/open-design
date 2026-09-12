@@ -28,6 +28,7 @@ import { Icon } from './Icon';
 import { LiveArtifactBadges } from './LiveArtifactBadges';
 import { RemixIcon } from './RemixIcon';
 import { HtmlPageThumbnail } from './HtmlPageThumbnail';
+import { isAmcEmbedActive } from '../amc-embed';
 import {
   DesignSurfaceCanvas,
   type DesignSurfaceCanvasItem,
@@ -1687,7 +1688,7 @@ export function DesignFilesPanel({
             )
           ) : (
             <>
-              {availableTabs.length > 0 ? (
+              {availableTabs.length > 0 && !(typeof window !== 'undefined' && isAmcEmbedActive()) ? (
                 <div className="df-tabs" role="tablist" data-testid="design-files-tabs">
                   {availableTabs.map((tab) => (
                     <button

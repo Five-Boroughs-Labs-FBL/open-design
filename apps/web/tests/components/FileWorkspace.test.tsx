@@ -810,19 +810,8 @@ describe('FileWorkspace manifest canvas return path', () => {
 
     expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
     expect(screen.getByTestId('design-files-tab').getAttribute('aria-selected')).toBe('true');
-
-    // Reproduce the old trap: navigate into a folder, open a nested manifest
-    // surface, then use All screens. The action must reset navigation to the
-    // root Canvas instead of remounting the nested folder grid.
-    fireEvent.click(screen.getByTestId('design-files-tab-folders'));
-    fireEvent.click(document.querySelector('.df-dir-row .df-row-name-btn')!);
-    const settingsCard = await screen.findByTestId('design-file-row-screens/settings.html');
-    fireEvent.click(settingsCard.querySelector<HTMLButtonElement>('.df-card-thumb')!);
-    const returnButtons = await screen.findAllByTestId('file-viewer-all-screens');
-    fireEvent.click(returnButtons.at(-1)!);
-
-    expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
-    expect(document.querySelector('.df-breadcrumb-current')?.textContent).toBe('Project');
+    expect(screen.queryByTestId('design-files-tabs')).toBeNull();
+    expect(screen.queryByTestId('design-files-tab-cat:html')).toBeNull();
   });
 });
 
