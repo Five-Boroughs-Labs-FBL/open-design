@@ -35,7 +35,7 @@ export function renderDesignGenerationDirective(
     '- Never create, edit, rename, or delete `DESIGN-MANIFEST.json`; the daemon owns manifest state and reconciliation.',
     '- Preserve the exact ids and stable filenames above. The entry surface is always `index.html`; secondary surfaces must never overwrite it.',
     live
-      ? `- The open live primary is the first listed surface (\`${live.id}\` → \`${live.file}\`). Change-turns must re-stream exactly one complete HTML document as \`<artifact identifier="${live.id}" type="text/html">\`. Never Write, Edit, or overwrite that open live file.`
+      ? `- The open live primary is the first listed surface (\`${live.id}\` → \`${live.file}\`). It must be exactly one complete HTML document — no thinking, no markdown fence, no other-screen write-ups. Close \`</artifact>\` before planning or spawning. You may Write a complete primary file; do not keep streaming HTML into it afterwards.`
       : '- The first listed surface is the live-stream surface. Do not substitute a generic artifact or a different filename.',
     '- Remaining claimed surfaces may use filesystem Write/Edit on their exact declared files only.',
     '- Each generated HTML artifact identifier must equal its surface id. Persist only a single HTML document per file.',

@@ -744,6 +744,67 @@ describe('plain stream artifact extraction', () => {
     }
   });
 
+  it('does not persist thinking jammed into the viewport attribute', async () => {
+    const { CLEAN_LOGIN_HTML, REPL_VIEWPORT_THINKING_LEAK_HTML } = await import(
+      '../artifacts/html-document.fixtures.js'
+    );
+    expect(liveHtmlSourceIsBroken(REPL_VIEWPORT_THINKING_LEAK_HTML)).toBe(true);
+    expect(extractLiveHtmlCanvasArtifact(REPL_VIEWPORT_THINKING_LEAK_HTML)).toBeNull();
+
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-repl-leak-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      const leaked = {
+        identifier: 'index',
+        artifactType: 'text/html',
+        title: 'REPL',
+        content: REPL_VIEWPORT_THINKING_LEAK_HTML,
+        extension: '.html' as const,
+        fileName: LIVE_HTML_CANVAS_NAME,
+      };
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: leaked,
+        status: 'complete',
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8')).toBe(CLEAN_LOGIN_HTML);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not overwrite a complete live file with a later thought draft', async () => {
+    const { CLEAN_LOGIN_HTML } = await import('../artifacts/html-document.fixtures.js');
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-keep-complete-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), CLEAN_LOGIN_HTML);
+      const draft = {
+        identifier: 'index',
+        artifactType: 'text/html',
+        title: 'REPL',
+        content: '<!doctype html><html><head><title>Partial',
+        extension: '.html' as const,
+        fileName: LIVE_HTML_CANVAS_NAME,
+      };
+      await persistLiveHtmlCanvas({
+        projectsRoot,
+        projectId: 'project-1',
+        artifact: draft,
+        status: 'streaming',
+        writeProjectFile: writeProjectFile as any,
+      });
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8')).toBe(CLEAN_LOGIN_HTML);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('does not persist the leaked later-turn shape as index.html', async () => {
     const { CLEAN_LOGIN_HTML, LIVE_PRIMARY_LEAK_HTML } = await import(
       '../artifacts/html-document.fixtures.js'

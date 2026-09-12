@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { ProjectFile } from '@open-design/contracts';
 import { createProjectArtifactFile } from '../artifacts/create.js';
 import {
+  isCompleteSingleHtmlDocument,
   isMixedHtmlDocument,
   isSingleHtmlDocument,
   unwrapSingleHtmlArtifactEnvelope,
@@ -411,6 +412,30 @@ export async function persistLiveHtmlCanvas(options: {
       writeProjectFile,
       readProjectFile,
     });
+  }
+  // A complete Write of the live primary must not be overwritten by later
+  // thought-stream drafts (spawn plans jammed into viewport/body).
+  if (!isCompleteSingleHtmlDocument(persistable)) {
+    try {
+      const existing = await readProjectFile(
+        options.projectsRoot,
+        options.projectId,
+        name,
+        options.metadata,
+      );
+      const existingText = existing.buffer.toString('utf8');
+      if (isCompleteSingleHtmlDocument(existingText)) {
+        return {
+          identifier: options.artifact.identifier,
+          artifactType: options.artifact.artifactType,
+          title: options.artifact.title,
+          name,
+          file: existing,
+        };
+      }
+    } catch {
+      // No previous file — streaming drafts may create it.
+    }
   }
   const file = await writeProjectFile(
     options.projectsRoot,

@@ -6,8 +6,9 @@
  * markdown fences, or a nested second document into the same body.
  *
  * Detection is structural — doctype count, a markdown fence that opens a
- * nested document, and `<style>` that contains markup or a fence. It does
- * not match thinking phrases.
+ * nested document, `<style>` that contains markup or a fence, an unclosed
+ * quoted attribute (thinking jammed into viewport meta), and stray prose
+ * text nodes in `<head>`. It does not match thinking phrases.
  */
 
 const DOCTYPE_RE = /<!doctype\s+html\b/gi;
@@ -39,11 +40,18 @@ export function isMixedHtmlDocument(content: string): boolean {
   if (MARKDOWN_HTML_FENCE_RE.test(content) && countHtmlDoctypes(content) >= 1) {
     return true;
   }
+  if (hasUnclosedQuotedAttribute(content)) return true;
+  if (headHasStrayProse(content)) return true;
   return styleContainsMarkupOrFence(content);
 }
 
 export function isSingleHtmlDocument(content: string): boolean {
   return startsLikeHtmlDocument(content) && !isMixedHtmlDocument(content);
+}
+
+/** Closed `</html>` and not mixed. A streaming draft is not this. */
+export function isCompleteSingleHtmlDocument(content: string): boolean {
+  return isSingleHtmlDocument(content) && /<\/html\s*>/i.test(content);
 }
 
 const ARTIFACT_OPEN_RE = /<artifact\s[^>]*>/i;
@@ -67,6 +75,70 @@ export function unwrapSingleHtmlArtifactEnvelope(content: string): string | null
     ? content.slice(afterOpen, closeStart)
     : content.slice(afterOpen)).trim();
   return isSingleHtmlDocument(inner) ? inner : null;
+}
+
+/**
+ * Thinking jammed into an unclosed attribute (the live REPL leak: viewport
+ * `content="width=device-width, initial-scale=1.0 I'll spawn…`). Skip
+ * `<script>` / `<style>` bodies so CSS/JS strings are not HTML attributes.
+ */
+function hasUnclosedQuotedAttribute(content: string): boolean {
+  let i = 0;
+  const n = content.length;
+  while (i < n) {
+    const lt = content.indexOf('<', i);
+    if (lt < 0) return false;
+    if (content.startsWith('<!--', lt)) {
+      const end = content.indexOf('-->', lt + 4);
+      if (end < 0) return false;
+      i = end + 3;
+      continue;
+    }
+    const rest = content.slice(lt);
+    const special = rest.match(/^<(script|style)\b/i);
+    const parsed = readHtmlTag(content, lt);
+    if (parsed.unclosedQuote) return true;
+    if (special) {
+      const close = new RegExp(`</${special[1]}\\s*>`, 'i');
+      const closeRel = content.slice(parsed.nextIndex).search(close);
+      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + special[1].length + 3;
+      continue;
+    }
+    i = parsed.nextIndex;
+  }
+  return false;
+}
+
+function readHtmlTag(content: string, start: number): { nextIndex: number; unclosedQuote: boolean } {
+  let quote: '"' | "'" | null = null;
+  for (let i = start + 1; i < content.length; i += 1) {
+    const ch = content[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '>') return { nextIndex: i + 1, unclosedQuote: false };
+  }
+  return { nextIndex: content.length, unclosedQuote: quote != null };
+}
+
+/**
+ * Direct text nodes in `<head>` (outside title/style/script) are agent
+ * write-ups, not a document. `<title>` copy is stripped first.
+ */
+function headHasStrayProse(content: string): boolean {
+  const match = content.match(/<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|$)/i);
+  if (!match) return false;
+  let inner = match[1];
+  inner = inner.replace(/<!--[\s\S]*?-->/g, '');
+  inner = inner.replace(/<(script|style|title|noscript)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
+  inner = inner.replace(/<[^>]+>/g, ' ');
+  const leftover = inner.replace(/\s+/g, ' ').trim();
+  return /[A-Za-z]{3,}\s+[A-Za-z]{3,}/.test(leftover);
 }
 
 function styleContainsMarkupOrFence(content: string): boolean {
