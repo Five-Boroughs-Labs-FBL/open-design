@@ -35,7 +35,12 @@ html:is([data-amc-embed], [data-acp-embed]) body {
 }
 
 html:is([data-amc-embed], [data-acp-embed]) .df-panel,
-html:is([data-amc-embed], [data-acp-embed]) .df-main,
-html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
+html:is([data-amc-embed], [data-acp-embed]) .df-main {
   background: var(--bg);
+}
+
+/* Pages is already the default tab; Scripts is not a customer control in ACP.
+   Hide the whole files tablist so the canvas/grid is the studio. */
+html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
+  display: none !important;
 }
