@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { PixelScanField, drawStaticLogo } from './pixel-scan/engine';
+
+import { ACP_STUDIO_THEME_EVENT } from '../../acp-brand';
+import {
+  drawStaticLogo,
+  PixelScanField,
+  readHeroWordmarkInk,
+} from './pixel-scan/engine';
 
 interface Props {
   className?: string;
@@ -23,8 +29,9 @@ export function PixelScanLogo({ className, label = 'OpenDesign' }: Props) {
     if (!host || !canvas) return undefined;
 
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      drawStaticLogo(canvas, host);
-      return undefined;
+      const redraw = () => drawStaticLogo(canvas, host, readHeroWordmarkInk());
+      redraw();
+      return watchHeroTheme(redraw);
     }
 
     let disposed = false;
@@ -32,10 +39,14 @@ export function PixelScanLogo({ className, label = 'OpenDesign' }: Props) {
     let ro: ResizeObserver | null = null;
     let frame = 0;
 
+    const applyInk = () => {
+      field?.setInk(readHeroWordmarkInk());
+    };
+
     void import('three')
       .then((THREE) => {
         if (disposed) return;
-        field = new PixelScanField(host, canvas, THREE);
+        field = new PixelScanField(host, canvas, THREE, { ink: readHeroWordmarkInk() });
         field.start();
         ro = new ResizeObserver(() => {
           // Coalesce bursts of resize notifications into one re-measure per frame.
@@ -50,12 +61,15 @@ export function PixelScanLogo({ className, label = 'OpenDesign' }: Props) {
       .catch((err: unknown) => {
         // Surface the underlying failure — the static fallback must not mask it.
         console.error('[pixel-scan] falling back to static logo:', err);
-        if (!disposed) drawStaticLogo(canvas, host);
+        if (!disposed) drawStaticLogo(canvas, host, readHeroWordmarkInk());
       });
+
+    const stopWatchingTheme = watchHeroTheme(applyInk);
 
     return () => {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
+      stopWatchingTheme();
       ro?.disconnect();
       field?.destroy();
     };
@@ -66,4 +80,17 @@ export function PixelScanLogo({ className, label = 'OpenDesign' }: Props) {
       <canvas ref={canvasRef} />
     </div>
   );
+}
+
+function watchHeroTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+  window.addEventListener(ACP_STUDIO_THEME_EVENT, onChange);
+  return () => {
+    observer.disconnect();
+    window.removeEventListener(ACP_STUDIO_THEME_EVENT, onChange);
+  };
 }

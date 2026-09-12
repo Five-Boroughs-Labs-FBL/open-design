@@ -191,6 +191,15 @@ describe('ACP Studio CSS', () => {
       /html\[data-acp-studio\]\[data-theme='light'\] \.acp-studio-lockup__badge \.acp-mark\s*\{[^}]*color:\s*var\(--color-logo,\s*#d7fbff\)/s,
     );
   });
+
+  it('keeps the SSO product name opaque so dark theme cannot drop it after the card animation', () => {
+    const titleEm = /\.acp-sso-card__title em\s*\{([^}]+)\}/.exec(css)?.[1] ?? '';
+    expect(titleEm).toMatch(/color:\s*var\(--brand-text\)/);
+    expect(titleEm).not.toMatch(/transparent/);
+    const cardIn = /@keyframes acp-sso-card-in\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    expect(cardIn).toMatch(/opacity/);
+    expect(cardIn).not.toMatch(/transform:/);
+  });
 });
 
 describe('ACP Studio FOUC script', () => {
