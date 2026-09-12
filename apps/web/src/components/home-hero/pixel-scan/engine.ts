@@ -179,10 +179,27 @@ const TRAIL_MIN_PX = 3;
 const ACCENT: [number, number, number] = [0.529, 0.918, 0.361]; // #87EA5C
 const ACCENT2: [number, number, number] = [0.816, 1.0, 0.71]; // #D0FFB5
 const BASE: [number, number, number] = [0.184, 0.471, 0.114]; // #2F781D
-// The resting artwork: the real logo SVG (paths filled #202020, matching the
-// app's near-black text tone); its alpha channel is the glyph mask the shader
-// samples. Same 1705:291 aspect as the host box.
+// The resting artwork: logo-scan.svg is baked #202020 (light-theme ink). The
+// alpha channel is the glyph mask; rasteriseLogo tints RGB to `ink` so dark
+// theme does not rest as near-black on graphite.
 const LOGO_SRC = '/logo-scan.svg';
+const LIGHT_WORDMARK_INK = '#202020';
+const DARK_WORDMARK_INK = '#fafafa';
+
+/** Resting wordmark color. Prefer `--text-strong`; otherwise theme fallbacks. */
+export function resolveHeroWordmarkInk(
+  theme: string | null,
+  textStrong = '',
+): string {
+  return textStrong.trim() || (theme === 'dark' ? DARK_WORDMARK_INK : LIGHT_WORDMARK_INK);
+}
+
+export function readHeroWordmarkInk(root: HTMLElement = document.documentElement): string {
+  return resolveHeroWordmarkInk(
+    root.getAttribute('data-theme'),
+    getComputedStyle(root).getPropertyValue('--text-strong'),
+  );
+}
 
 let logoImgPromise: Promise<HTMLImageElement> | null = null;
 function loadLogo(): Promise<HTMLImageElement> {
@@ -201,6 +218,7 @@ export type PixelScanFieldOptions = {
   accent?: [number, number, number];
   accent2?: [number, number, number];
   base?: [number, number, number];
+  ink?: string;
 };
 
 export class PixelScanField {
@@ -211,6 +229,7 @@ export class PixelScanField {
   private accent: [number, number, number];
   private accent2: [number, number, number];
   private base: [number, number, number];
+  private ink: string;
 
   private dpr = Math.min(2, window.devicePixelRatio || 1);
   private img: HTMLImageElement | null = null;
@@ -264,6 +283,7 @@ export class PixelScanField {
     this.accent = opts.accent ?? ACCENT;
     this.accent2 = opts.accent2 ?? ACCENT2;
     this.base = opts.base ?? BASE;
+    this.ink = opts.ink ?? readHeroWordmarkInk();
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -339,7 +359,7 @@ export class PixelScanField {
   }
 
   private makeTexture(w: number, h: number): InstanceType<Three['CanvasTexture']> {
-    const src = rasteriseLogo(w, h, this.dpr, this.img);
+    const src = rasteriseLogo(w, h, this.dpr, this.img, this.ink);
     this.wordCanvas = src;
     this.wordCtx = src.getContext('2d', { willReadFrequently: true });
     const tex = new this.THREE.CanvasTexture(src);
@@ -496,6 +516,12 @@ export class PixelScanField {
     this.setSize();
   }
 
+  setInk(ink: string) {
+    if (this.ink === ink) return;
+    this.ink = ink;
+    this.setSize();
+  }
+
   destroy() {
     this.disposed = true;
     this.stop();
@@ -521,6 +547,7 @@ function rasteriseLogo(
   h: number,
   dpr: number,
   img: HTMLImageElement | null,
+  ink: string,
 ): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(w * dpr));
@@ -535,11 +562,19 @@ function rasteriseLogo(
     const dw = img.naturalWidth * s;
     const dh = img.naturalHeight * s;
     ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
   }
   return c;
 }
 
-export function drawStaticLogo(canvas: HTMLCanvasElement, host: HTMLElement) {
+export function drawStaticLogo(
+  canvas: HTMLCanvasElement,
+  host: HTMLElement,
+  ink: string = readHeroWordmarkInk(),
+) {
   void loadLogo()
     .then((img) => {
       const r = host.getBoundingClientRect();
@@ -551,7 +586,7 @@ export function drawStaticLogo(canvas: HTMLCanvasElement, host: HTMLElement) {
       // quietly rather than crashing the fallback path.
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      ctx.drawImage(rasteriseLogo(r.width, r.height, dpr, img), 0, 0);
+      ctx.drawImage(rasteriseLogo(r.width, r.height, dpr, img, ink), 0, 0);
     })
     .catch((err: unknown) => console.error(err));
 }
