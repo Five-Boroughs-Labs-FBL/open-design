@@ -148,6 +148,8 @@ function rawFileFetchCount(fetchMock: ReturnType<typeof vi.fn>): number {
 describe("DesignFilesPanel design manifest", () => {
   afterEach(() => {
     cleanup();
+    delete document.documentElement.dataset.amcEmbed;
+    delete document.documentElement.dataset.acpEmbed;
     vi.unstubAllGlobals();
   });
 
@@ -245,6 +247,69 @@ describe("DesignFilesPanel design manifest", () => {
     fireEvent.click(screen.getByRole("button", { name: /assets/i }));
     expect(screen.queryByTestId("design-surface-canvas-viewport")).toBeNull();
     expect(screen.getByTestId("design-file-row-assets/readme.txt")).toBeTruthy();
+  });
+
+  it("omits Pages/Scripts buttons in ACP embed; Pages canvas stays the default", async () => {
+    document.documentElement.dataset.amcEmbed = "1";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/design-manifest")) {
+        return new Response(JSON.stringify({
+          manifest: {
+            schema: "open-design.design-manifest.v2",
+            revision: 1,
+            projectId: "test-project",
+            entrySurfaceId: "home",
+            scope: {
+              schema: "amc.design-scope.v1",
+              scopeId: "scope-1",
+              revision: 1,
+              intentDigest: "digest",
+            },
+            directionStatus: "locked",
+            surfaces: [
+              {
+                id: "home",
+                title: "Home",
+                purpose: "Primary landing surface",
+                priority: "primary",
+                kind: "screen",
+                file: "index.html",
+                status: "complete",
+                required: true,
+                states: [],
+                formFactors: ["responsive"],
+                latestRunId: "run-1",
+                updatedAt: "2026-08-22T00:00:00.000Z",
+                filePresent: true,
+              },
+            ],
+            coverage: {
+              required: 1,
+              complete: 1,
+              failed: 0,
+              waived: 0,
+              pending: 0,
+              missingSurfaceIds: [],
+              percent: 100,
+              ready: true,
+            },
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response("<!doctype html><html><body>Home</body></html>", { status: 200 });
+    }));
+
+    renderPanel([
+      file({ name: "index.html", kind: "html" }),
+      file({ name: "assets/app.js", kind: "code", mime: "text/javascript" }),
+    ]);
+
+    expect(await screen.findByTestId("design-surface-canvas-viewport")).toBeTruthy();
+    expect(screen.queryByTestId("design-files-tabs")).toBeNull();
+    expect(screen.queryByTestId("design-files-tab-cat:html")).toBeNull();
+    expect(screen.queryByTestId("design-files-tab-cat:code")).toBeNull();
+    expect(tabLabels()).toEqual([]);
   });
 
   it("keeps imported v1 handoff manifests on the ordinary Pages grid", async () => {
