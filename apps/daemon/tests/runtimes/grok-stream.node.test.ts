@@ -16,7 +16,7 @@ test('grok-build streams ACP json, not persist-on-success plain', () => {
   );
   assert.match(def, /streamFormat: 'json-event-stream'/);
   assert.match(def, /eventParser: 'grok'/);
-  assert.match(def, /executionProfile: 'text_artifact'/);
+  assert.match(def, /executionProfile: 'filesystem'/);
   assert.doesNotMatch(def, /streamFormat: 'plain'/);
   const args = buildGrokHeadlessArgs({
     promptFilePath: '/tmp/od-grok-prompt/prompt.md',

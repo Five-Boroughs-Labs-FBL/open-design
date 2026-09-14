@@ -2090,109 +2090,26 @@ test('codex json stream does not downgrade non-reconnect errors that mention rec
   ]);
 });
 
-test('grok thought HTML keeps </artifact> as text_delta after a split </html>', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\"><html><body>"}\n' +
-    '{"type":"thought","data":"<h1>HUD</h1>"}\n' +
-    '{"type":"thought","data":"</body></html>"}\n' +
-    '{"type":"thought","data":"</artifact>"}\n' +
-    '{"type":"text","data":"Done"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['text_delta', 'text_delta', 'text_delta', 'text_delta', 'text_delta'],
-  );
-  const html = events
-    .filter((event) => event.type === 'text_delta')
-    .map((event) => String(event.delta ?? ''))
-    .join('');
-  assert.match(html, /<\/html><\/artifact>Done$/);
-});
-
-test('grok thought that only mentions <style> does not latch HTML mode', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"I should add a <style> block for the hero"}\n' +
-    '{"type":"thought","data":"then check the palette"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['thinking_delta', 'thinking_delta'],
-  );
-});
-
-test('grok bare-doctype thought does not latch spawn-plan English into the canvas', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"<!doctype html><html><head><meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0"}\n' +
-    '{"type":"thought","data":"I\'ll spawn a sub-agent for dashboard.html and write login next"}\n' +
-    '{"type":"thought","data":"Pack ~Price Notes for the other screens"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['text_delta', 'thinking_delta', 'thinking_delta'],
-  );
-  const html = events
-    .filter((event) => event.type === 'text_delta')
-    .map((event) => String(event.delta ?? ''))
-    .join('');
-  assert.match(html, /<!doctype html>/i);
-  assert.doesNotMatch(html, /I'll spawn a sub-agent/);
-  assert.doesNotMatch(html, /Pack ~Price Notes/);
-});
-
-test('grok Write tool closes thought HTML mode so later spawn plans stay thinking', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"<!doctype html><html><body>"}\n' +
-    '{"type":"tool_call","toolCallId":"w1","toolName":"Write","input":{"path":"index.html"}}\n' +
-    '{"type":"thought","data":"I\'ll spawn a sub-agent for dashboard.html"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['text_delta', 'tool_use', 'thinking_delta'],
-  );
-});
-
-test('grok thought HTML stays text_delta across tag-free chunks until </html>', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\"><html><body>"}\n' +
-    '{"type":"thought","data":".hero{color:red}"}\n' +
-    '{"type":"thought","data":"Visible HUD"}\n' +
-    '{"type":"thought","data":"</body></html></artifact>"}\n' +
-    '{"type":"thought","data":"next I will write DESIGN.md"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['text_delta', 'text_delta', 'text_delta', 'text_delta', 'thinking_delta'],
-  );
-  const html = events
-    .filter((event) => event.type === 'text_delta')
-    .map((event) => String(event.delta ?? ''))
-    .join('');
-  assert.match(html, /\.hero\{color:red\}/);
-  assert.match(html, /Visible HUD/);
-});
-
-test('grok thought HTML paints as text_delta so the canvas can stream', () => {
-  const { events, handler } = collectEvents('grok');
-  handler.feed(
-    '{"type":"thought","data":"I will sketch the HUD"}\n' +
-    '{"type":"thought","data":"<!doctype html><html><body><h1>HUD</h1>"}\n' +
-    '{"type":"thought","data":"<artifact identifier=\\"index\\" type=\\"text/html\\">"}\n',
-  );
-  assert.deepEqual(
-    events.map((event) => event.type),
-    ['thinking_delta', 'text_delta', 'text_delta'],
-  );
-  const html = events
-    .filter((event) => event.type === 'text_delta')
-    .map((event) => String(event.delta ?? ''))
-    .join('');
-  assert.match(html, /<!doctype html>/i);
-  assert.match(html, /<artifact identifier="index"/);
+test('grok reasoning never enters artifact text, even with HTML and open wrappers', () => {
+  for (const kind of ['grok', 'grok-build']) {
+    const { events, handler } = collectEvents(kind);
+    const thoughts = [
+      '<artifact identifier="index" type="text/html"><html><head>',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0',
+      "I'll spawn a sub-agent for dashboard.html",
+      '</head><body>Reasoning with <b>markup</b></body></html></artifact>',
+      '<!doctype html><html><body>Complete thought document</body></html>',
+    ];
+    const output = '<artifact identifier="index" type="text/html"><!doctype html><html><body>Actual design</body></html></artifact>';
+    const frames = thoughts.map((data, i) => ({ type: i % 2 ? 'thinking' : 'thought', data }));
+    frames.push({ type: 'text', data: output });
+    const wire = frames.map((frame) => JSON.stringify(frame)).join('\n') + '\n';
+    // Transport chunk boundaries cannot change channel ownership.
+    for (let i = 0; i < wire.length; i += 13) handler.feed(wire.slice(i, i + 13));
+    handler.flush();
+    assert.deepEqual(events.filter((event) => event.type === 'thinking_delta').map((event) => event.delta), thoughts);
+    assert.deepEqual(events.filter((event) => event.type === 'text_delta').map((event) => event.delta), [output]);
+  }
 });
 
 test('grok streaming-json maps thought/text to deltas before the end event', () => {

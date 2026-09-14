@@ -98,10 +98,11 @@ function hasUnclosedQuotedAttribute(content: string): boolean {
     const special = rest.match(/^<(script|style)\b/i);
     const parsed = readHtmlTag(content, lt);
     if (parsed.unclosedQuote) return true;
-    if (special) {
-      const close = new RegExp(`</${special[1]}\\s*>`, 'i');
+    const tagName = special?.[1];
+    if (tagName) {
+      const close = new RegExp(`</${tagName}\\s*>`, 'i');
       const closeRel = content.slice(parsed.nextIndex).search(close);
-      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + special[1].length + 3;
+      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + tagName.length + 3;
       continue;
     }
     i = parsed.nextIndex;
@@ -133,7 +134,7 @@ function readHtmlTag(content: string, start: number): { nextIndex: number; unclo
 function headHasStrayProse(content: string): boolean {
   const match = content.match(/<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|$)/i);
   if (!match) return false;
-  let inner = match[1];
+  let inner = match[1] ?? '';
   inner = inner.replace(/<!--[\s\S]*?-->/g, '');
   inner = inner.replace(/<(script|style|title|noscript)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
   inner = inner.replace(/<[^>]+>/g, ' ');

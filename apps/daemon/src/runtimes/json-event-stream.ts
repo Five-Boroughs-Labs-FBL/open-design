@@ -27,9 +27,6 @@ type ParserState = {
   suppressDuplicateArtifactText: boolean;
   artifactOpenCandidate: string;
   pendingArtifactText: string;
-  /** Once a Grok thought chunk looks like HTML, keep mapping thought → text_delta until the matching closer. */
-  grokThoughtHtmlOpen: boolean;
-  grokThoughtOpenedArtifact: boolean;
 };
 
 type Usage = {
@@ -1337,20 +1334,6 @@ function grokPayloadText(obj: JsonObject): string | null {
   return null;
 }
 
-/** Grok often dumps the HTML mock in `thought`. Paint that as visible text so the canvas streams. */
-function grokThoughtLooksLikeHtml(delta: string): boolean {
-  return /<artifact\b|<!doctype\s+html|<html[\s>]/i.test(delta);
-}
-
-function grokThoughtOpensArtifact(delta: string): boolean {
-  return /<artifact\b/i.test(delta);
-}
-
-function grokThoughtClosesHtmlMode(delta: string, openedArtifact: boolean): boolean {
-  if (openedArtifact) return /<\/artifact>/i.test(delta);
-  return /<\/html>/i.test(delta);
-}
-
 function grokUsageFrom(value: unknown): Usage | null {
   if (!isRecord(value)) return null;
   const usage: Usage = {};
@@ -1376,13 +1359,12 @@ function grokUsageFrom(value: unknown): Usage | null {
  *   {type:"usage", usage:{...}}
  *   {type:"end", sessionId, stopReason, usage}
  *   {type:"available_commands", tools:[...]}  — ignore
- * Maps into the same UI events Claude's stream handler emits so
- * `<artifact>` HTML paints via the web artifact parser before process exit.
+ * Keep text and reasoning in their provider-declared channels for live chat.
+ * Design delivery is owned by filesystem writes, not by this transport.
  */
 export function handleGrokEvent(
   obj: unknown,
   onEvent: StreamEventHandler,
-  state?: ParserState,
 ): boolean {
   if (!isRecord(obj) || typeof obj.type !== 'string') return false;
   const type = obj.type;
@@ -1397,36 +1379,8 @@ export function handleGrokEvent(
 
   if (type === 'thought' || type === 'thinking') {
     const delta = grokPayloadText(obj);
-    if (delta) {
-      const looksLikeHtml = grokThoughtLooksLikeHtml(delta);
-      let asText = looksLikeHtml;
-      if (state) {
-        if (looksLikeHtml && grokThoughtOpensArtifact(delta)) {
-          state.grokThoughtOpenedArtifact = true;
-        }
-        const sticky = state.grokThoughtHtmlOpen;
-        const hasMarkup = /<[a-z!\/]/i.test(delta);
-        const tagFree = !looksLikeHtml && !hasMarkup;
-        // Tag-free thought is live body text only inside an open <artifact>.
-        // Bare doctype/html without a wrapper must not latch English reasoning
-        // (spawn plans, other-screen write-ups) into the live primary file.
-        asText = looksLikeHtml
-          || (sticky && (!tagFree || state.grokThoughtOpenedArtifact));
-        if (asText) state.grokThoughtHtmlOpen = true;
-        else {
-          state.grokThoughtHtmlOpen = false;
-          state.grokThoughtOpenedArtifact = false;
-        }
-        if (asText && grokThoughtClosesHtmlMode(delta, Boolean(state.grokThoughtOpenedArtifact))) {
-          state.grokThoughtHtmlOpen = false;
-          state.grokThoughtOpenedArtifact = false;
-        }
-      }
-      onEvent({
-        type: asText ? 'text_delta' : 'thinking_delta',
-        delta,
-      });
-    }
+    // Preserve the provider channel: reasoning is never authored file content.
+    if (delta) onEvent({ type: 'thinking_delta', delta });
     return true;
   }
 
@@ -1437,10 +1391,6 @@ export function handleGrokEvent(
   }
 
   if (type === 'end') {
-    if (state) {
-      state.grokThoughtHtmlOpen = false;
-      state.grokThoughtOpenedArtifact = false;
-    }
     const sessionId = typeof obj.sessionId === 'string' && obj.sessionId
       ? obj.sessionId
       : typeof obj.session_id === 'string' && obj.session_id
@@ -1480,12 +1430,6 @@ export function handleGrokEvent(
       : isRecord(obj.input)
         ? obj.input
         : obj.arguments ?? {};
-    // Write/Edit of the live primary is authoritative. Stop remapping later
-    // thought (spawn plans) into the canvas stream.
-    if (state) {
-      state.grokThoughtHtmlOpen = false;
-      state.grokThoughtOpenedArtifact = false;
-    }
     onEvent({
       type: 'tool_use',
       id,
@@ -1541,8 +1485,6 @@ function createParserState(): ParserState {
     suppressDuplicateArtifactText: false,
     artifactOpenCandidate: '',
     pendingArtifactText: '',
-    grokThoughtHtmlOpen: false,
-    grokThoughtOpenedArtifact: false,
   };
 }
 
@@ -1603,7 +1545,7 @@ export function createJsonEventStreamHandler(
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
-    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent, state)) return;
+    if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent)) return;
 
     onEvent({ type: 'raw', line });
   }

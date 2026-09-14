@@ -35,7 +35,6 @@ import {
   PLATFORM_CONTRACTS_BLOCK,
   PROMPT_INJECTION_RESISTANCE,
   renderSlimCoreCharter,
-  textArtifactAllowsFilesystemTools,
   SLIM_V2_ROLE_BOUNDARY_GUARD,
 } from './core-slim.js';
 import { renderDirectionIndexBlock, renderDirectionSpecBlock } from './directions.js';
@@ -1160,12 +1159,7 @@ export function composeSystemPrompt({
       // tools to dereference the index, so they keep the full inline library
       // like classic; anything less tells them to bind palettes they cannot
       // fetch. Classic keeps the inline full library everywhere.
-      const canPullDirections = resolvedExecutionProfile !== 'text_artifact'
-        || textArtifactAllowsFilesystemTools({
-          executionProfile: resolvedExecutionProfile,
-          streamFormat,
-          claimedDesignSurfaceCount,
-        });
+      const canPullDirections = resolvedExecutionProfile !== 'text_artifact';
       parts.push(
         isSlimCore && canPullDirections
           ? renderDirectionIndexBlock()
