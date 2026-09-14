@@ -55,6 +55,70 @@ afterEach(() => {
 });
 
 describe('DesignSurfaceCanvas', () => {
+  it.each(['Canvas', 'Grid'])('previews arriving files in %s before the claim finishes', async (view) => {
+    const onOpenSurface = vi.fn();
+    const pending: DesignSurfaceCanvasItem[] = [
+      { id: 'home', title: 'Home', status: 'generating' },
+      { id: 'search', title: 'Search', status: 'generating' },
+    ];
+    const { container, rerender } = render(
+      <DesignSurfaceCanvas projectId="progressive" surfaces={pending} onOpenSurface={onOpenSurface} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: view }));
+    expect(container.querySelector('iframe')).toBeNull();
+
+    const landed = { ...pending[0]!, file: htmlFile('index.html') };
+    rerender(
+      <DesignSurfaceCanvas projectId="progressive" surfaces={[landed, pending[1]!]} onOpenSurface={onOpenSurface} />,
+    );
+    const home = screen.getByRole('button', { name: 'Open Home' });
+    await waitFor(() => expect(home.querySelector('iframe')).not.toBeNull());
+    expect(home.dataset.status).toBe('generating');
+    expect(home.textContent).toContain('Generating');
+    expect(home.textContent).not.toContain('Ready');
+    expect(home.querySelector('iframe')!.getAttribute('sandbox')).toBe('');
+    expect(screen.getByRole('button', { name: 'Open Search' }).querySelector('iframe')).toBeNull();
+    fireEvent.doubleClick(home);
+    expect(onOpenSurface).toHaveBeenLastCalledWith(landed);
+
+    // Final reconciliation changes the badge, not preview availability.
+    rerender(
+      <DesignSurfaceCanvas projectId="progressive" surfaces={[
+        { ...landed, status: 'ready' }, { ...pending[1]!, status: 'failed' },
+      ]} onOpenSurface={onOpenSurface} />,
+    );
+    expect(home.dataset.status).toBe('ready');
+    expect(home.querySelector('iframe')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Open Search' }).dataset.status).toBe('failed');
+  });
+
+  it('keeps a generating placeholder while an available HTML thumbnail is loading', async () => {
+    let release!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { release = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<DesignSurfaceCanvas projectId="loading-preview" surfaces={[
+      { id: 'home', title: 'Home', status: 'generating', file: htmlFile('loading.html') },
+    ]} onOpenSurface={vi.fn()} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const home = screen.getByRole('button', { name: 'Open Home' });
+    expect(home.textContent).toContain('Generating');
+    expect(home.textContent).not.toContain('Ready');
+    await act(async () => { release(new Response('', { status: 404 })); });
+    expect(home.querySelector('iframe')).toBeNull();
+    expect(home.textContent).not.toContain('Ready');
+  });
+
+  it('does not preview non-HTML files or files on failed, queued, or waived surfaces', () => {
+    const { container } = render(<DesignSurfaceCanvas projectId="no-preview" surfaces={[
+      { id: 'text', title: 'Text', status: 'generating', file: { ...htmlFile('notes.txt'), kind: 'text' } },
+      ...(['failed', 'queued', 'waived'] as const).map((status) => ({
+        id: status, title: status, status, file: htmlFile(`${status}.html`),
+      })),
+    ]} onOpenSurface={vi.fn()} />);
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('keeps manifest order and renders explicit progressive states', () => {
     const { container } = render(
       <DesignSurfaceCanvas
