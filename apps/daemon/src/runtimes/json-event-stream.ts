@@ -1399,13 +1399,24 @@ export function handleGrokEvent(
     const delta = grokPayloadText(obj);
     if (delta) {
       const looksLikeHtml = grokThoughtLooksLikeHtml(delta);
-      const sticky = Boolean(state?.grokThoughtHtmlOpen);
-      const asText = looksLikeHtml || sticky;
+      let asText = looksLikeHtml;
       if (state) {
         if (looksLikeHtml && grokThoughtOpensArtifact(delta)) {
           state.grokThoughtOpenedArtifact = true;
         }
+        const sticky = state.grokThoughtHtmlOpen;
+        const hasMarkup = /<[a-z!\/]/i.test(delta);
+        const tagFree = !looksLikeHtml && !hasMarkup;
+        // Tag-free thought is live body text only inside an open <artifact>.
+        // Bare doctype/html without a wrapper must not latch English reasoning
+        // (spawn plans, other-screen write-ups) into the live primary file.
+        asText = looksLikeHtml
+          || (sticky && (!tagFree || state.grokThoughtOpenedArtifact));
         if (asText) state.grokThoughtHtmlOpen = true;
+        else {
+          state.grokThoughtHtmlOpen = false;
+          state.grokThoughtOpenedArtifact = false;
+        }
         if (asText && grokThoughtClosesHtmlMode(delta, Boolean(state.grokThoughtOpenedArtifact))) {
           state.grokThoughtHtmlOpen = false;
           state.grokThoughtOpenedArtifact = false;
@@ -1469,6 +1480,12 @@ export function handleGrokEvent(
       : isRecord(obj.input)
         ? obj.input
         : obj.arguments ?? {};
+    // Write/Edit of the live primary is authoritative. Stop remapping later
+    // thought (spawn plans) into the canvas stream.
+    if (state) {
+      state.grokThoughtHtmlOpen = false;
+      state.grokThoughtOpenedArtifact = false;
+    }
     onEvent({
       type: 'tool_use',
       id,

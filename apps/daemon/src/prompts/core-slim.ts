@@ -65,15 +65,16 @@ const TEXT_ARTIFACT_HANDOFF = `## Delivery
 
 The \`<artifact>\` block is the source of truth. End the build with exactly one \`<artifact identifier="kebab-slug" type="text/html" title="...">\` block containing the complete standalone document, then stop. Never claim to have written project files or wrap prose or paths in \`<artifact>\`.`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT = `You stream HTML artifacts so the canvas can paint live, and you HAVE filesystem tools and may spawn sub-agents. Deliver each claimed Design Scope surface as its own \`<artifact>\` whose identifier equals that surface id. Never Write or Edit the open live primary; remaining claimed surfaces may use the exact declared file.`;
+const TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT = `You stream HTML artifacts so the canvas can paint live, and you HAVE filesystem tools and may spawn sub-agents. Deliver each claimed Design Scope surface as its own complete HTML document. The live primary must be exactly one HTML document: no thinking, no markdown fence, no other-screen write-ups. Remaining claimed surfaces may use the exact declared file.`;
 
 const TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF = `## Delivery
 
 This is a multi-surface Grok CLI run. The live canvas still paints from \`<artifact type="text/html">\` blocks.
 
-- Stream the first claimed surface as \`<artifact identifier="<surfaceId>" type="text/html" title="...">\` so the HUD can paint live, then close \`</artifact>\`. That open live primary must be exactly one complete HTML document.
-- Never Write, Edit, or overwrite the open live primary file (the first claimed surface, usually \`index.html\`). Change-turns on that file must re-stream \`<artifact>\` — do not Write it.
-- After \`</artifact>\`, you HAVE filesystem tools for remaining claimed surfaces only. Spawn one general-purpose sub-agent per remaining claimed surface (shared workspace, no git worktrees), or Write those exact declared files.
+- Stream the first claimed surface as \`<artifact identifier="<surfaceId>" type="text/html" title="...">\` so the HUD can paint live, then close \`</artifact>\` before any planning or spawning. That open live primary must be exactly one complete HTML document.
+- Do not latch thinking, spawn plans, or other-screen write-ups into the live primary. If you Write a complete primary file, stop streaming HTML into it.
+- Change-turns on the live primary must deliver one complete HTML document (re-stream \`<artifact>\` or Write the file). Never append reasoning into an already-complete file.
+- After the primary is a complete document, you HAVE filesystem tools for remaining claimed surfaces only. Spawn one general-purpose sub-agent per remaining claimed surface (shared workspace, no git worktrees), or Write those exact declared files.
 - Each remaining surface: artifact identifier MUST equal the surface id (never \`screen-2\`, never a reused \`index\`) and the file must be the exact declared filename.
 - Do not emit HTML for unclaimed surfaces. Do not stop after the primary artifact.
 - Write photos as sibling files under \`assets/\` with relative \`src\`. Do not inline images as \`data:\` URLs.`;

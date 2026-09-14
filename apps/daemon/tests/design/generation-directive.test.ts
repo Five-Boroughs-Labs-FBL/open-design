@@ -46,7 +46,7 @@ function manifest(files: Array<{ id: string; file: string }>): DesignManifestV2 
 }
 
 describe('renderDesignGenerationDirective', () => {
-  it('forbids Write of the open live primary and requires a re-streamed artifact', () => {
+  it('requires a complete live primary and forbids thinking in that file', () => {
     const text = renderDesignGenerationDirective(
       manifest([
         { id: 'login', file: 'index.html' },
@@ -54,9 +54,9 @@ describe('renderDesignGenerationDirective', () => {
       ]),
       { surfaceIds: ['login'], manifestRevision: 2 },
     );
-    expect(text).toContain('Never Write, Edit, or overwrite that open live file');
-    expect(text).toContain('re-stream exactly one complete HTML document');
-    expect(text).toContain('<artifact identifier="login" type="text/html">');
+    expect(text).toContain('exactly one complete HTML document');
+    expect(text).toContain('no thinking, no markdown fence, no other-screen write-ups');
+    expect(text).toContain('Close `</artifact>` before planning or spawning');
     expect(text).not.toContain('or write it directly to its exact declared file');
   });
 });

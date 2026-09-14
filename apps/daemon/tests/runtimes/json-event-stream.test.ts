@@ -2122,6 +2122,39 @@ test('grok thought that only mentions <style> does not latch HTML mode', () => {
   );
 });
 
+test('grok bare-doctype thought does not latch spawn-plan English into the canvas', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"<!doctype html><html><head><meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0"}\n' +
+    '{"type":"thought","data":"I\'ll spawn a sub-agent for dashboard.html and write login next"}\n' +
+    '{"type":"thought","data":"Pack ~Price Notes for the other screens"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['text_delta', 'thinking_delta', 'thinking_delta'],
+  );
+  const html = events
+    .filter((event) => event.type === 'text_delta')
+    .map((event) => String(event.delta ?? ''))
+    .join('');
+  assert.match(html, /<!doctype html>/i);
+  assert.doesNotMatch(html, /I'll spawn a sub-agent/);
+  assert.doesNotMatch(html, /Pack ~Price Notes/);
+});
+
+test('grok Write tool closes thought HTML mode so later spawn plans stay thinking', () => {
+  const { events, handler } = collectEvents('grok');
+  handler.feed(
+    '{"type":"thought","data":"<!doctype html><html><body>"}\n' +
+    '{"type":"tool_call","toolCallId":"w1","toolName":"Write","input":{"path":"index.html"}}\n' +
+    '{"type":"thought","data":"I\'ll spawn a sub-agent for dashboard.html"}\n',
+  );
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['text_delta', 'tool_use', 'thinking_delta'],
+  );
+});
+
 test('grok thought HTML stays text_delta across tag-free chunks until </html>', () => {
   const { events, handler } = collectEvents('grok');
   handler.feed(
