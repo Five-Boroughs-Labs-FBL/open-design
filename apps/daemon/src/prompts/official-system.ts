@@ -162,14 +162,6 @@ Rules:
 - Do not wrap summaries, prose, paths, or fake tool output inside \`<artifact>\`.
 - After \`</artifact>\`, stop. Do not narrate a filesystem write or invent tool calls.`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT = `You stream HTML artifacts so the canvas can paint live, and you HAVE filesystem tools and may spawn sub-agents. Deliver each claimed Design Scope surface as its own complete HTML document. The live primary must be exactly one HTML document: no thinking, no markdown fence, no other-screen write-ups. Remaining claimed surfaces may use the exact declared file.`;
-
-const TEXT_ARTIFACT_MULTI_SURFACE_WORKFLOW_HANDOFF = `4. **Build the primary artifact.** Stream one complete HTML document for the first claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`, then close \`</artifact>\` before planning or spawning. Do not put thinking or other-screen write-ups in that file. You may Write a complete primary file; stop streaming HTML into it afterwards.
-5. **Cover the rest.** After the primary is a complete document you HAVE filesystem tools for remaining claimed surfaces only. Spawn one general-purpose sub-agent per remaining claimed surface, or Write those exact declared files. Each artifact identifier MUST equal its surface id. Do not emit unclaimed HTML. Do not stop after the primary screen.
-
-## Text-artifact handoff
-Grok CLI live-paints from \`<artifact type="text/html">\` blocks. The live primary must stay one complete HTML document. Remaining claimed surfaces may use filesystem Write on their exact declared files. Identifier = surface id. Extra unclaimed HTML is forbidden.`;
-
 // The default IP guardrail bullet under "What you don't do". Website Clone
 // runs swap it out (see `renderOfficialDesignerPrompt` options): faithfully
 // reproducing an existing site is that scenario's entire job, so the blanket
@@ -196,19 +188,12 @@ export function renderOfficialDesignerPrompt(
   executionProfile: ExecutionProfile = 'filesystem',
   options: RenderOfficialDesignerPromptOptions = {},
 ): string {
-  const multiSurfaceCli = executionProfile === 'text_artifact'
-    && options.streamFormat === 'json-event-stream'
-    && (options.claimedDesignSurfaceCount ?? 0) > 1;
-  const executionContext = multiSurfaceCli
-    ? TEXT_ARTIFACT_MULTI_SURFACE_EXECUTION_CONTEXT
-    : executionProfile === 'text_artifact'
-      ? TEXT_ARTIFACT_EXECUTION_CONTEXT
-      : FILESYSTEM_EXECUTION_CONTEXT;
-  const workflowHandoff = multiSurfaceCli
-    ? TEXT_ARTIFACT_MULTI_SURFACE_WORKFLOW_HANDOFF
-    : executionProfile === 'text_artifact'
-      ? TEXT_ARTIFACT_WORKFLOW_HANDOFF
-      : FILESYSTEM_WORKFLOW_HANDOFF;
+  const executionContext = executionProfile === 'text_artifact'
+    ? TEXT_ARTIFACT_EXECUTION_CONTEXT
+    : FILESYSTEM_EXECUTION_CONTEXT;
+  const workflowHandoff = executionProfile === 'text_artifact'
+    ? TEXT_ARTIFACT_WORKFLOW_HANDOFF
+    : FILESYSTEM_WORKFLOW_HANDOFF;
   const rendered = OFFICIAL_DESIGNER_PROMPT
     .replace(EXECUTION_CONTEXT_PLACEHOLDER, executionContext)
     .replace(WORKFLOW_HANDOFF_PLACEHOLDER, workflowHandoff);
