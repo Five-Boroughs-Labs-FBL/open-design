@@ -104,13 +104,13 @@ function hasUnclosedQuotedAttribute(content: string): boolean {
       continue;
     }
     const rest = content.slice(lt);
-    const special = rest.match(/^<(script|style)\b/i);
+    const specialTag = rest.match(/^<(script|style)\b/i)?.[1];
     const parsed = readHtmlTag(content, lt);
     if (parsed.unclosedQuote) return true;
-    if (special) {
-      const close = new RegExp(`</${special[1]}\\s*>`, 'i');
+    if (specialTag) {
+      const close = new RegExp(`</${specialTag}\\s*>`, 'i');
       const closeRel = content.slice(parsed.nextIndex).search(close);
-      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + special[1].length + 3;
+      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + specialTag.length + 3;
       continue;
     }
     i = parsed.nextIndex;
