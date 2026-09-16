@@ -165,5 +165,6 @@ describe('attachAmcRunCredentials', () => {
 describe('supportedAmcCredentialFamilies', () => {
   it('reports what this build accepts', () => {
     expect(supportedAmcCredentialFamilies()).toContain('cursor');
+    expect(supportedAmcCredentialFamilies()).toContain('muse');
   });
 });

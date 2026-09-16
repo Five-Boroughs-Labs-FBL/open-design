@@ -89,12 +89,20 @@ RUN apk add --no-cache tini poppler-utils bash git curl && \
     addgroup -S -g 1001 open-design && \
     adduser -S -D -H -u 1001 -G open-design open-design
 
-# Same Grok CLI AMC planner/builder uses (static-pie linux-x86_64).
+# Same Grok + Muse CLIs AMC planner/builder/Design use (static linux-x86_64).
 ARG GROK_VERSION=1.0.4
+ARG MUSE_VERSION=1.3.0-R3057.1
+ARG MUSE_SHA256=5187dfc9e5b460999acb5c2326b09190d307e3fe09127490eb5de39a8b200309
+ENV MUSE_NO_AUTO_UPDATE=1
 RUN curl -fsSL -o /usr/local/bin/grok \
       "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${GROK_VERSION}-linux-x86_64" && \
     chmod 0755 /usr/local/bin/grok && \
     /usr/local/bin/grok --version && \
+    curl -fsSL -o /usr/local/bin/muse \
+      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=${MUSE_VERSION}&file=muse-x86-linux" && \
+    echo "${MUSE_SHA256}  /usr/local/bin/muse" | sha256sum -c - && \
+    chmod 0755 /usr/local/bin/muse && \
+    /usr/local/bin/muse --version && \
     apk del curl
 
 WORKDIR /app

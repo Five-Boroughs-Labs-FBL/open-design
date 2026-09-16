@@ -1371,6 +1371,73 @@ function grokUsageFrom(value: unknown): Usage | null {
 }
 
 /**
+ * Muse Code `exec --json` envelope:
+ *   { stream: { kind, id }, payload_type, payload }
+ * Text lives on `run.output.delta` and `run.terminal.completed`.
+ * Session id is `stream.kind === "session"` → `stream.id`.
+ * Design delivery is filesystem / text_artifact, not this transport.
+ */
+export function handleMuseEvent(
+  obj: unknown,
+  onEvent: StreamEventHandler,
+): boolean {
+  if (!isRecord(obj)) return false;
+  const payloadType = typeof obj.payload_type === 'string' ? obj.payload_type : '';
+  if (!payloadType && obj.type !== undefined) return false;
+
+  const stream = isRecord(obj.stream) ? obj.stream : null;
+  const sessionId =
+    stream && stream.kind === 'session' && typeof stream.id === 'string' && stream.id
+      ? stream.id
+      : null;
+  if (
+    sessionId
+    && (payloadType === 'run.model.configured'
+      || payloadType === 'run.output.delta'
+      || payloadType === 'run.terminal.completed')
+  ) {
+    onEvent({ type: 'status', label: 'session', sessionId });
+  }
+
+  const payload = isRecord(obj.payload) ? obj.payload : null;
+  const payloadText =
+    payload && typeof payload.text === 'string' ? payload.text : '';
+
+  if (payloadType === 'run.output.delta') {
+    if (payloadText) onEvent({ type: 'text_delta', delta: payloadText });
+    return true;
+  }
+  if (payloadType === 'run.terminal.completed') {
+    if (payloadText) onEvent({ type: 'text_delta', delta: payloadText });
+    onEvent({ type: 'status', label: 'complete', sessionId });
+    return true;
+  }
+  if (payloadType === 'run.model.configured') {
+    return true;
+  }
+  if (/error|fail|rejected/i.test(payloadType)) {
+    const nested = payload && isRecord(payload.error) ? payload.error : null;
+    const message =
+      (payload && typeof payload.message === 'string' && payload.message.trim())
+      || (payload && typeof payload.error === 'string' && payload.error.trim())
+      || (nested && typeof nested.message === 'string' && nested.message.trim())
+      || payloadText.trim()
+      || 'Muse stream error';
+    onEvent({ type: 'error', message });
+    return true;
+  }
+  if (
+    payloadType.startsWith('run.')
+    || payloadType.startsWith('tool.')
+    || payloadType.startsWith('task.')
+    || payloadType.startsWith('turn.')
+  ) {
+    return true;
+  }
+  return Boolean(payloadType || sessionId);
+}
+
+/**
  * Grok CLI `--output-format streaming-json` (1.0.4 / 1.0.5):
  *   {type:"thought"|"text", data:"..."}
  *   {type:"usage", usage:{...}}
@@ -1586,6 +1653,7 @@ export function createJsonEventStreamHandler(
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
+    if (kind === 'muse' && handleMuseEvent(obj, onEvent)) return;
     if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent, state)) return;
 
     onEvent({ type: 'raw', line });
