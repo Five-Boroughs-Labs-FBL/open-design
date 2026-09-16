@@ -85,9 +85,17 @@ COPY plugins/_official ./plugins/_official
 
 FROM ${RUNTIME_IMAGE}
 
-RUN apk add --no-cache tini poppler-utils bash git curl && \
+# libc6-compat (gcompat) is required: the pinned Cursor Agent ships a glibc
+# Node (`PT_INTERP /lib64/ld-linux-x86-64.so.2`) plus `*-linux-x64-gnu.node`
+# addons. Without it, `cursor-agent --version` dies with "not found" on Alpine
+# musl — the same class of failure Dockerfile.local already documents for
+# host-mounted CLIs. bash is required because the Cursor launcher is a
+# `#!/usr/bin/env bash` wrapper around the bundled Node.
+RUN apk add --no-cache tini poppler-utils bash git curl libc6-compat && \
     addgroup -S -g 1001 open-design && \
-    adduser -S -D -H -u 1001 -G open-design open-design
+    adduser -S -D -H -u 1001 -G open-design open-design && \
+    mkdir -p /home/open-design && \
+    chown open-design:open-design /home/open-design
 
 # Same Grok CLI AMC planner/builder uses (static-pie linux-x86_64).
 ARG GROK_VERSION=1.0.4
@@ -140,6 +148,7 @@ RUN mkdir -p /app/.od && \
 
 ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=192
+ENV HOME=/home/open-design
 ENV OD_BIND_HOST=0.0.0.0
 ENV OD_PORT=7456
 ENV OD_DATA_DIR=/app/.od
