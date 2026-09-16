@@ -54,10 +54,11 @@ describe("deploy/Dockerfile content directories", () => {
     const content = await readFile(dockerfile, "utf8");
     const { runtime } = stageSections(content);
 
-    expect(content).toContain("FROM debian:bookworm-slim AS cursor-glibc");
+    expect(content).toMatch(/ARG RUNTIME_IMAGE=.*node:24-bookworm-slim/);
     expect(runtime).toContain("ARG CURSOR_AGENT_VERSION=");
-    expect(runtime).toContain("COPY --from=cursor-glibc /glibc-root/lib /lib");
-    expect(runtime).not.toMatch(/apk add[^\n]*libc6-compat/);
+    expect(runtime).toContain("apt-get install");
+    expect(runtime).not.toContain("apk add");
+    expect(runtime).not.toContain("cursor-glibc");
     expect(runtime).toContain("downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${cursor_arch}/agent-cli-package.tar.gz");
     expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent");
     expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent");

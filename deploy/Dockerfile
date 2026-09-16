@@ -1,5 +1,5 @@
-ARG NODE_IMAGE=docker.io/library/node:24-alpine
-ARG RUNTIME_IMAGE=docker.io/library/node:24-alpine
+ARG NODE_IMAGE=docker.io/library/node:24-bookworm-slim
+ARG RUNTIME_IMAGE=docker.io/library/node:24-bookworm-slim
 
 FROM ${NODE_IMAGE} AS build
 
@@ -18,7 +18,9 @@ ENV no_proxy=${no_proxy}
 ENV NO_PROXY=${NO_PROXY}
 ENV CI=true
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -83,46 +85,33 @@ COPY assets ./assets
 COPY data ./data
 COPY plugins/_official ./plugins/_official
 
-# Cursor Agent ships a glibc Node (`PT_INTERP /lib64/ld-linux-x86-64.so.2`)
-# and `*-linux-x64-gnu.node` addons. Alpine's gcompat is not enough: Railway
-# failed `cursor-agent --version` with `fcntl64: symbol not found`. Bake a
-# real Debian glibc userland next to musl so the daemon (musl Node /
-# better-sqlite3) and Cursor (glibc Node) can both run. Same idea as
-# deploy/docker-compose.linux.yml mounting host glibc, but in the image.
-FROM debian:bookworm-slim AS cursor-glibc
-ARG TARGETARCH
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends libstdc++6; \
-    rm -rf /var/lib/apt/lists/*; \
-    case "${TARGETARCH}" in \
-      amd64) triplet=x86_64-linux-gnu ;; \
-      arm64) triplet=aarch64-linux-gnu ;; \
-      *) echo "Unsupported Cursor glibc architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    mkdir -p /glibc-root/lib /glibc-root/lib64 /glibc-root/usr/lib; \
-    cp -a "/lib/${triplet}" "/glibc-root/lib/${triplet}"; \
-    cp -a "/usr/lib/${triplet}" "/glibc-root/usr/lib/${triplet}"; \
-    if [ -d /lib64 ]; then cp -a /lib64/. /glibc-root/lib64/; fi; \
-    for interp in /lib/ld-linux*.so*; do \
-      [ -e "$interp" ] || continue; \
-      cp -a "$interp" "/glibc-root${interp}"; \
-    done
-
+# Cursor Agent is a glibc Node plus `*-linux-*-gnu.node` addons. Alpine
+# gcompat died on fcntl64; copying Debian libs into musl still failed at
+# `cursor-agent --version` while loading those addons (Railway truncated
+# the stack to index.js:414). Run the daemon on bookworm-slim too so
+# better-sqlite3 and Cursor share a real glibc. Grok is static-pie and
+# does not care which libc the OS uses.
 FROM ${RUNTIME_IMAGE}
 
-# bash is required because the Cursor launcher is a `#!/usr/bin/env bash`
-# wrapper around the bundled Node. Install Alpine packages first, then overlay
-# Debian glibc. Do not apk-add gcompat: its fake ld-linux is what produced the
-# fcntl64 relocation error on Railway.
-RUN apk add --no-cache tini poppler-utils bash git curl && \
-    addgroup -S -g 1001 open-design && \
-    adduser -S -D -H -u 1001 -G open-design open-design && \
+# bash: Cursor's launcher is `#!/usr/bin/env bash`. wget: linux compose
+# healthcheck. ca-certificates: Cursor `--use-system-ca`.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      tini \
+      poppler-utils \
+      bash \
+      git \
+      curl \
+      wget \
+      ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --gid 1001 open-design && \
+    useradd --uid 1001 --gid open-design --no-create-home \
+      --home-dir /home/open-design --shell /usr/sbin/nologin open-design && \
     mkdir -p /home/open-design && \
     chown open-design:open-design /home/open-design
-COPY --from=cursor-glibc /glibc-root/lib /lib
-COPY --from=cursor-glibc /glibc-root/lib64 /lib64
-COPY --from=cursor-glibc /glibc-root/usr/lib /usr/lib
+
+ENV HOME=/home/open-design
 
 # Same Grok CLI AMC planner/builder uses (static-pie linux-x86_64).
 ARG GROK_VERSION=1.0.4
@@ -150,8 +139,7 @@ RUN case "${TARGETARCH}" in \
     chmod 0755 /opt/cursor-agent/cursor-agent && \
     ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent && \
     ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent && \
-    /usr/local/bin/cursor-agent --version && \
-    apk del curl
+    /usr/local/bin/cursor-agent --version
 
 WORKDIR /app
 COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daemon
@@ -183,5 +171,5 @@ ENV OD_DATA_DIR=/app/.od
 EXPOSE 7456
 
 USER open-design
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "apps/daemon/dist/cli.js", "--no-open"]
