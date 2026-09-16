@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import { relative, resolve } from 'node:path';
 import {
-  assert, chmodSync, claude, codex, deepseek, join, minimalAgentDef, mkdirSync, mkdtempSync, resolveAgentExecutable, rmSync, tmpdir, withEnvSnapshot, withPlatform, writeFileSync,
+  assert, chmodSync, claude, codex, cursorAgent, deepseek, join, minimalAgentDef, mkdirSync, mkdtempSync, resolveAgentExecutable, rmSync, tmpdir, withEnvSnapshot, withPlatform, writeFileSync,
 } from './helpers/test-helpers.js';
 import {
   codexAppBundleCandidates,
@@ -37,6 +37,17 @@ test('deepseek entry declares codewhale as a fallback bin (issue #2983)', () => 
   assert.ok(
     deepseek.fallbackBins.includes('codewhale'),
     `deepseek.fallbackBins must include 'codewhale'; got ${JSON.stringify(deepseek.fallbackBins)}`,
+  );
+});
+
+test('Cursor Agent accepts the current documented agent command', () => {
+  assert.ok(
+    Array.isArray(cursorAgent.fallbackBins),
+    'cursor-agent.fallbackBins must be an array',
+  );
+  assert.ok(
+    cursorAgent.fallbackBins.includes('agent'),
+    `cursor-agent.fallbackBins must include 'agent'; got ${JSON.stringify(cursorAgent.fallbackBins)}`,
   );
 });
 
