@@ -36,9 +36,8 @@ export function parseGrokBuildModels(stdout: string): RuntimeModelOption[] {
 //
 // `--output-format streaming-json` is the grok CLI's ACP-style NDJSON
 // (`{type:"text"|"thought",data}` plus `end`/`usage`). The daemon maps that
-// into the same `text_delta` / `thinking_delta` events Claude uses so the
-// web artifact parser can paint HTML as it arrives, instead of waiting for
-// process exit (`plain` persist-on-success).
+// into separate chat and thinking updates. Generated designs are delivered
+// through project files, never extracted from this conversation stream.
 export const grokBuildAgentDef = {
   id: 'grok-build',
   name: 'Grok Build',
@@ -99,9 +98,9 @@ export const grokBuildAgentDef = {
   capturesSessionIdFromStream: true,
   streamFormat: 'json-event-stream',
   eventParser: 'grok',
-  // JSON streaming is a transport. Keep the Claude Design handoff: one
-  // `<artifact type="text/html">` block, not "write files, do not emit artifacts".
-  executionProfile: 'text_artifact',
+  // Streaming is chat transport only. Use the same file delivery for the
+  // lead agent and its children, including the primary index.html.
+  executionProfile: 'filesystem',
   installUrl: 'https://x.ai/cli',
   docsUrl: 'https://x.ai/cli',
 } satisfies RuntimeAgentDef;

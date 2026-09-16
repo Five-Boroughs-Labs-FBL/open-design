@@ -253,32 +253,17 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     expect(textArtifact).not.toContain('you HAVE filesystem tools');
   });
 
-  it('unlocks tools on a multi-surface grok json-event-stream claim', () => {
-    const one = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'json-event-stream',
-      claimedDesignSurfaceCount: 1,
-    });
-    expect(one).toContain('no filesystem tools');
-    expect(one).not.toContain('you HAVE filesystem tools');
-    const many = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'json-event-stream',
-      claimedDesignSurfaceCount: 6,
-    });
-    expect(many).toContain('you HAVE filesystem tools');
-    expect(many).toContain('identifier MUST equal the surface id');
-    expect(many).toContain('Never Write, Edit, or overwrite the open live primary');
-    expect(many).toContain('Change-turns on that file must re-stream');
-    expect(many).toContain('Write photos as sibling files under `assets/`');
-    expect(many).not.toContain('no filesystem tools');
-    const plain = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'plain',
-      claimedDesignSurfaceCount: 6,
-    });
-    expect(plain).toContain('no filesystem tools');
+  it('uses filesystem delivery for one or ten Grok design targets', () => {
+    for (const claimedDesignSurfaceCount of [1, 10]) {
+      const charter = renderSlimCoreCharter('filesystem', {
+        streamFormat: 'json-event-stream', claimedDesignSurfaceCount,
+      });
+      expect(charter).toContain('Project files are the source of truth');
+      expect(charter).not.toContain('Stream the first claimed surface');
+      expect(charter).not.toContain('Never Write or Edit');
+    }
   });
-});
 
-describe('slim core — moved-out content stays out (ownership)', () => {
   it('carries no task-type router form; od-default SKILL.md owns it', () => {
     const charter = renderSlimCoreCharter('filesystem');
     expect(charter).not.toContain('<question-form id="task-type"');

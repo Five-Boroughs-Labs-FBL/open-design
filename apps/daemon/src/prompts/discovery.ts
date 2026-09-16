@@ -260,24 +260,13 @@ This run has no filesystem tools. When the brief is ready to deliver, emit exact
 
 ---`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF_INVARIANT = `## Text-artifact handoff with filesystem tools (multi-surface Grok CLI)
-
-Stream each claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`. Never Write or Edit the open live primary; change-turns on that file must re-stream \`<artifact>\`. After the primary artifact you HAVE filesystem tools for remaining claimed surfaces only. Identifier must equal the surface id. Do not emit unclaimed HTML. Do not stop after the first screen.
-
----`;
-
 export function renderDiscoveryAndPhilosophy(
   executionProfile: ExecutionProfile = 'filesystem',
-  options: { streamFormat?: string | undefined; claimedDesignSurfaceCount?: number | undefined } = {},
+  _options: { streamFormat?: string | undefined; claimedDesignSurfaceCount?: number | undefined } = {},
 ): string {
-  const multiSurfaceCli = executionProfile === 'text_artifact'
-    && options.streamFormat === 'json-event-stream'
-    && (options.claimedDesignSurfaceCount ?? 0) > 1;
-  const invariant = multiSurfaceCli
-    ? TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF_INVARIANT
-    : executionProfile === 'text_artifact'
-      ? TEXT_ARTIFACT_HANDOFF_INVARIANT
-      : FILESYSTEM_HANDOFF_INVARIANT;
+  const invariant = executionProfile === 'text_artifact'
+    ? TEXT_ARTIFACT_HANDOFF_INVARIANT
+    : FILESYSTEM_HANDOFF_INVARIANT;
   return DISCOVERY_AND_PHILOSOPHY.replace(HANDOFF_INVARIANT_PLACEHOLDER, invariant);
 }
 

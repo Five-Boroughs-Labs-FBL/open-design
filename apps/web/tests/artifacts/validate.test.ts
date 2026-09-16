@@ -201,4 +201,20 @@ describe('validateHtmlArtifact', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/single HTML document/i);
   });
+
+  it('rejects thinking jammed into an unclosed viewport attribute', () => {
+    const leak = [
+      '<!DOCTYPE html>',
+      '<html lang="en"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0 I\'ll spawn a sub-agent for dashboard.html and write login next.',
+      'Pack ~Price Notes for the other screens while the REPL chrome is still open.',
+      '<title>Natural shell</title></head>',
+      '<body><p>Idle / Executing / Success / Error / Ambiguous toggles for the live REPL.</p></body></html>',
+    ].join('\n');
+    expect(leak.length).toBeGreaterThan(64);
+    const result = validateHtmlArtifact(leak);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/single HTML document/i);
+  });
 });
