@@ -94,7 +94,28 @@ ARG GROK_VERSION=1.0.4
 RUN curl -fsSL -o /usr/local/bin/grok \
       "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${GROK_VERSION}-linux-x86_64" && \
     chmod 0755 /usr/local/bin/grok && \
-    /usr/local/bin/grok --version && \
+    /usr/local/bin/grok --version
+
+# Design runs execute in this container. ACP forwards the selected Cursor
+# model and CURSOR_API_KEY, but the Open Design daemon still needs the Cursor
+# Agent executable locally. Pin the package so image builds are reproducible;
+# expose both the documented `agent` command and Open Design's stable
+# `cursor-agent` adapter name.
+ARG TARGETARCH
+ARG CURSOR_AGENT_VERSION=2026.09.10-fd3934a
+RUN case "${TARGETARCH}" in \
+      amd64) cursor_arch=x64 ;; \
+      arm64) cursor_arch=arm64 ;; \
+      *) echo "Unsupported Cursor Agent architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /opt/cursor-agent && \
+    curl -fsSL \
+      "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${cursor_arch}/agent-cli-package.tar.gz" \
+      | tar --strip-components=1 -xzf - -C /opt/cursor-agent && \
+    chmod 0755 /opt/cursor-agent/cursor-agent && \
+    ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent && \
+    ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent && \
+    /usr/local/bin/cursor-agent --version && \
     apk del curl
 
 WORKDIR /app

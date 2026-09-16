@@ -49,4 +49,15 @@ describe("deploy/Dockerfile content directories", () => {
     expect(build).toMatch(/^COPY data \.\/data$/m);
     expect(runtime).toMatch(/^COPY --from=build [^\n]*\/app\/data \.\/data$/m);
   });
+
+  it("installs and verifies Cursor Agent in the runtime image", async () => {
+    const content = await readFile(dockerfile, "utf8");
+    const { runtime } = stageSections(content);
+
+    expect(runtime).toContain("ARG CURSOR_AGENT_VERSION=");
+    expect(runtime).toContain("downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${cursor_arch}/agent-cli-package.tar.gz");
+    expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent");
+    expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent");
+    expect(runtime).toContain("/usr/local/bin/cursor-agent --version");
+  });
 });
