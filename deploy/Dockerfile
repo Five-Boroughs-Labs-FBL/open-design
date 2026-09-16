@@ -83,19 +83,46 @@ COPY assets ./assets
 COPY data ./data
 COPY plugins/_official ./plugins/_official
 
+# Cursor Agent ships a glibc Node (`PT_INTERP /lib64/ld-linux-x86-64.so.2`)
+# and `*-linux-x64-gnu.node` addons. Alpine's gcompat is not enough: Railway
+# failed `cursor-agent --version` with `fcntl64: symbol not found`. Bake a
+# real Debian glibc userland next to musl so the daemon (musl Node /
+# better-sqlite3) and Cursor (glibc Node) can both run. Same idea as
+# deploy/docker-compose.linux.yml mounting host glibc, but in the image.
+FROM debian:bookworm-slim AS cursor-glibc
+ARG TARGETARCH
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libstdc++6; \
+    rm -rf /var/lib/apt/lists/*; \
+    case "${TARGETARCH}" in \
+      amd64) triplet=x86_64-linux-gnu ;; \
+      arm64) triplet=aarch64-linux-gnu ;; \
+      *) echo "Unsupported Cursor glibc architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /glibc-root/lib /glibc-root/lib64 /glibc-root/usr/lib; \
+    cp -a "/lib/${triplet}" "/glibc-root/lib/${triplet}"; \
+    cp -a "/usr/lib/${triplet}" "/glibc-root/usr/lib/${triplet}"; \
+    if [ -d /lib64 ]; then cp -a /lib64/. /glibc-root/lib64/; fi; \
+    for interp in /lib/ld-linux*.so*; do \
+      [ -e "$interp" ] || continue; \
+      cp -a "$interp" "/glibc-root${interp}"; \
+    done
+
 FROM ${RUNTIME_IMAGE}
 
-# libc6-compat (gcompat) is required: the pinned Cursor Agent ships a glibc
-# Node (`PT_INTERP /lib64/ld-linux-x86-64.so.2`) plus `*-linux-x64-gnu.node`
-# addons. Without it, `cursor-agent --version` dies with "not found" on Alpine
-# musl — the same class of failure Dockerfile.local already documents for
-# host-mounted CLIs. bash is required because the Cursor launcher is a
-# `#!/usr/bin/env bash` wrapper around the bundled Node.
-RUN apk add --no-cache tini poppler-utils bash git curl libc6-compat && \
+# bash is required because the Cursor launcher is a `#!/usr/bin/env bash`
+# wrapper around the bundled Node. Install Alpine packages first, then overlay
+# Debian glibc. Do not apk-add gcompat: its fake ld-linux is what produced the
+# fcntl64 relocation error on Railway.
+RUN apk add --no-cache tini poppler-utils bash git curl && \
     addgroup -S -g 1001 open-design && \
     adduser -S -D -H -u 1001 -G open-design open-design && \
     mkdir -p /home/open-design && \
     chown open-design:open-design /home/open-design
+COPY --from=cursor-glibc /glibc-root/lib /lib
+COPY --from=cursor-glibc /glibc-root/lib64 /lib64
+COPY --from=cursor-glibc /glibc-root/usr/lib /usr/lib
 
 # Same Grok CLI AMC planner/builder uses (static-pie linux-x86_64).
 ARG GROK_VERSION=1.0.4
