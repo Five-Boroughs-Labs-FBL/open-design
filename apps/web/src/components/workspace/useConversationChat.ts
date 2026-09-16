@@ -10,6 +10,10 @@ import { agentModelDisplayName } from '../../utils/agentLabels';
 import { randomUUID } from '../../utils/uuid';
 import { effectiveAgentModelChoice } from '../agentModelSelection';
 import {
+  retryAssistantAgentId,
+  retryAssistantModel,
+} from '../retry-run-identity';
+import {
   createBufferedTextUpdates,
   finalizeActiveAssistantMessagesOnStop,
   resolveRetryTarget,
@@ -196,23 +200,30 @@ export function useConversationChat(
         setError('Side Chat needs a local agent. Pick one in the top bar.');
         return;
       }
-      if (!cfg.agentId) {
-        setError('Pick a local agent first (top bar).');
-        return;
-      }
-
       const retryTarget = retryOfAssistantId
         ? resolveRetryTarget(messagesRef.current, retryOfAssistantId)
         : null;
       if (retryOfAssistantId && !retryTarget) return;
+      const sendAgentId = retryAssistantAgentId(
+        retryTarget?.failedAssistant,
+        cfg.agentId,
+      );
+      if (!sendAgentId) {
+        setError('Pick a local agent first (top bar).');
+        return;
+      }
 
       const startedAt = Date.now();
-      const selectedAgent = agents.get(cfg.agentId) ?? null;
-      const choice = effectiveAgentModelChoice(selectedAgent, cfg.agentModels?.[cfg.agentId]);
-      const assistantAgentName = agentModelDisplayName(
-        cfg.agentId,
-        selectedAgent?.name,
+      const selectedAgent = agents.get(sendAgentId) ?? null;
+      const choice = effectiveAgentModelChoice(selectedAgent, cfg.agentModels?.[sendAgentId]);
+      const sendModel = retryAssistantModel(
+        retryTarget?.failedAssistant,
         choice?.model,
+      );
+      const assistantAgentName = agentModelDisplayName(
+        sendAgentId,
+        selectedAgent?.name,
+        sendModel,
       );
 
       const userMsg: ChatMessage = retryTarget
@@ -230,7 +241,7 @@ export function useConversationChat(
         id: assistantId,
         role: 'assistant',
         content: '',
-        agentId: cfg.agentId,
+        agentId: sendAgentId,
         agentName: assistantAgentName,
         events: [],
         createdAt: retryTarget?.failedAssistant.createdAt ?? startedAt,
@@ -326,7 +337,7 @@ export function useConversationChat(
       };
 
       void streamViaDaemon({
-        agentId: cfg.agentId,
+        agentId: sendAgentId,
         history,
         signal: controller.signal,
         cancelSignal: cancelController.signal,
@@ -342,7 +353,7 @@ export function useConversationChat(
         workspaceContext,
         attachments: (userMsg.attachments ?? []).map((a) => a.path),
         commentAttachments: userMsg.commentAttachments ?? [],
-        model: choice?.model ?? null,
+        model: sendModel,
         reasoning: choice?.reasoning ?? null,
         serviceTier: choice?.serviceTier ?? null,
         locale: loc,

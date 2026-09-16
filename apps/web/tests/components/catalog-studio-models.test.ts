@@ -6,6 +6,7 @@ import {
   CATALOG_STUDIO_GROK_MODEL,
   CATALOG_STUDIO_MINIMAX_ID,
   needsCatalogStudioGrokLatch,
+  shouldApplyCatalogStudioGrokLatch,
 } from '../../src/components/catalog-studio-models';
 import { isCatalogRegularStudioUser } from '../../src/components/entry-rail-account-state';
 import type { AppConfig } from '../../src/types';
@@ -64,5 +65,32 @@ describe('catalog studio models', () => {
     );
     expect(next.apiKey).toBe('');
     expect(next.baseUrl).toMatch(/minimax/i);
+  });
+
+  it('does not rewrite Cursor Design onto grok-build before catalog SSO resolves', () => {
+    const cursorConfig = {
+      ...base,
+      agentId: 'cursor-agent',
+      agentModels: { 'cursor-agent': { model: 'grok-4.6' } },
+    };
+    expect(needsCatalogStudioGrokLatch(cursorConfig)).toBe(true);
+    expect(shouldApplyCatalogStudioGrokLatch({
+      runtimeResolved: false,
+      catalogRegular: true,
+      config: cursorConfig,
+    })).toBe(false);
+    expect(shouldApplyCatalogStudioGrokLatch({
+      runtimeResolved: true,
+      catalogRegular: false,
+      config: cursorConfig,
+    })).toBe(false);
+  });
+
+  it('still latches catalog-regular Studio home onto grok-4.6 once SSO is resolved', () => {
+    expect(shouldApplyCatalogStudioGrokLatch({
+      runtimeResolved: true,
+      catalogRegular: true,
+      config: { ...base, agentId: 'cursor-agent' },
+    })).toBe(true);
   });
 });

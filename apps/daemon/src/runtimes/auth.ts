@@ -562,6 +562,9 @@ function hasProbeSatisfyingAuth(agentId: string, env: RuntimeEnv): boolean {
       hasClaudeEnterpriseProviderAuth(env)
     );
   }
+  if (agentId === 'cursor-agent') {
+    return hasNonEmptyEnv(env, ['CURSOR_API_KEY']);
+  }
   return false;
 }
 

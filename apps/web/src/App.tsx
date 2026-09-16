@@ -23,7 +23,7 @@ import {
 } from './components/entry-rail-account-state';
 import {
   applyCatalogStudioModel,
-  needsCatalogStudioGrokLatch,
+  shouldApplyCatalogStudioGrokLatch,
   type CatalogStudioModelId,
 } from './components/catalog-studio-models';
 import { shouldForceCloudOnboarding, shouldRequireAcpCatalogLogin } from './onboarding/cloud-onboarding-gate';
@@ -4958,10 +4958,13 @@ function AppInner() {
   }, [catalogChrome.showHostAdminChrome, route]);
 
   useEffect(() => {
-    if (!isCatalogRegularStudioUser(catalogChrome)) return;
-    if (!needsCatalogStudioGrokLatch(config)) return;
+    if (!shouldApplyCatalogStudioGrokLatch({
+      runtimeResolved: acpPublicRuntimeResolved,
+      catalogRegular: isCatalogRegularStudioUser(catalogChrome),
+      config,
+    })) return;
     handleCatalogStudioModelChange('grok-4.6');
-  }, [catalogChrome, config, handleCatalogStudioModelChange]);
+  }, [acpPublicRuntimeResolved, catalogChrome, config, handleCatalogStudioModelChange]);
 
   const openPetSettings = useCallback(() => {
     const currentRoute = routeRef.current;
