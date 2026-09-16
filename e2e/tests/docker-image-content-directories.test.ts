@@ -55,9 +55,11 @@ describe("deploy/Dockerfile content directories", () => {
     const { runtime } = stageSections(content);
 
     expect(runtime).toContain("ARG CURSOR_AGENT_VERSION=");
+    expect(runtime).toContain("libc6-compat");
     expect(runtime).toContain("downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${cursor_arch}/agent-cli-package.tar.gz");
     expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent");
     expect(runtime).toContain("ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent");
+    expect(runtime).toContain("ENV HOME=/home/open-design");
     expect(runtime).toContain("/usr/local/bin/cursor-agent --version");
   });
 });
