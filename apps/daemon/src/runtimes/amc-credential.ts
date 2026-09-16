@@ -39,6 +39,8 @@ export type AmcCredential = {
  *
  *   cursor  CURSOR_API_KEY   — cursor-agent's documented automation variable
  *                              (see runtimes/auth.ts's Cursor guidance string)
+ *   muse    META_API_KEY     — Muse Code; AMC extracts this from the packed
+ *                              subscription auth.json (or a pasted API key)
  *
  * Families are registered here as they are wired end-to-end, not speculatively:
  * an unused allowlist entry is unused attack surface. Claude and MiniMax both
@@ -47,6 +49,7 @@ export type AmcCredential = {
  */
 const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze({
   cursor: Object.freeze(['CURSOR_API_KEY']),
+  muse: Object.freeze(['META_API_KEY']),
 });
 
 /**
@@ -56,6 +59,7 @@ const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze
  */
 const FAMILY_AGENTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   cursor: Object.freeze(['cursor-agent']),
+  muse: Object.freeze(['muse']),
 });
 
 const MAX_VALUE_BYTES = 8_192;
