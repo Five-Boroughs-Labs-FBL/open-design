@@ -390,6 +390,10 @@ import {
   subscribeHomeAttachmentUploads,
 } from '../state/home-attachment-handoff';
 import { effectiveAgentModelChoice, effectiveAgentModelId } from './agentModelSelection';
+import {
+  retryAssistantAgentId,
+  retryAssistantModel,
+} from './retry-run-identity';
 import { mediaExecutionPolicyForProjectMetadata } from '../media/execution-policy';
 import { mediaModelProviderId } from '../media/models';
 import { byokProviderRequiresApiKey } from '../utils/byokProvider';
@@ -8224,6 +8228,10 @@ export function ProjectView({
         ? resolveRetryTarget(messages, meta.retryOfAssistantId)
         : null;
       if (meta?.retryOfAssistantId && !retryTarget) return false;
+      const sendAgentId = retryAssistantAgentId(
+        retryTarget?.failedAssistant,
+        config.agentId,
+      );
       const blockedRequestKey = JSON.stringify([
         prompt,
         attachments.map((attachment) => [attachment.path, attachment.name]),
@@ -8280,7 +8288,7 @@ export function ProjectView({
       const byokOpenCodeProvider = byokOpenCodeProviderFromConfig(config);
       const requiresByokPreflight =
         (config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
-        (config.mode === 'daemon' && config.agentId === 'byok-opencode');
+        (config.mode === 'daemon' && sendAgentId === 'byok-opencode');
       if (requiresByokPreflight && !byokOpenCodeProvider) {
         const blockReason = byokPreflightBlockReason(config) ?? 'config_invalid';
         const recoveryActionInstanceId = `blocked:${taskAnalytics.taskExecutionId}`;
@@ -8363,7 +8371,7 @@ export function ProjectView({
        */
       const amrGateApplies =
         config.mode === 'daemon'
-        && config.agentId === 'amr'
+        && sendAgentId === 'amr'
         && !meta?.amrGatePrechecked;
       // The gate's await opens a window where the conversation is not yet
       // marked busy. A second send arriving during that window behaves like
@@ -8422,12 +8430,12 @@ export function ProjectView({
         ),
       );
       const selectedAgent =
-        config.mode === 'daemon' && config.agentId
-          ? agentsById.get(config.agentId)
+        config.mode === 'daemon' && sendAgentId
+          ? agentsById.get(sendAgentId)
           : null;
       const selectedAgentChoice =
-        config.mode === 'daemon' && config.agentId
-          ? config.agentModels?.[config.agentId]
+        config.mode === 'daemon' && sendAgentId
+          ? config.agentModels?.[sendAgentId]
           : undefined;
       const effectiveSelectedAgentChoice = effectiveAgentModelChoice(
         selectedAgent,
@@ -8435,14 +8443,17 @@ export function ProjectView({
       );
       const assistantAgentId =
         config.mode === 'daemon'
-          ? config.agentId ?? undefined
+          ? sendAgentId ?? undefined
           : apiProtocolAgentId(config.apiProtocol, config.model, config.baseUrl);
       const assistantAgentName =
         config.mode === 'daemon'
           ? agentModelDisplayName(
-              config.agentId,
+              sendAgentId,
               selectedAgent?.name,
-              effectiveSelectedAgentChoice?.model,
+              retryAssistantModel(
+                retryTarget?.failedAssistant,
+                effectiveSelectedAgentChoice?.model,
+              ) ?? effectiveSelectedAgentChoice?.model,
             )
           : apiProtocolModelLabel(config.apiProtocol, config.model, config.baseUrl);
       const preTurnFileNames = projectFiles.map((f) => f.name);
@@ -9911,12 +9922,12 @@ export function ProjectView({
       };
 
       if (config.mode === 'daemon') {
-        if (!config.agentId) {
+        if (!sendAgentId) {
           handlers.onError(new Error('Pick a local agent first (top bar).'));
           return true;
         }
         const choice = effectiveSelectedAgentChoice;
-        const daemonByokOpenCode = config.agentId === 'byok-opencode';
+        const daemonByokOpenCode = sendAgentId === 'byok-opencode';
         if (daemonByokOpenCode && !agentsById.get('byok-opencode')?.available) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
@@ -9980,7 +9991,7 @@ export function ProjectView({
           hasExistingArtifact,
           runtimeType: daemonByokOpenCode
             ? ('byok' as const)
-            : config.agentId === 'amr'
+            : sendAgentId === 'amr'
               ? ('amr_cloud' as const)
               : ('local_cli' as const),
           taskExecutionId: taskAnalytics.taskExecutionId,
@@ -9991,7 +10002,7 @@ export function ProjectView({
           recoveryActionInstanceId: taskAnalytics.recoveryActionInstanceId,
         };
         void streamViaDaemon({
-          agentId: config.agentId,
+          agentId: sendAgentId,
           history: nextHistory,
           signal: controller.signal,
           cancelSignal: cancelController.signal,
@@ -10013,7 +10024,9 @@ export function ProjectView({
             meta?.appliedPluginSnapshotId ?? meta?.appliedPluginSnapshot?.snapshotId ?? null,
           research: meta?.research,
           mediaExecution: mediaExecutionPolicyForProjectMetadata(project.metadata),
-          model: daemonByokOpenCode ? config.model : choice?.model ?? null,
+          model: daemonByokOpenCode
+            ? config.model
+            : retryAssistantModel(retryTarget?.failedAssistant, choice?.model),
           reasoning: daemonByokOpenCode ? null : choice?.reasoning ?? null,
           serviceTier: daemonByokOpenCode ? null : choice?.serviceTier ?? null,
           ...(daemonByokOpenCode && byokOpenCodeProvider

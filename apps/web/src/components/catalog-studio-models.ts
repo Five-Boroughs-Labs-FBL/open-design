@@ -55,6 +55,23 @@ export function needsCatalogStudioGrokLatch(config: AppConfig): boolean {
 }
 
 /**
+ * Catalog SSO regulars are limited to grok-4.6 / MiniMax. I'll-design-it
+ * uses a project embed grant, not a catalog session. An unresolved embed
+ * hint looks like a catalog regular (hide Settings while hydrating) and
+ * must not rewrite Cursor Design onto grok-build — Cursor may be running
+ * the vendor model id grok-4.6.
+ */
+export function shouldApplyCatalogStudioGrokLatch(input: {
+  runtimeResolved: boolean;
+  catalogRegular: boolean;
+  config: AppConfig;
+}): boolean {
+  if (!input.runtimeResolved) return false;
+  if (!input.catalogRegular) return false;
+  return needsCatalogStudioGrokLatch(input.config);
+}
+
+/**
  * Apply a catalog-regular pick.
  *
  * Grok 4.6 stays on the host grok-build CLI (admin SuperGrok). MiniMax is
