@@ -34,7 +34,7 @@ describe('muse Open Design agent', () => {
       '--prompt-file',
       '/tmp/od-muse/prompt.md',
       '--model',
-      'muse-spark-1.3-contributor',
+      'muse-spark-1.2',
       '--reasoning-effort',
       'high',
       '--session-id',
@@ -42,24 +42,19 @@ describe('muse Open Design agent', () => {
     ]);
   });
 
-  it('pins Spark 1.3 contributor when the model is omitted or 1.3', () => {
+  it('pins Spark 1.2 when the model is omitted, 1.3, or leftover contributor', () => {
     const omitted = buildMuseHeadlessArgs({ promptFilePath: '/tmp/od-muse/prompt.md' });
-    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
+    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.2');
     const remapped = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
       model: 'muse-spark-1.3-contributor',
     });
-    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
+    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.2');
     const spark13 = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
       model: 'muse-spark-1.3',
     });
-    expect(spark13[spark13.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
-    const hostedFallback = buildMuseHeadlessArgs({
-      promptFilePath: '/tmp/od-muse/prompt.md',
-      model: 'muse-spark-1.2',
-    });
-    expect(hostedFallback[hostedFallback.indexOf('--model') + 1]).toBe('muse-spark-1.2');
+    expect(spark13[spark13.indexOf('--model') + 1]).toBe('muse-spark-1.2');
   });
 
   it('refuses to embed the prompt when the daemon omitted the file', () => {
