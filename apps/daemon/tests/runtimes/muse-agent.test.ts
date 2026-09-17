@@ -34,7 +34,7 @@ describe('muse Open Design agent', () => {
       '--prompt-file',
       '/tmp/od-muse/prompt.md',
       '--model',
-      'muse-spark-1.2-contributor',
+      'muse-spark-1.3-contributor',
       '--reasoning-effort',
       'high',
       '--session-id',
@@ -42,24 +42,29 @@ describe('muse Open Design agent', () => {
     ]);
   });
 
-  it('pins Spark 1.2 contributor when the model is omitted, 1.2, 1.3, or leftover 1.3 contributor', () => {
+  it('pins Spark 1.3 contributor when the model is omitted, 1.2, 1.3, or leftover 1.2 contributor', () => {
     const omitted = buildMuseHeadlessArgs({ promptFilePath: '/tmp/od-muse/prompt.md' });
-    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.2-contributor');
+    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
     const remapped = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
-      model: 'muse-spark-1.3-contributor',
+      model: 'muse-spark-1.2-contributor',
     });
-    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.2-contributor');
+    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
     const spark13 = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
       model: 'muse-spark-1.3',
     });
-    expect(spark13[spark13.indexOf('--model') + 1]).toBe('muse-spark-1.2-contributor');
+    expect(spark13[spark13.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
     const spark12 = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
       model: 'muse-spark-1.2',
     });
-    expect(spark12[spark12.indexOf('--model') + 1]).toBe('muse-spark-1.2-contributor');
+    expect(spark12[spark12.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
+    const spark13c = buildMuseHeadlessArgs({
+      promptFilePath: '/tmp/od-muse/prompt.md',
+      model: 'muse-spark-1.3-contributor',
+    });
+    expect(spark13c[spark13c.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
   });
 
   it('refuses to embed the prompt when the daemon omitted the file', () => {

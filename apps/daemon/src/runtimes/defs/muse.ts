@@ -30,9 +30,9 @@ export function buildMuseHeadlessArgs(input: {
     rawModel === 'default' ||
     rawModel === 'subscription-default' ||
     rawModel === 'muse-spark-1.2' ||
-    rawModel === 'muse-spark-1.3' ||
-    rawModel === 'muse-spark-1.3-contributor'
-      ? 'muse-spark-1.2-contributor'
+    rawModel === 'muse-spark-1.2-contributor' ||
+    rawModel === 'muse-spark-1.3'
+      ? 'muse-spark-1.3-contributor'
       : rawModel;
   if (SAFE_MODEL_RE.test(model)) {
     args.push('--model', model);
@@ -56,8 +56,9 @@ export function buildMuseHeadlessArgs(input: {
  * OD falls through to the host default (often grok-build).
  *
  * Headless: `muse exec --json --approval-mode never --trust-workspace
- * --disable-sandbox --prompt-file`. Default model is Spark 1.2
- * contributor (Railway 404s every 1.3 id; 1.2-contributor HTTP 200s).
+ * --disable-sandbox --prompt-file`. Default model is Spark 1.3
+ * contributor (isolated local `muse exec` PONG; HTTP chat/completions
+ * 404s that id even locally — do not use HTTP as the exec pin).
  * JSONL is `{stream, payload_type, payload}`, not Grok `{type,sessionId}`.
  */
 export const museAgentDef = {
@@ -71,10 +72,10 @@ export const museAgentDef = {
   },
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
-    { id: 'muse-spark-1.2-contributor', label: 'muse-spark-1.2-contributor (default)' },
-    { id: 'muse-spark-1.2', label: 'muse-spark-1.2 → contributor' },
-    { id: 'muse-spark-1.3', label: 'muse-spark-1.3 → 1.2 contributor' },
-    { id: 'muse-spark-1.3-contributor', label: 'muse-spark-1.3-contributor → 1.2 contributor' },
+    { id: 'muse-spark-1.3-contributor', label: 'muse-spark-1.3-contributor (default)' },
+    { id: 'muse-spark-1.3', label: 'muse-spark-1.3 → 1.3 contributor' },
+    { id: 'muse-spark-1.2-contributor', label: 'muse-spark-1.2-contributor → 1.3 contributor' },
+    { id: 'muse-spark-1.2', label: 'muse-spark-1.2 → 1.3 contributor' },
     { id: 'muse-spark-1.1', label: 'muse-spark-1.1' },
   ],
   buildArgs: (
