@@ -34,7 +34,7 @@ describe('muse Open Design agent', () => {
       '--prompt-file',
       '/tmp/od-muse/prompt.md',
       '--model',
-      'muse-spark-1.3-contributor',
+      'muse-spark-1.3',
       '--reasoning-effort',
       'high',
       '--session-id',
@@ -42,14 +42,14 @@ describe('muse Open Design agent', () => {
     ]);
   });
 
-  it('pins contributor Spark 1.3 when the model is omitted or standard 1.3', () => {
+  it('pins Spark 1.3 when the model is omitted or leftover contributor', () => {
     const omitted = buildMuseHeadlessArgs({ promptFilePath: '/tmp/od-muse/prompt.md' });
-    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
+    expect(omitted[omitted.indexOf('--model') + 1]).toBe('muse-spark-1.3');
     const remapped = buildMuseHeadlessArgs({
       promptFilePath: '/tmp/od-muse/prompt.md',
-      model: 'muse-spark-1.3',
+      model: 'muse-spark-1.3-contributor',
     });
-    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.3-contributor');
+    expect(remapped[remapped.indexOf('--model') + 1]).toBe('muse-spark-1.3');
   });
 
   it('refuses to embed the prompt when the daemon omitted the file', () => {
