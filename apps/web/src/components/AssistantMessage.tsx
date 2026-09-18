@@ -1252,6 +1252,9 @@ function AssistantMessageImpl({
       // The pre-output "initializing" status is surfaced by the footer's
       // shimmering "Preparing…" label instead of its own pill.
       if (b.label === "initializing") return null;
+      // Muse JSONL stamps stream.kind === "session" on every envelope. That
+      // is resume metadata, not assistant content — do not draw a pill.
+      if (b.label === "session") return null;
       /*
        * `warning` 这一档**不在对话里出**(产品裁决 2026-08-26:「这个 warning 也不要显示了」)。
        *
@@ -3985,7 +3988,8 @@ function buildBlocks(events: AgentEvent[]): Block[] {
         // and must remain visible (for example plugin share/contribute).
         ((ev.label === "working" ||
           ev.label === "done" ||
-          ev.label === "completed") &&
+          ev.label === "completed" ||
+          ev.label === "complete") &&
           !ev.detail?.trim()) ||
         ev.label === "requesting" ||
         ev.label === "thinking" ||
@@ -4024,7 +4028,10 @@ function buildBlocks(events: AgentEvent[]): Block[] {
         // with no tool name/input/output/detail and would otherwise render as
         // empty, expandable "tool ran but produced no output" status pills.
         ev.label === "tool_call" ||
-        ev.label === "tool_call_update"
+        ev.label === "tool_call_update" ||
+        // Muse `stream.kind === "session"` is the CLI session id, not a
+        // user-visible status. Keep emitting it for resume capture.
+        ev.label === "session"
       )
         continue;
       const last = out[out.length - 1];
