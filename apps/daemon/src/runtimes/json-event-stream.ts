@@ -27,6 +27,7 @@ type ParserState = {
   suppressDuplicateArtifactText: boolean;
   artifactOpenCandidate: string;
   pendingArtifactText: string;
+  museSessionIdEmitted: string;
 };
 
 type Usage = {
@@ -1358,11 +1359,15 @@ function grokUsageFrom(value: unknown): Usage | null {
  *   { stream: { kind, id }, payload_type, payload }
  * Text lives on `run.output.delta` and `run.terminal.completed`.
  * Session id is `stream.kind === "session"` → `stream.id`.
+ * That envelope field is resume metadata, not a user-visible status.
+ * Emit `label: session` once so the daemon can capture the id; every
+ * later delta used to become a "session" pill in Design chat.
  * Design delivery is filesystem / text_artifact, not this transport.
  */
 export function handleMuseEvent(
   obj: unknown,
   onEvent: StreamEventHandler,
+  state?: ParserState,
 ): boolean {
   if (!isRecord(obj)) return false;
   const payloadType = typeof obj.payload_type === 'string' ? obj.payload_type : '';
@@ -1375,9 +1380,18 @@ export function handleMuseEvent(
       : null;
   if (
     sessionId
+    && state
+    && state.museSessionIdEmitted !== sessionId
     && (payloadType === 'run.model.configured'
       || payloadType === 'run.output.delta'
       || payloadType === 'run.terminal.completed')
+  ) {
+    state.museSessionIdEmitted = sessionId;
+    onEvent({ type: 'status', label: 'session', sessionId });
+  } else if (
+    sessionId
+    && !state
+    && payloadType === 'run.model.configured'
   ) {
     onEvent({ type: 'status', label: 'session', sessionId });
   }
@@ -1552,6 +1566,7 @@ function createParserState(): ParserState {
     suppressDuplicateArtifactText: false,
     artifactOpenCandidate: '',
     pendingArtifactText: '',
+    museSessionIdEmitted: '',
   };
 }
 
@@ -1612,7 +1627,7 @@ export function createJsonEventStreamHandler(
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;
-    if (kind === 'muse' && handleMuseEvent(obj, onEvent)) return;
+    if (kind === 'muse' && handleMuseEvent(obj, onEvent, state)) return;
     if ((kind === 'grok' || kind === 'grok-build') && handleGrokEvent(obj, onEvent)) return;
 
     onEvent({ type: 'raw', line });
