@@ -56,7 +56,7 @@ async function seedEntryBase(page: Page, override?: Record<string, unknown>) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Loading ACP Design…')).toHaveCount(0, { timeout: 15_000 });
 }
 
 async function gotoEntryHome(page: Page) {

@@ -1,4 +1,4 @@
-# การ contribute ให้ OpenDesign
+# การ contribute ให้ ACP Design
 
 ขอบคุณที่คิดจะ contribute. OD ตั้งใจให้เล็ก — คุณค่าส่วนใหญ่อยู่ใน **ไฟล์** (skills, design systems, prompt fragments) มากกว่า framework code. นั่นแปลว่า contribution ที่คุ้มที่สุดมักเป็น folder เดียว, Markdown file เดียว หรือ adapter ขนาดพอดี PR เดียว.
 
@@ -41,7 +41,7 @@ pnpm --filter @open-design/web build  # web package build when needed
 
 ## Docker Setup
 
-รัน OpenDesign โดยไม่ต้องติดตั้ง Node.js หรือ pnpm.
+รัน ACP Design โดยไม่ต้องติดตั้ง Node.js หรือ pnpm.
 
 ### Prerequisites
 
@@ -51,7 +51,7 @@ pnpm --filter @open-design/web build  # web package build when needed
 docker compose version
 ```
 
-### Start OpenDesign
+### Start ACP Design
 
 ```bash
 cd deploy
@@ -315,7 +315,7 @@ Table OVERRIDES ใน `maxTokens.ts` มีไว้สำหรับกรณ
 tl;dr: ship PR ดี ๆ, review อย่างใส่ใจ, อยู่ใน [Discussions][discussions] / [Discord][discord], แล้วที่เหลือจะตามมาเอง.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/qhbcCH8Am4
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 

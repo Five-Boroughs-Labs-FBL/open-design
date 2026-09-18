@@ -10,7 +10,7 @@ const STORAGE_KEY = 'open-design:config';
 test.describe.configure({ timeout: T.xlong });
 
 async function waitForLoadingToClear(page: Page) {
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: T.long });
+  await expect(page.getByText('Loading ACP Design…')).toHaveCount(0, { timeout: T.long });
 }
 
 async function gotoEntryHome(page: Page) {

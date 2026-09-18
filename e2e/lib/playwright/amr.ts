@@ -212,7 +212,7 @@ export async function mockAmrPersonalWorkspace(
 }
 
 export async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
 }
 
 export async function dismissPrivacyDialog(page: Page) {

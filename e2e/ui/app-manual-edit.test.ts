@@ -1245,7 +1245,7 @@ async function openDesignFile(page: Page, fileName: string) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function expectFileSource(page: Page, projectId: string, fileName: string, snippets: string[]) {

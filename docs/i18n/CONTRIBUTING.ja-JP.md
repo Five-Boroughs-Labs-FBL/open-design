@@ -1,4 +1,4 @@
-# OpenDesign へのコントリビューション
+# ACP Design へのコントリビューション
 
 コントリビューションを検討してくださりありがとうございます。OD は意図的に小さく保っています — 価値の大部分はフレームワークコードではなく**ファイル**（Skill、Design System、プロンプトフラグメント）にあります。そのため、最も効果の高いコントリビューションは通常、フォルダ 1 つ、Markdown ファイル 1 つ、または PR サイズの adapter です。
 
@@ -286,7 +286,7 @@ CLA は求めません。Apache-2.0 でカバーされます。あなたのコ�
 tl;dr：良い PR を出し、丁寧にレビューし、[Discussions][discussions] / [Discord][discord] に顔を出していれば、あとは自然と道が開けます。
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 

@@ -25,7 +25,7 @@ describe('browser use diagnostics', () => {
   it('detects Browser Use prompts from the OpenDesign Browser menu', () => {
     expect(isBrowserUseRequested('hello')).toBe(false);
     expect(isBrowserUseRequested('@agent-browser\n\nBrowser tab context:')).toBe(true);
-    expect(isBrowserUseRequested('Use the selected OpenDesign Browser tab as the bound target.')).toBe(true);
+    expect(isBrowserUseRequested('Use the selected ACP Design Browser tab as the bound target.')).toBe(true);
   });
 
   it('returns a missing-registry snapshot without reading socket contents', () => {
@@ -110,6 +110,8 @@ describe('browser use diagnostics', () => {
     const prompt = renderBrowserUseUnavailablePrompt(state);
 
     expect(prompt).toContain('no-matching-browser-backend');
+    expect(prompt).toContain('ACP Design has not confirmed a matching in-app browser backend');
+    expect(prompt).not.toContain('OpenDesign');
     expect(prompt).toContain('Do not use raw Google Chrome headless');
   });
 });

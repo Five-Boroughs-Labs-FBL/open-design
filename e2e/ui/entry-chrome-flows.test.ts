@@ -154,7 +154,7 @@ test('[P1] cold Home defers Automations reads until the route becomes active', a
     );
 
     await page.goto('/automations', { waitUntil: 'domcontentloaded' });
-    await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+    await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
     await expect(page.getByTestId('entry-view-tasks')).toHaveAttribute('data-active', 'true');
     await expect(page.getByTestId('tasks-view')).toBeVisible();
     await expect.poll(() => [...counts.values()].every((count) => count > 0)).toBe(true);
@@ -388,7 +388,7 @@ test('[P1] onboarding lands on the home composer without a recommended-start str
     });
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 
   // Cloud-first onboarding no longer contains the legacy runtime/About-you/
   // Product-design survey. A signed-in user accepts the recommended Hosted
@@ -472,7 +472,7 @@ test('[P1] home view exposes the redesigned hero, recent projects, and starters'
   // `recent-projects-view-all` button — so `HomeView.onViewAllProjects` is
   // wired but unreachable. Drive the route directly until an entry returns.
   await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
   await expect(page).toHaveURL(/\/projects$/);
   await expect(page.getByTestId('entry-view-projects')).toBeVisible();
 });
@@ -1047,7 +1047,7 @@ test('[P1] Use everywhere guide uses daemon MCP install info and copies an agent
   // With the topbar's "Use everywhere" button gone (#5517) the Integrations
   // route is the entry; its default tab is still the Use everywhere guide.
   await page.goto('/integrations', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
   await expect(page.getByRole('heading', { name: 'Integrations' })).toBeVisible();
   // Landing on the route directly opens the view's own default tab, so select
   // the Use everywhere guide explicitly.
@@ -1656,7 +1656,7 @@ async function dispatchAmbientWorkspaceEvent(
 
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
   const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();

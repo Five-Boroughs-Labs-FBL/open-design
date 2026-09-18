@@ -1,27 +1,27 @@
-<h1 align="center">OpenDesign : l'alternative open source à Claude Design</h1>
+<h1 align="center">ACP Design : l'alternative open source à Claude Design</h1>
 
-> ⚡ **[OpenDesign Cloud — le service de modèles officiel.](https://open-design.ai/zh/pricing/)** Une seule recharge pour utiliser des modèles d'agents et d'images dans OpenDesign : GPT, Claude et DeepSeek pour les agents ; GPT Image 2.0, Seedream 5.0 Pro et Nano Banana 2.0 pour les images.
+> ⚡ **[ACP Design Cloud — le service de modèles officiel.](https://open-design.ai/zh/pricing/)** Une seule recharge pour utiliser des modèles d'agents et d'images dans ACP Design : GPT, Claude et DeepSeek pour les agents ; GPT Image 2.0, Seedream 5.0 Pro et Nano Banana 2.0 pour les images.
 >
-> 🚀 **[DeepSeek V4 Flash et V4 Pro sont maintenant disponibles.](https://open-design.ai/zh/pricing/)** Mettez une intelligence de premier plan au service des prototypes, présentations, systèmes de design et tâches quotidiennes des agents. Les membres OpenDesign peuvent utiliser les deux modèles sans limite pendant deux semaines, directement dans l'application.
+> 🚀 **[DeepSeek V4 Flash et V4 Pro sont maintenant disponibles.](https://open-design.ai/zh/pricing/)** Mettez une intelligence de premier plan au service des prototypes, présentations, systèmes de design et tâches quotidiennes des agents. Les membres ACP Design peuvent utiliser les deux modèles sans limite pendant deux semaines, directement dans l'application.
 >
-> 🧩 **[DeepSeek Harness est maintenant pris en charge.](https://open-design.ai/zh/agents/deepseek-harness-design/)** Connectez l'Agent Harness officiel `dsh` de DeepSeek à OpenDesign en tant que runtime natif, avec raisonnement structuré, appels d'outils, découverte des modèles, annulation et reprise de session. Les fichiers générés restent dans le workflow OpenDesign pour la prévisualisation en direct et la livraison.
+> 🧩 **[DeepSeek Harness est maintenant pris en charge.](https://open-design.ai/zh/agents/deepseek-harness-design/)** Connectez l'Agent Harness officiel `dsh` de DeepSeek à ACP Design en tant que runtime natif, avec raisonnement structuré, appels d'outils, découverte des modèles, annulation et reprise de session. Les fichiers générés restent dans le workflow ACP Design pour la prévisualisation en direct et la livraison.
 
 <p align="center">
-  <img src="https://repo-assets.open-design.ai/resources/images/hero.png" alt="Bannière OpenDesign — le titre &quot;L’alternative open source à Claude Design&quot; sur une scène de colonnes et de personnages drapés devant un fond de code, avec des cartes présentant les systèmes de design, les plugins, les agents de code et les fournisseurs média" width="100%" />
+  <img src="https://repo-assets.open-design.ai/resources/images/hero.png" alt="Bannière ACP Design — le titre &quot;L’alternative open source à Claude Design&quot; sur une scène de colonnes et de personnages drapés devant un fond de code, avec des cartes présentant les systèmes de design, les plugins, les agents de code et les fournisseurs média" width="100%" />
 </p>
 
 <p align="center">
   <a href="https://open-design.ai/?utm_source=github&utm_medium=referral&utm_content=readme_website">Site web</a> ·
   <a href="https://open-design.ai/?utm_source=github&utm_medium=referral&utm_content=readme_download">Télécharger</a> ·
-  <a href="https://open-design.ai/cloud/?utm_source=github&utm_medium=referral&utm_content=readme_cloud">OpenDesign Cloud</a> ·
-  <a href="https://discord.gg/mHAjSMV6gz">Discord</a> ·
+  <a href="https://open-design.ai/cloud/?utm_source=github&utm_medium=referral&utm_content=readme_cloud">ACP Design Cloud</a> ·
+  <a href="https://discord.gg/jE4MzArHX">Discord</a> ·
   <a href="https://x.com/OpenDesignHQ">Suivre @OpenDesignHQ</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/nexu-io/open-design/releases"><img alt="release" src="https://img.shields.io/github/v/release/nexu-io/open-design?style=flat&color=blueviolet&label=release&include_prereleases&display_name=tag" /></a>
   <a href="../../LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat" /></a>
-  <a href="https://discord.gg/mHAjSMV6gz"><img alt="discord" src="https://img.shields.io/discord/1479002485040480266?style=flat&logo=discord&logoColor=white&label=discord&color=5865F2&cacheSeconds=3600" /></a>
+  <a href="https://discord.gg/jE4MzArHX"><img alt="discord" src="https://img.shields.io/discord/1479002485040480266?style=flat&logo=discord&logoColor=white&label=discord&color=5865F2&cacheSeconds=3600" /></a>
   <a href="QUICKSTART.fr.md"><img alt="quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat" /></a>
 </p>
 
@@ -29,11 +29,11 @@
 
 ---
 
-## Qu'est-ce qu'OpenDesign
+## Qu'est-ce qu'ACP Design
 
 🎨 **L'alternative open source à Claude Design.** &nbsp;🖥️ **Application de bureau native et local-first pour macOS et Windows.** &nbsp;⚡ **Skills composables, systèmes de design `DESIGN.md` fidèles à votre marque et plugins prêts à l'emploi.** &nbsp;🖼️ Génère des **prototypes web · bureau · mobile**, des **tableaux de bord / artefacts en direct**, des **présentations**, des **images**, de la **vidéo**, ainsi que des motion graphics **HyperFrames**. 🔒 Aperçu en iframe sandboxée · export HTML / PDF / PPTX / MP4. &nbsp;🤖 **Fonctionne avec DeepSeek Harness (`dsh`) · Claude Code · OpenClaw · Codex · Cursor · OpenCode · Qwen · Copilot · Amp · Hermes · Kimi · Antigravity et 26 exécutables CLI locaux distincts**, ou tout point de terminaison compatible OpenAI via BYOK.
 
-OpenDesign ouvre la boucle **agent-native** proposée par Anthropic avec Claude Design — comprendre le brief, fixer la direction, générer l'artefact en continu, le critiquer et le livrer — en la transformant en un **système de fichiers de skills fonctionnels, de modèles de rendu, de systèmes de design et de plugins**. Les agents de code déjà installés sur votre ordinateur peuvent les lire, les écrire et les remixer. Votre CLI devient le moteur de design, votre ordinateur le studio et le `DESIGN.md` de votre équipe le contrat de marque.
+ACP Design ouvre la boucle **agent-native** proposée par Anthropic avec Claude Design — comprendre le brief, fixer la direction, générer l'artefact en continu, le critiquer et le livrer — en la transformant en un **système de fichiers de skills fonctionnels, de modèles de rendu, de systèmes de design et de plugins**. Les agents de code déjà installés sur votre ordinateur peuvent les lire, les écrire et les remixer. Votre CLI devient le moteur de design, votre ordinateur le studio et le `DESIGN.md` de votre équipe le contrat de marque.
 
 C'est aussi l'**alternative à Figma pour l'ère des agents** — au lieu de déplacer des pixels sur un canevas, il livre des artefacts d'une seule page en CSS réel, en polices réelles, en composants réels, exportés directement en HTML / PDF / PPTX / MP4 — déjà façonnés par votre système de design, déjà exécutables au sein de l'agent que vous utilisez chaque jour.
 
@@ -42,14 +42,14 @@ C'est aussi l'**alternative à Figma pour l'ère des agents** — au lieu de dé
 
 ## Visite du produit
 
-Un aperçu rapide du workflow principal d'OpenDesign. Commencez sur **Home** avec un brief, explorez les skills réutilisables dans **Plugins** et transformez les références de marque en **Design System**. Entrez ensuite dans le **Studio** d'un projet pour créer et affiner prototypes, présentations, applications mobiles, images, documents et HyperFrames au même endroit.
+Un aperçu rapide du workflow principal d'ACP Design. Commencez sur **Home** avec un brief, explorez les skills réutilisables dans **Plugins** et transformez les références de marque en **Design System**. Entrez ensuite dans le **Studio** d'un projet pour créer et affiner prototypes, présentations, applications mobiles, images, documents et HyperFrames au même endroit.
 
 ### Pages principales
 
 <table>
 <tr>
 <td valign="top">
-<img src="../../docs/screenshots/product-tour/home.png" alt="Page d’accueil OpenDesign avec types d’artefacts, champ de brief, sélecteur de modèle et exemples" /><br/>
+<img src="../../docs/screenshots/product-tour/home.png" alt="Page d’accueil ACP Design avec types d’artefacts, champ de brief, sélecteur de modèle et exemples" /><br/>
 <sub><b>Home</b> — Choisissez un type d'artefact, saisissez un brief, puis définissez le système de design, le répertoire de travail et le modèle avant de commencer.</sub>
 </td>
 </tr>
@@ -58,11 +58,11 @@ Un aperçu rapide du workflow principal d'OpenDesign. Commencez sur **Home** ave
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/plugins.png" alt="Page Plugins d’OpenDesign présentant le catalogue de skills officiels" /><br/>
+<img src="../../docs/screenshots/product-tour/plugins.png" alt="Page Plugins d’ACP Design présentant le catalogue de skills officiels" /><br/>
 <sub><b>Plugins</b> — Parcourez les skills officiels par catégorie, recherchez dans le catalogue et lancez un workflow avec <code>Try it</code>.</sub>
 </td>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/design-system.png" alt="Aperçu du système de design Shopify dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/design-system.png" alt="Aperçu du système de design Shopify dans le Studio ACP Design" /><br/>
 <sub><b>Design System</b> — Extrayez et affinez le langage visuel d'une marque, prévisualisez le résultat et continuez à créer avec lui dans le même espace de travail.</sub>
 </td>
 </tr>
@@ -75,31 +75,31 @@ Dans le Studio d'un projet, la conversation, les fichiers générés et la prév
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-prototype.png" alt="Aperçu d’un prototype web dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-prototype.png" alt="Aperçu d’un prototype web dans le Studio ACP Design" /><br/>
 <sub><b>Prototype</b> — Générez ou reconstruisez des expériences web, inspectez la page rendue et itérez sur place avec l'agent.</sub>
 </td>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-deck.png" alt="Aperçu d’une présentation de plusieurs diapositives dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-deck.png" alt="Aperçu d’une présentation de plusieurs diapositives dans le Studio ACP Design" /><br/>
 <sub><b>Présentation</b> — Créez des présentations de plusieurs diapositives, examinez les miniatures et les notes du présentateur, puis exportez lorsqu'elles sont prêtes.</sub>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-mobile-app.png" alt="Aperçu d’un artefact d’application mobile dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-mobile-app.png" alt="Aperçu d’un artefact d’application mobile dans le Studio ACP Design" /><br/>
 <sub><b>Application mobile</b> — Générez et peaufinez des interfaces mobiles dans un aperçu d'appareil, avec la conversation, les fichiers de sortie et les prochaines étapes à côté.</sub>
 </td>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-image.png" alt="Aperçu d’une image générée dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-image.png" alt="Aperçu d’une image générée dans le Studio ACP Design" /><br/>
 <sub><b>Image</b> — Générez des ressources visuelles depuis la conversation du projet, prévisualisez le résultat en taille réelle, puis téléchargez-le ou ouvrez-le.</sub>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-document.png" alt="Aperçu d’un document multipage dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-document.png" alt="Aperçu d’un document multipage dans le Studio ACP Design" /><br/>
 <sub><b>Document</b> — Créez des guides multipages et des documents éditoriaux soignés, vérifiez la mise en page rendue, puis exportez ou partagez.</sub>
 </td>
 <td width="50%" valign="top">
-<img src="../../docs/screenshots/product-tour/studio-hyperframe.png" alt="Aperçu d’une animation HyperFrame dans le Studio OpenDesign" /><br/>
+<img src="../../docs/screenshots/product-tour/studio-hyperframe.png" alt="Aperçu d’une animation HyperFrame dans le Studio ACP Design" /><br/>
 <sub><b>HyperFrame</b> — Créez des motion graphics pilotés par le code, prévisualisez l'animation dans Studio et exportez la vidéo finale.</sub>
 </td>
 </tr>
@@ -108,7 +108,7 @@ Dans le Studio d'un projet, la conversation, les fichiers générés et la prév
 
 ## Compatibilité des plateformes
 
-> OpenDesign se connecte aux principaux agents de code de deux façons : par des **skills, un CLI et un serveur MCP** pour les agents qui utilisent OD, et par des **adaptateurs de runtime natifs** pour les agents qu'OD lance directement. DeepSeek Harness est un runtime natif à part entière via la CLI officielle `dsh`, avec streaming structuré, découverte des modèles, annulation et reprise de session.
+> ACP Design se connecte aux principaux agents de code de deux façons : par des **skills, un CLI et un serveur MCP** pour les agents qui utilisent OD, et par des **adaptateurs de runtime natifs** pour les agents qu'OD lance directement. DeepSeek Harness est un runtime natif à part entière via la CLI officielle `dsh`, avec streaming structuré, découverte des modèles, annulation et reprise de session.
 
 | Agent de code / plateforme &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Statut &nbsp;&nbsp; | Configuration rapide &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
 |---|:---:|---|
@@ -132,12 +132,12 @@ Dans le Studio d'un projet, la conversation, les fichiers générés et la prév
 | [Mistral Vibe CLI](https://github.com/mistralai/mistral-vibe) | ✅ Pris en charge | `od mcp install vibe` |
 | [Hermes Agent](https://github.com/nousresearch/hermes-agent) | ✅ Pris en charge | `od mcp install hermes` |
 
-Pour DeepSeek Harness, installez d'abord la CLI officielle `dsh`, puis sélectionnez-la dans OpenDesign ou lancez `od agent setup deepseek-harness` pour installer ou réparer le composant de connexion d'OD. Pour les intégrations MCP : `od mcp install <agent> --print` affiche un aperçu sans modification · `--uninstall` supprime l'intégration · `od mcp install --help` donne la liste complète.
+Pour DeepSeek Harness, installez d'abord la CLI officielle `dsh`, puis sélectionnez-la dans ACP Design ou lancez `od agent setup deepseek-harness` pour installer ou réparer le composant de connexion d'OD. Pour les intégrations MCP : `od mcp install <agent> --print` affiche un aperçu sans modification · `--uninstall` supprime l'intégration · `od mcp install --help` donne la liste complète.
 
 ¹ La configuration automatique du serveur MCP pour Claude Desktop est actuellement prise en charge uniquement sur macOS et Windows.
 
 <p align="center">
-  <img src="https://repo-assets.open-design.ai/resources/images/coding-agents.png" alt="Les 26 CLI d'agents de code pris en charge par OpenDesign — DeepSeek Harness · Claude Code · Codex · OpenCode · Hermes · Antigravity · Vela · Grok Build · Kimi · Cursor Agent · Qwen · Qoder · GitHub Copilot · Pi · Kiro · Kilo · Mistral Vibe · DeepSeek · Reasonix · Aider · Amp · CodeBuddy · Mimo · AtomCode · Devin · Trae" width="100%" />
+  <img src="https://repo-assets.open-design.ai/resources/images/coding-agents.png" alt="Les 26 CLI d'agents de code pris en charge par ACP Design — DeepSeek Harness · Claude Code · Codex · OpenCode · Hermes · Antigravity · Vela · Grok Build · Kimi · Cursor Agent · Qwen · Qoder · GitHub Copilot · Pi · Kiro · Kilo · Mistral Vibe · DeepSeek · Reasonix · Aider · Amp · CodeBuddy · Mimo · AtomCode · Devin · Trae" width="100%" />
 </p>
 
 **Aucun CLI installé ?** Le proxy BYOK à `POST /api/proxy/{anthropic,openai,azure,google,ollama,senseaudio}/stream` vous offre la même boucle (sans spawn de processus) — collez `baseUrl` + `apiKey` + `model`, avec des préréglages pour OpenAI, Atlas Cloud, Anthropic, Azure OpenAI, Google Gemini, Ollama, LM Studio, vLLM ou tout point de terminaison compatible OpenAI. Atlas Cloud utilise `https://api.atlascloud.ai/v1` avec votre propre clé et des identifiants de modèles compatibles OpenAI comme `qwen/qwen3.5-flash`. Une protection SSRF par cible bloque les IP internes / link-local / CGNAT à la périphérie du daemon.
@@ -227,7 +227,7 @@ Chaque présentation s'exporte en **HTML** (fichier unique, ressources intégré
 
 ### 5 · Vidéo et HyperFrames — motion graphics agent-native
 
-**[HyperFrames][hyperframes]** est le framework vidéo open source et agent-native de HeyGen, intégré comme citoyen de première classe dans OpenDesign. L'agent écrit du HTML + CSS + GSAP, et HyperFrames le rend en un MP4 déterministe via Chrome headless + FFmpeg. Associez-le à **Seedance 2.0** pour du t2v / i2v cinématographique, à **Veo 3 / Sora 2 / Kling 2** pour des variantes de modèles routées, et à **Suno v5 / Lyria 2** pour la couche audio.
+**[HyperFrames][hyperframes]** est le framework vidéo open source et agent-native de HeyGen, intégré comme citoyen de première classe dans ACP Design. L'agent écrit du HTML + CSS + GSAP, et HyperFrames le rend en un MP4 déterministe via Chrome headless + FFmpeg. Associez-le à **Seedance 2.0** pour du t2v / i2v cinématographique, à **Veo 3 / Sora 2 / Kling 2** pour des variantes de modèles routées, et à **Suno v5 / Lyria 2** pour la couche audio.
 
 <table>
 <tr>
@@ -250,11 +250,11 @@ Chaque présentation s'exporte en **HTML** (fichier unique, ressources intégré
 
 ---
 
-## Pourquoi OpenDesign
+## Pourquoi ACP Design
 
 > **En avril 2026, Anthropic a publié Claude Design — la première fois qu'un LLM cessait d'écrire de la prose pour livrer directement des artefacts de design.** C'est devenu viral. Mais c'est resté propriétaire, payant uniquement, dans le cloud uniquement, verrouillé sur le modèle d'Anthropic, les skills d'Anthropic, la surface d'Anthropic. Pas de paiement à l'usage, pas d'auto-hébergement, pas de déploiement Vercel, pas de remplacement par votre propre agent.
 
-OpenDesign (OD) est l'alternative open source. La même boucle, le même modèle mental orienté artefact, sans aucun verrouillage :
+ACP Design (OD) est l'alternative open source. La même boucle, le même modèle mental orienté artefact, sans aucun verrouillage :
 
 - 🤖 **Agent-native, agnostique au modèle.** Nous ne livrons pas d'agent. Les `claude` / `codex` / `cursor-agent` / `copilot` / `hermes` / `kimi` déjà présents dans votre `PATH` sont le moteur de design. Changez-en d'un seul clic.
 - 🧠 **Qualité professionnelle par défaut.** Chaque rendu lit le `DESIGN.md` du package actif comme contrat de marque central. Le dépôt fournit 151 packages de systèmes de design ; les packages historiques peuvent ne contenir que `DESIGN.md`, tandis que les plus récents peuvent ajouter `manifest.json`, `tokens.css`, des composants, des assets et leur provenance. Déposez un dossier, le sélecteur le trouve.
@@ -265,7 +265,7 @@ OpenDesign (OD) est l'alternative open source. La même boucle, le même modèle
 
 ### Comparaison
 
-| | Claude Design | Figma | Lovable / v0 / Bolt | **OpenDesign** |
+| | Claude Design | Figma | Lovable / v0 / Bolt | **ACP Design** |
 |---|---|---|---|---|
 | Open source | ❌ | ❌ | ❌ | **✅ Apache-2.0** |
 | Auto-hébergement / bureau | ❌ | ❌ | ❌ | **✅ macOS + Windows + Docker** |
@@ -282,7 +282,7 @@ OpenDesign (OD) est l'alternative open source. La même boucle, le même modèle
 
 ### 🖥️ Téléchargez l'application de bureau (recommandé — zéro configuration)
 
-Le moyen le plus rapide d'utiliser OpenDesign. Pas de Node, pas de pnpm, pas de clone.
+Le moyen le plus rapide d'utiliser ACP Design. Pas de Node, pas de pnpm, pas de clone.
 
 - **macOS** (Apple Silicon · Intel x64) → [**open-design.ai**](https://open-design.ai/?utm_source=github&utm_medium=referral&utm_content=readme_download_macos) ou [GitHub Releases](https://github.com/nexu-io/open-design/releases)
 - **Windows** (x64) → [**open-design.ai**](https://open-design.ai/?utm_source=github&utm_medium=referral&utm_content=readme_download_windows) ou [GitHub Releases](https://github.com/nexu-io/open-design/releases)
@@ -292,7 +292,7 @@ Après l'installation : l'application détecte automatiquement chaque CLI d'agen
 
 ### 🤖 Installez-le dans votre agent de code (sans interface)
 
-Vous pouvez utiliser OpenDesign sans jamais ouvrir l'interface graphique — appelez-le en tant que skill, plugin ou serveur MCP à l'intérieur de Claude Code, Codex, Cursor, Copilot, OpenClaw, Antigravity, Hermes, Kimi, et bien d'autres.
+Vous pouvez utiliser ACP Design sans jamais ouvrir l'interface graphique — appelez-le en tant que skill, plugin ou serveur MCP à l'intérieur de Claude Code, Codex, Cursor, Copilot, OpenClaw, Antigravity, Hermes, Kimi, et bien d'autres.
 
 Si vous avez installé l'application macOS via le DMG ou le cask Homebrew, votre shell peut encore associer `od` à l'utilitaire système de représentation octale `/usr/bin/od`. Dans ce cas, ouvrez **Settings → MCP server** dans l'application et copiez l'extrait correspondant à votre client : il utilise des chemins absolus et ne dépend pas de la commande `od` seule.
 
@@ -307,9 +307,9 @@ od mcp install <agent>
 curl -fsSL https://open-design.ai/install.sh | sh -s <agent>
 ```
 
-`install.sh` est un simple script d'enveloppe pour `od mcp install` : l'URL hébergée renvoie ainsi un script shell plutôt que la page d'accueil HTML. Le script s'arrête immédiatement si le shell trouve un exécutable `od` qui n'appartient pas à OpenDesign.
+`install.sh` est un simple script d'enveloppe pour `od mcp install` : l'URL hébergée renvoie ainsi un script shell plutôt que la page d'accueil HTML. Le script s'arrête immédiatement si le shell trouve un exécutable `od` qui n'appartient pas à ACP Design.
 
-> **Utilisateurs de macOS / WSL2 :** la commande système `/usr/bin/od` peut masquer celle d'OpenDesign. Dans l'application de bureau, privilégiez l'extrait de **Settings → MCP server** ; sous WSL2, commencez par le [guide de configuration WSL2](../wsl-setup.md).
+> **Utilisateurs de macOS / WSL2 :** la commande système `/usr/bin/od` peut masquer celle d'ACP Design. Dans l'application de bureau, privilégiez l'extrait de **Settings → MCP server** ; sous WSL2, commencez par le [guide de configuration WSL2](../wsl-setup.md).
 
 Ensuite, à l'intérieur de l'agent :
 
@@ -317,7 +317,7 @@ Ensuite, à l'intérieur de l'agent :
 > Use open-design to generate a landing page with the Linear design system
 ```
 
-Dans une exécution CLI locale avec système de fichiers, l'agent compose le skill fonctionnel ou le modèle choisi avec votre `DESIGN.md`, écrit les fichiers canoniques et OpenDesign les prévisualise. Une exécution BYOK/API sans outils de fichiers renvoie un unique bloc `<artifact>` complet.
+Dans une exécution CLI locale avec système de fichiers, l'agent compose le skill fonctionnel ou le modèle choisi avec votre `DESIGN.md`, écrit les fichiers canoniques et ACP Design les prévisualise. Une exécution BYOK/API sans outils de fichiers renvoie un unique bloc `<artifact>` complet.
 
 ### 🐳 Exécutez avec Docker
 
@@ -336,7 +336,7 @@ Si le navigateur demande des identifiants, utilisez `open-design` comme nom d'ut
 
 [![Deploy on Sealos](https://sealos.io/Deploy-on-Sealos.svg)](https://sealos.io/products/app-store/open-design/)
 
-Le modèle Sealos App Store exécute l'image Docker publiée d'OpenDesign avec un stockage persistant pour l'espace de travail et une Basic Auth sur le proxy public. Pour les déploiements Docker publics ou partagés personnalisés, suivez les indications de proxy inverse et `OPEN_DESIGN_ALLOWED_ORIGINS` dans [`deploy/README.md`](../../deploy/README.md#local-compose).
+Le modèle Sealos App Store exécute l'image Docker publiée d'ACP Design avec un stockage persistant pour l'espace de travail et une Basic Auth sur le proxy public. Pour les déploiements Docker publics ou partagés personnalisés, suivez les indications de proxy inverse et `OPEN_DESIGN_ALLOWED_ORIGINS` dans [`deploy/README.md`](../../deploy/README.md#local-compose).
 
 ### 🧑‍💻 Exécutez depuis les sources
 
@@ -359,13 +359,13 @@ Node `~24`, pnpm `10.33.x`. Sous WSL2, consultez le [guide WSL2](../wsl-setup.md
 2. **Un designer (ou l'agent) verrouille la direction.** Pas de marque ? Choisissez parmi 5 directions sélectionnées. Vous avez une marque ? Déposez une capture d'écran / une URL → l'agent se connecte à GitHub, importe Figma, et codifie un `DESIGN.md` réutilisable.
 3. **L'agent crée le premier livrable.** Le plugin, le skill fonctionnel ou le modèle de design et le `DESIGN.md` sont associés. Les exécutions CLI avec système de fichiers écrivent les fichiers canoniques du projet et l'aperçu suit leurs modifications ; les exécutions BYOK/API sans outils de fichiers renvoient un bloc `<artifact>` complet.
 4. **Transmettez à l'ingénierie.** L'artefact est du véritable HTML/CSS — déposez-le dans Cursor, Codex ou Claude Code pour continuer à construire en code. Ou exportez en PPTX / PDF / MP4 directement vers le marketing.
-5. **OpenDesign devient plus intelligent à mesure que vous l'utilisez.** Vos captures d'écran, polices, palettes et artefacts confirmés s'accumulent comme valeurs par défaut pour la session suivante. Moins de retouches, moins de dérive.
+5. **ACP Design devient plus intelligent à mesure que vous l'utilisez.** Vos captures d'écran, polices, palettes et artefacts confirmés s'accumulent comme valeurs par défaut pour la session suivante. Moins de retouches, moins de dérive.
 
 ---
 
-## Utilisez OpenDesign depuis votre agent de code
+## Utilisez ACP Design depuis votre agent de code
 
-OpenDesign livre un **serveur MCP en stdio** et des **scripts d'installation** par agent. Tout agent compatible MCP dans un autre dépôt peut lire directement des fichiers de vos projets OpenDesign locaux — tokens CSS, composants JSX, HTML d'entrée — comme une API structurée interrogeable par nom. L'agent voit toujours le fichier en direct, jamais un export périmé.
+ACP Design livre un **serveur MCP en stdio** et des **scripts d'installation** par agent. Tout agent compatible MCP dans un autre dépôt peut lire directement des fichiers de vos projets ACP Design locaux — tokens CSS, composants JSX, HTML d'entrée — comme une API structurée interrogeable par nom. L'agent voit toujours le fichier en direct, jamais un export périmé.
 
 ```bash
 # One-line install (16+ CLIs supported):
@@ -501,7 +501,7 @@ Chaque commande prend en charge `--json`, vous pouvez donc la canaliser via `jq`
 
 ### Construire un plugin
 
-Un plugin OpenDesign exige `open-design.json` et le payload de son type. Les skills et scénarios incluent aussi `SKILL.md` ; les autres types utilisent leur payload dédié :
+Un plugin ACP Design exige `open-design.json` et le payload de son type. Les skills et scénarios incluent aussi `SKILL.md` ; les autres types utilisent leur payload dédié :
 
 ```
 my-plugin/
@@ -526,7 +526,7 @@ Ensemble complet des champs et contrat d'exécution → [`plugins/spec/SPEC.md`]
 
 ### Contribuer un plugin
 
-1. Déposez le dossier du plugin dans [`plugins/community/`](../../plugins/community/) (plugins tiers), ou — pour le livrer empaqueté avec OpenDesign — dans le tier correspondant de [`plugins/_official/`](../../plugins/_official/).
+1. Déposez le dossier du plugin dans [`plugins/community/`](../../plugins/community/) (plugins tiers), ou — pour le livrer empaqueté avec ACP Design — dans le tier correspondant de [`plugins/_official/`](../../plugins/_official/).
 2. Passez la validation : `od plugin validate`, `pnpm guard`, `pnpm --filter @open-design/plugin-runtime typecheck`.
 3. Remplissez la PR à l'aide du modèle dans [`plugins/spec/CONTRIBUTING.md`](../../plugins/spec/CONTRIBUTING.md) (ID, version, voie, mode, capacités, exemples de déclencheurs ; joignez une capture d'écran / un aperçu pour les plugins visuels).
 4. Pour publier sur un registre externe (skills.sh / ClawHub / GitHub autonome) → [`plugins/spec/PUBLISHING-REGISTRIES.md`](../../plugins/spec/PUBLISHING-REGISTRIES.md).
@@ -590,7 +590,7 @@ Architecture complète → [`docs/architecture.md`](../../docs/architecture.md).
 - [x] Protocole sidecar + bureau Electron + automatisation IPC
 - [x] API de lint d'artefacts + portail d'auto-critique en 5 dimensions avant émission
 - [x] **0.8.0** — infrastructure de marketplace de plugins (261 plugins officiels, spec de manifeste, scripts d'installation par agent)
-- [x] **0.9.0** — OpenDesign Cloud (service de modèles officiel intégré à l'application : zéro configuration, connexion en un clic)
+- [x] **0.9.0** — ACP Design Cloud (service de modèles officiel intégré à l'application : zéro configuration, connexion en un clic)
 - [x] **0.10.0** — le workspace de design tout-en-un : toute la boucle créative dans une fenêtre (références → matière → édition interactive → animation → transmission)
 - [x] **0.11.0** — _The Bazaar_ : une marketplace communautaire ouverte de plugins et de systèmes de design que chacun peut utiliser et enrichir
 - [x] **0.12.0** — _Brand-backed Design System_ : transformez votre marque existante en un système `DESIGN.md` réutilisable et portable
@@ -611,7 +611,7 @@ Historique de la livraison par phases (document archivé) → [`docs/roadmap.md`
 
 De vraies personnes derrière chaque canal.
 
-- 💬 **Discord** — chat quotidien, partage de plugins, questions → [**discord.gg/mHAjSMV6gz**](https://discord.gg/mHAjSMV6gz)
+- 💬 **Discord** — chat quotidien, partage de plugins, questions → [**discord.gg/jE4MzArHX**](https://discord.gg/jE4MzArHX)
 - 🐦 **X / Twitter** — notes de version, jalons, coulisses → [**@OpenDesignHQ**](https://x.com/OpenDesignHQ)
 - 🗣️ **GitHub Discussions** — Q&R approfondies, RFC, « montrez votre travail » → [**Discussions**](https://github.com/nexu-io/open-design/discussions)
 - 🐛 **GitHub Issues** — rapports de bugs, demandes de fonctionnalités → [**Issues**](https://github.com/nexu-io/open-design/issues)
@@ -622,7 +622,7 @@ Les labels [`good-first-issue`](https://github.com/nexu-io/open-design/issues?q=
 
 ## Contribuer
 
-OpenDesign continue d'avancer parce que des contributeurs — designers, ingénieurs, auteurs de prompts — continuent de se présenter. Beaucoup des skills, systèmes de design et plugins les plus utilisés ont été écrits par des personnes extérieures à l'équipe principale.
+ACP Design continue d'avancer parce que des contributeurs — designers, ingénieurs, auteurs de prompts — continuent de se présenter. Beaucoup des skills, systèmes de design et plugins les plus utilisés ont été écrits par des personnes extérieures à l'équipe principale.
 
 ### 🎯 Par où commencer (effet de levier maximal, changement minimal)
 
@@ -660,9 +660,9 @@ gh pr create --fill
 
 Flux complet de contribution adapté aux agents, style de code et exigences pour les PR → [English](../../CONTRIBUTING.md) ([Deutsch](CONTRIBUTING.de.md) · [Français](CONTRIBUTING.fr.md) · [简体中文](CONTRIBUTING.zh-CN.md) · [日本語](CONTRIBUTING.ja-JP.md) · [한국어](CONTRIBUTING.ko.md) · [Português](CONTRIBUTING.pt-BR.md) · [ภาษาไทย](CONTRIBUTING.th.md)).
 
-### 🏅 Programme OpenDesign Fellow
+### 🏅 Programme ACP Design Fellow
 
-Nous recrutons des **OpenDesign Fellows** dans le monde entier — les Fellows façonnent le produit aux côtés de l'équipe principale, représentent officiellement OpenDesign dans leur région et font grandir la communauté localement, avec le soutien d'un financement ($1,000 / MR), de crédits LLM gratuits et d'une voie de revue directe. Détails → [`MAINTAINERS.md`](../../MAINTAINERS.md) et l'annonce sur [Discord](https://discord.gg/mHAjSMV6gz).
+Nous recrutons des **ACP Design Fellows** dans le monde entier — les Fellows façonnent le produit aux côtés de l'équipe principale, représentent officiellement ACP Design dans leur région et font grandir la communauté localement, avec le soutien d'un financement ($1,000 / MR), de crédits LLM gratuits et d'une voie de revue directe. Détails → [`MAINTAINERS.md`](../../MAINTAINERS.md) et l'annonce sur [Discord](https://discord.gg/jE4MzArHX).
 
 ---
 
@@ -703,7 +703,7 @@ Règles des mainteneurs, critères de promotion et protocole de départ → [`MA
 Merci à toutes les personnes qui ont pris part — code, documentation, retours, une issue pertinente, un nouveau skill, un nouveau système de design.
 
 <a href="https://github.com/nexu-io/open-design/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&max=500&columns=20&anon=1&cache_bust=2026-08-04" alt="Contributeurs d'OpenDesign" />
+  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&max=500&columns=20&anon=1&cache_bust=2026-08-04" alt="Contributeurs d'ACP Design" />
 </a>
 
 ---
@@ -711,7 +711,7 @@ Merci à toutes les personnes qui ont pris part — code, documentation, retours
 ## Activité du dépôt
 
 <picture>
-  <img alt="OpenDesign — métriques du dépôt" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
+  <img alt="ACP Design — métriques du dépôt" src="https://repo-assets.open-design.ai/resources/images/github-metrics.svg" />
 </picture>
 
 Le SVG ci-dessus est régénéré quotidiennement par [`.github/workflows/metrics.yml`](../../.github/workflows/metrics.yml) à l'aide de [`lowlighter/metrics`](https://github.com/lowlighter/metrics).
@@ -721,7 +721,7 @@ Le SVG ci-dessus est régénéré quotidiennement par [`.github/workflows/metric
 ## Mettez-nous une étoile
 
 <p align="center">
-  <a href="https://github.com/nexu-io/open-design"><img src="https://repo-assets.open-design.ai/resources/images/star-us.png" alt="Mettez une étoile à OpenDesign sur GitHub — github.com/nexu-io/open-design" width="100%" /></a>
+  <a href="https://github.com/nexu-io/open-design"><img src="https://repo-assets.open-design.ai/resources/images/star-us.png" alt="Mettez une étoile à ACP Design sur GitHub — github.com/nexu-io/open-design" width="100%" /></a>
 </p>
 
 Si cela vous a fait gagner trente minutes, mettez-lui une ★. Les étoiles ne paient pas le loyer — mais elles disent au prochain designer, agent et contributeur que cette expérience mérite leur attention. Un clic, trois secondes, un vrai signal.
@@ -730,7 +730,7 @@ Si cela vous a fait gagner trente minutes, mettez-lui une ★. Les étoiles ne p
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=nexu-io/open-design&type=Date&theme=dark&cache_bust=2026-08-04" />
     <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-08-04" />
-    <img alt="Historique des étoiles d'OpenDesign" src="https://star-history.dera.page/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-08-04" />
+    <img alt="Historique des étoiles d'ACP Design" src="https://star-history.dera.page/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-08-04" />
   </picture>
 </a>
 
@@ -748,7 +748,7 @@ Si cela vous a fait gagner trente minutes, mettez-lui une ★. Les étoiles ne p
 | [`multica-ai/multica`](https://github.com/multica-ai/multica) | L'architecture daemon + adaptateur — détection d'agents par scan du PATH, daemon local comme unique processus privilégié. |
 | [`VoltAgent/awesome-design-md`](https://github.com/VoltAgent/awesome-design-md) | Source historique du schéma `DESIGN.md` original en 9 sections et de 70 systèmes dérivés de l'upstream ; les packages actuels peuvent étendre cette base. |
 | [`bergside/awesome-design-skills`](https://github.com/bergside/awesome-design-skills) | Source des 57 skills de design ajoutés sous `design-systems/`. |
-| [`heygen-com/hyperframes`](https://github.com/heygen-com/hyperframes) | Le framework de motion graphics HTML→MP4, intégré comme `hyperframes-html` de première classe dans OpenDesign. |
+| [`heygen-com/hyperframes`](https://github.com/heygen-com/hyperframes) | Le framework de motion graphics HTML→MP4, intégré comme `hyperframes-html` de première classe dans ACP Design. |
 | [Claude Code skills][skill] | La convention `SKILL.md` que nous adoptons telle quelle. |
 
 Provenance détaillée → [`docs/references.md`](../../docs/references.md).

@@ -1,4 +1,4 @@
-# Contribuer à OpenDesign
+# Contribuer à ACP Design
 
 Merci d'envisager de contribuer. OD reste volontairement petit : l'essentiel
 de la valeur vit dans des **fichiers** (Skills, Design Systems, morceaux de
@@ -54,7 +54,7 @@ pour les pièges de configuration les plus courants.
 
 ## Configuration Docker
 
-Exécutez OpenDesign sans installer Node.js ou pnpm localement.
+Exécutez ACP Design sans installer Node.js ou pnpm localement.
 
 ### Prérequis
 
@@ -64,7 +64,7 @@ Vérifiez que Docker Desktop et Compose v2 sont installés :
 docker compose version
 ```
 
-### Démarrer OpenDesign
+### Démarrer ACP Design
 
 Depuis la racine du dépôt, préparez le fichier d'environnement :
 
@@ -445,7 +445,7 @@ dans les [Discussions][discussions] / sur [Discord][discord], et le reste
 se fait tout seul.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 

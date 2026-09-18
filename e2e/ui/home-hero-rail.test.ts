@@ -438,7 +438,7 @@ const PROMPT_TEMPLATES = [
 ];
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: 15_000 });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
 async function seedBrowserConfig(page: Page, config: Record<string, unknown>) {

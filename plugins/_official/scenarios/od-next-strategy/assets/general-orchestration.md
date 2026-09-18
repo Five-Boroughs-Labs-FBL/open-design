@@ -2,13 +2,13 @@
 
 ## Contract ownership
 
-Open Design owns the V2 schemas, durable task-chain state, applied content
+ACP Design owns the V2 schemas, durable task-chain state, applied content
 identity, selected Agent, and native session. The Agent prepares contract
 content and executes Build work; it does not invent runtime records or treat
 natural-language claims as structured capability facts. The Agent supplies
 complete, validatable content and performs the actual Preflight checks; the
 formal protocol objects are still created, validated, persisted, and
-re-injected by Open Design. Below, "form, freeze, or update" describes content
+re-injected by ACP Design. Below, "form, freeze, or update" describes content
 preparation only — never substitute prose claims for the actual results of the
 schema, the RunManifest, or Preflight.
 
@@ -49,7 +49,7 @@ internal context, skill-loading location, or implementation.
   request, the user-selected Agent, actual input references, baseline
   artifact versions, the capability snapshot, execution decisions, production
   routes, Build Packages, and the two Preflight results.
-- The run state Open Design records captures this Run's execution state and
+- The run state ACP Design records captures this Run's execution state and
   actual history; it never rewrites the Task Profile in reverse.
 - The `Design Spec` is the set of visual decisions frozen for this Run —
   palette, type family and size scale, spacing rhythm, corner radii and
@@ -109,7 +109,7 @@ while writing the source.
 
 ## Identify the input stage
 
-Use the stage supplied by Open Design:
+Use the stage supplied by ACP Design:
 
 - `request`: the user raises a new design or change requirement; choose and
   lock the route for the new logical task.
@@ -229,11 +229,11 @@ For a Full Plan request, proceed in this order:
 9. Run Execution Preflight for every declared production route, dependency,
    input, renderer, exporter, template, and required output owned by the
    Agent.
-10. Emit a strict Plan Contract and Runtime State for Open Design to parse.
+10. Emit a strict Plan Contract and Runtime State for ACP Design to parse.
 
 The request and clarification turns stop after this planning output. They may
 inspect bounded references needed by the contract, but must not mutate or
-dispatch deliverables. Open Design starts Build by continuing the same native
+dispatch deliverables. ACP Design starts Build by continuing the same native
 session into `production`; the user does not resubmit the request.
 
 ### Drafting the Task Profile
@@ -417,7 +417,7 @@ deliverables, readiness artifact versions, and the Preflight results.
 
 ## Contract repair
 
-Use the `contract_repair` stage only when Open Design reports that the semantic
+Use the `contract_repair` stage only when ACP Design reports that the semantic
 plan is frozen but its V2 serialization is malformed. Make one serialization
 attempt. Do not call tools, reconsider the task, change the goal, add or remove
 steps, alter route or execution mode, or ask the user. If a valid representation
@@ -489,7 +489,7 @@ is called input preparation.
 Only when the task needs media acquisition, generation, localization, or
 processing, and the current stage permits that work, load the
 `od-next-media-inputs` Skill if its complete, still-valid body is not already
-in context. Read it through the supplied Open Design CLI wrapper; on POSIX
+in context. Read it through the supplied ACP Design CLI wrapper; on POSIX
 shells:
 
 ```sh

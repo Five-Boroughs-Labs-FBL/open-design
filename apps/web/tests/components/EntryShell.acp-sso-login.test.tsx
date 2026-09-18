@@ -127,7 +127,7 @@ describe('ACP SSO login pane', () => {
     expect(container.querySelector('.acp-mark.is-spinning')).not.toBeNull();
   });
 
-  it('does not offer OpenDesign Cloud sign-in on the ACP studio shell', async () => {
+  it('does not offer ACP Design Cloud sign-in on the ACP studio shell', async () => {
     sessionStorage.setItem('od-acp-studio-preview', '1');
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

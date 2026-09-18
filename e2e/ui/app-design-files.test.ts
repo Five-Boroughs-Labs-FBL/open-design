@@ -405,7 +405,7 @@ async function revealDesignFileRow(page: Page, fileName: string): Promise<Locato
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function expectVisibleAcrossAnimationFrames(locator: Locator) {

@@ -1647,7 +1647,7 @@ async function dismissPrivacyDialog(page: Page) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function clickVisible(locator: Locator) {

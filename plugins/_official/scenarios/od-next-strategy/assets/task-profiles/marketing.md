@@ -30,11 +30,11 @@ channel spec, one canvas per size. Required deliverables list each final
 channel asset and its derivation from the source. Multi-size work uses
 composed variants, not an undifferentiated scale.
 
-Final images and PDFs are rendered by Open Design's product-side engineering
+Final images and PDFs are rendered by ACP Design's product-side engineering
 after the HTML source is written; they are outside the Agent's
 responsibility. Writing each size's HTML source artifact to disk IS the
 delivery — no rendering to image, no looking back, no export validation.
-Never describe a final image or PDF that Open Design's engineering has not
+Never describe a final image or PDF that ACP Design's engineering has not
 yet rendered as completed output.
 
 ## Build Requirements
@@ -176,7 +176,7 @@ Meet the following in one pass, while writing the source:
   no mechanical scaling.
 - Print collateral builds its canvas at physical dimensions with bleed, and
   the print parameters go into the delivery notes; never describe a final
-  image or PDF that Open Design's engineering has not yet rendered as
+  image or PDF that ACP Design's engineering has not yet rendered as
   completed.
 
 ## Build Packages

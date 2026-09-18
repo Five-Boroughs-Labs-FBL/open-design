@@ -81,7 +81,7 @@ describe('resolveEntryRailAccountFooterState', () => {
 });
 
 describe('shouldShowCloudSignInTip', () => {
-  it('hides the OpenDesign Cloud rail after ACP SSO is the identity path', () => {
+  it('hides the ACP Design Cloud rail after ACP SSO is the identity path', () => {
     expect(shouldShowCloudSignInTip({
       accountFooterState: 'sign-in',
       acpSsoResolved: true,

@@ -156,5 +156,5 @@ async function sendPrompt(page: Page, prompt: string) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.medium });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.medium });
 }

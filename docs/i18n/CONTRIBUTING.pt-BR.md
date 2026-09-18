@@ -1,4 +1,4 @@
-# Contribuindo com o OpenDesign
+# Contribuindo com o ACP Design
 
 Obrigado por considerar contribuir. O OD é pequeno de propósito — a maior parte do valor mora em **arquivos** (skills, design systems, fragmentos de prompt) e não em código de framework. Isso significa que as contribuições com maior alavancagem geralmente são uma pasta, um arquivo Markdown ou um adapter do tamanho de um PR.
 
@@ -317,7 +317,7 @@ Se você vem contribuindo de forma consistente e quer saber como é o caminho pa
 O tl;dr: mande bons PRs, revise com cuidado, apareça nas [Discussions][discussions] / no [Discord][discord], e o resto se resolve sozinho.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 
