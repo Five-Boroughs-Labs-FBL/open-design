@@ -33,6 +33,15 @@ describe('community Discord presence', () => {
   it('serves the ACP invite from GET /api/community/discord', async () => {
     const app = express();
     registerOpenDesignPublicMetadataRoutes(app, {
+      http: {
+        createSseResponse: () => undefined,
+        isLocalSameOrigin: () => true,
+        requireLocalDaemonRequest: () => undefined,
+        resolvedPortRef: { current: 0 },
+        sendApiError: () => undefined,
+        sendLiveArtifactRouteError: () => undefined,
+        sendMulterError: () => undefined,
+      },
       openDesignPublicMetadata: {
         readGithubRepoStats: async () => {
           throw new Error('unused');
@@ -47,7 +56,7 @@ describe('community Discord presence', () => {
           stale: false,
         }),
       },
-    } as Parameters<typeof registerOpenDesignPublicMetadataRoutes>[1]);
+    });
 
     server = http.createServer(app);
     await new Promise<void>((resolve) => {
