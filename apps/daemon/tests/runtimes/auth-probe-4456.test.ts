@@ -177,4 +177,40 @@ describe('probeAgentAuthStatus (#4456)', () => {
       expect(result?.status).toBe('missing');
     });
   });
+
+  describe('Cursor API-key automation', () => {
+    const CURSOR_PROBE = {
+      id: 'cursor-agent' as const,
+      name: 'Cursor Agent',
+      authProbe: { args: ['status'] },
+    };
+
+    it('short-circuits cursor-agent status when CURSOR_API_KEY is set', async () => {
+      execAgentFileMock.mockResolvedValue({
+        stdout: 'Not logged in. Run cursor-agent login.',
+        stderr: '',
+      });
+      const result = await probeAgentAuthStatus(
+        CURSOR_PROBE,
+        '/fake/bin/cursor-agent',
+        { CURSOR_API_KEY: 'cursor-secret' },
+      );
+      expect(result).toEqual({ status: 'ok' });
+      expect(execAgentFileMock).not.toHaveBeenCalled();
+    });
+
+    it('still probes cursor-agent status when no API key is present', async () => {
+      execAgentFileMock.mockResolvedValue({
+        stdout: 'Not logged in. Run cursor-agent login.',
+        stderr: '',
+      });
+      const result = await probeAgentAuthStatus(
+        CURSOR_PROBE,
+        '/fake/bin/cursor-agent',
+        {},
+      );
+      expect(execAgentFileMock).toHaveBeenCalledTimes(1);
+      expect(result?.status).toBe('missing');
+    });
+  });
 });

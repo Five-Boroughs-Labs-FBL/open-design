@@ -389,6 +389,7 @@ export const OWN_AGENT_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'agy', 'aider', 'amp', 'amr', 'antigravity', 'atomcode', 'byok-opencode',
   'claude', 'codebuddy', 'codex', 'copilot', 'cursor-agent', 'deepseek',
   'deepseek-harness', 'devin', 'dsh', 'grok', 'grok-build', 'hermes', 'kilo',
+  'muse',
   'kimi', 'kiro', 'kiro-cli', 'mimo', 'opencode', 'opencode-cli', 'pi',
   'qoder', 'qodercli', 'qwen', 'reasonix', 'trae-cli', 'traecli', 'vela',
   'vibe', 'vibe-acp',
@@ -561,6 +562,9 @@ function hasProbeSatisfyingAuth(agentId: string, env: RuntimeEnv): boolean {
       hasNonEmptyEnv(env, ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']) ||
       hasClaudeEnterpriseProviderAuth(env)
     );
+  }
+  if (agentId === 'cursor-agent') {
+    return hasNonEmptyEnv(env, ['CURSOR_API_KEY']);
   }
   return false;
 }

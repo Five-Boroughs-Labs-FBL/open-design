@@ -32,6 +32,11 @@ export const cursorAgentDef = {
     id: 'cursor-agent',
     name: 'Cursor Agent',
     bin: 'cursor-agent',
+    // Current Cursor installers expose both names, with `agent` documented as
+    // the primary command and `cursor-agent` retained as the legacy alias.
+    // Accept the primary name too so a partial/managed install that omits the
+    // compatibility symlink remains usable.
+    fallbackBins: ['agent'],
     versionArgs: ['--version'],
     helpArgs: ['--help'],
     capabilityFlags: {
