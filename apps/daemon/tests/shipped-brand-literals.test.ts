@@ -37,6 +37,7 @@ const ALLOWED_SUBSTRINGS = [
   'open-design.json',
   'open-design-config.json',
   'OpenDesign PR',
+  'OpenDesign Browser tab',
 ].sort((a, b) => b.length - a.length);
 
 const SURFACES = [

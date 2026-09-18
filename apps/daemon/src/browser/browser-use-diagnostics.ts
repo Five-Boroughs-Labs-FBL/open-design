@@ -18,7 +18,7 @@ export function isBrowserUseRequested(...values: unknown[]): boolean {
       /(^|\s)@agent-browser(\s|$)/.test(value) ||
       value.includes('Browser tab context:') ||
       value.includes('Use the selected ACP Design Browser tab as the bound target.') ||
-      value.includes('Use the selected ACP Design Browser tab as the bound target.')
+      value.includes('Use the selected OpenDesign Browser tab as the bound target.')
     )
   ));
 }

@@ -217,7 +217,7 @@ export async function waitForLoadingToClear(page: Page) {
 
 export async function dismissPrivacyDialog(page: Page) {
   const privacySurface = page
-    .getByRole('region', { name: /Help us improve OpenDesign/i })
+    .getByRole('region', { name: /Help us improve ACP Design/i })
     .or(page.locator('.privacy-consent-banner'))
     .first();
   await privacySurface.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});

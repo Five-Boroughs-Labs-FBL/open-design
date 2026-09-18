@@ -92,7 +92,7 @@ async function waitForLoadingToClear(page: Page) {
 async function gotoConnectors(page: Page) {
   await page.goto('/integrations', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
-  const privacyRegion = page.getByRole('region', { name: /Help us improve OpenDesign/i });
+  const privacyRegion = page.getByRole('region', { name: /Help us improve ACP Design/i });
   if (await privacyRegion.isVisible().catch(() => false)) {
     await privacyRegion.getByRole('button', { name: /I get it|not now|got it/i }).click();
   }

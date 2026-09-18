@@ -142,7 +142,7 @@ describe('ACP SSO login pane', () => {
     await waitFor(() => {
       expect(screen.getByText('Sign in')).toBeTruthy();
     });
-    expect(screen.queryByRole('button', { name: /Sign in to OpenDesign/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Sign in to ACP Design/i })).toBeNull();
     const cta = screen.getByRole('button', { name: /Continue with ACP|Loading/i });
     expect(cta).toBeDisabled();
   });

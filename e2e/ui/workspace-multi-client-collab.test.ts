@@ -1077,7 +1077,7 @@ async function openHome(page: Page): Promise<void> {
   // convergence assertions below are the actual connection contract.
   const privacyDialog = page
     .getByRole('dialog')
-    .filter({ hasText: 'Help us improve OpenDesign' });
+    .filter({ hasText: 'Help us improve ACP Design' });
   if (await privacyDialog.isVisible().catch(() => false)) {
     await privacyDialog
       .getByRole('button', { name: /I get it|not now|got it|don't share/i })

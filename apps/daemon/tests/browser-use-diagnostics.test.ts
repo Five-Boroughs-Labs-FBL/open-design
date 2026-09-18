@@ -26,6 +26,7 @@ describe('browser use diagnostics', () => {
     expect(isBrowserUseRequested('hello')).toBe(false);
     expect(isBrowserUseRequested('@agent-browser\n\nBrowser tab context:')).toBe(true);
     expect(isBrowserUseRequested('Use the selected ACP Design Browser tab as the bound target.')).toBe(true);
+    expect(isBrowserUseRequested('Use the selected OpenDesign Browser tab as the bound target.')).toBe(true);
   });
 
   it('returns a missing-registry snapshot without reading socket contents', () => {

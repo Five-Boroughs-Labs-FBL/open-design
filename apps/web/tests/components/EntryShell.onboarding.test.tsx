@@ -293,7 +293,7 @@ async function clickCloudSignIn() {
 }
 
 async function findCloudSignInButton() {
-  return screen.findByRole('button', { name: /Sign in to OpenDesign/i });
+  return screen.findByRole('button', { name: /Sign in to ACP Design/i });
 }
 
 async function openLocalRuntimeSetup() {
@@ -747,7 +747,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     const props = renderHome({ config, amrLoggedIn: false });
 
     expect(
-      await screen.findByRole('heading', { name: 'Sign in to OpenDesign' }),
+      await screen.findByRole('heading', { name: 'Sign in to ACP Design' }),
     ).toBeTruthy();
     expect(window.location.pathname).toBe('/onboarding');
     expect(props.onConfigPersist).not.toHaveBeenCalled();
@@ -772,7 +772,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     expect(await screen.findByTestId('home-hero-input')).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     expect(
-      screen.queryByRole('heading', { name: 'Sign in to OpenDesign' }),
+      screen.queryByRole('heading', { name: 'Sign in to ACP Design' }),
     ).toBeNull();
   });
 
@@ -1496,9 +1496,9 @@ describe('EntryShell onboarding ACP runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(await screen.findByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Sign in to ACP Design' })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
 
     await waitFor(() => {
       expect(props.onAgentChange).not.toHaveBeenCalledWith('amr');
@@ -1518,10 +1518,10 @@ describe('EntryShell onboarding ACP runtime', () => {
     ) as typeof fetch;
     renderOnboarding();
 
-    expect(screen.getByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sign in to ACP Design' })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
     // No runtime card, no AMR version text, no "Sign in to continue" CTA.
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
     expect(screen.queryByText('AMR v0.1.0')).toBeNull();
     expect(screen.queryByRole('button', { name: /Sign in to continue/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Authorize AMR/i })).toBeNull();
@@ -1532,7 +1532,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     expect(
       (screen.getByRole('button', { name: /Bring Your Own Key/i }) as HTMLButtonElement).disabled,
     ).toBe(false);
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /Authorize AMR/i })).toBeNull();
     expect(screen.queryByText('Not signed in')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).toBeNull();
@@ -1794,7 +1794,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     expect(screen.queryByText('Signing in…')).toBeNull();
     // The landing CTA returns to its signed-out copy and is enabled again.
     const cloudButton = await screen.findByRole('button', {
-      name: /Sign in to OpenDesign/i,
+      name: /Sign in to ACP Design/i,
     });
     expect(cloudButton.hasAttribute('disabled')).toBe(false);
     expect(
@@ -1975,7 +1975,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     expect(screen.queryByText('Signing in…')).toBeNull();
     expect(
       screen
-        .getByRole('button', { name: /Sign in to OpenDesign/i })
+        .getByRole('button', { name: /Sign in to ACP Design/i })
         .hasAttribute('disabled'),
     ).toBe(false);
     expect(props.onCompleteOnboarding).not.toHaveBeenCalled();
@@ -2475,13 +2475,13 @@ describe('EntryShell onboarding ACP runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(screen.getByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sign in to ACP Design' })).toBeTruthy();
     const primary = screen.getByRole('button', { name: /Loading/i });
     expect(primary).toBeTruthy();
     expect(primary.getAttribute('aria-busy')).toBe('true');
     expect((primary as HTMLButtonElement).disabled).toBe(true);
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
     expect(
       (screen.getByRole('button', { name: /Local Agent/i }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -2497,7 +2497,7 @@ describe('EntryShell onboarding ACP runtime', () => {
     renderOnboarding({ agentsLoading: false });
 
     expect(await findCloudSignInButton()).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
   });
 
@@ -2512,9 +2512,9 @@ describe('EntryShell onboarding ACP runtime', () => {
     });
 
     expect(
-      await screen.findByRole('button', { name: /Sign in to OpenDesign/i }),
+      await screen.findByRole('button', { name: /Sign in to ACP Design/i }),
     ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /ACP/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^ACP$/ })).toBeNull();
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
   });
 
