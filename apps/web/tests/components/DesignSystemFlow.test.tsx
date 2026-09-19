@@ -2065,12 +2065,12 @@ describe('DesignSystemCreationFlow', () => {
   it.skip('adds website source links with Enter and keeps them out of GitHub intake', async () => {
     const system: DesignSystemDetail = {
       id: 'user:open-design-website-design-system',
-      title: 'OpenDesign Website Design System',
+      title: 'ACP Design Website Design System',
       category: 'Custom',
       summary: 'OpenDesign website source.',
       swatches: [],
       surface: 'web',
-      body: '# OpenDesign Website Design System\n',
+      body: '# ACP Design Website Design System\n',
       source: 'user',
       status: 'draft',
       isEditable: true,
@@ -2078,7 +2078,7 @@ describe('DesignSystemCreationFlow', () => {
     };
     const project: Project = {
       id: 'ds-open-design-website-design-system',
-      name: 'OpenDesign Website Design System',
+      name: 'ACP Design Website Design System',
       skillId: null,
       designSystemId: system.id,
       createdAt: 1,
@@ -2165,7 +2165,7 @@ describe('DesignSystemCreationFlow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show access methods' }));
     expect(screen.getByText('This device')).toBeTruthy();
-    expect(screen.getByText('OpenDesign account')).toBeTruthy();
+    expect(screen.getByText('ACP Design account')).toBeTruthy();
     expect(screen.getByText('Connector platform')).toBeTruthy();
     expect(screen.getByText('Coming soon')).toBeTruthy();
     expect(screen.getByText('Not configured')).toBeTruthy();

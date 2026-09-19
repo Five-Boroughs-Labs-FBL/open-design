@@ -24,6 +24,7 @@ import { isVisualStabilityMode } from '../utils/visualStability';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { getPluginFolderCandidates } from './design-files/pluginFolders';
 import { FileSyncBadge } from '../collab/FileSyncBadge';
+import { SUPPORT_DISCORD_URL } from './chat/support-channels';
 import { Icon } from './Icon';
 import { LiveArtifactBadges } from './LiveArtifactBadges';
 import { RemixIcon } from './RemixIcon';
@@ -280,7 +281,7 @@ const USEFUL_TIPS: ReadonlyArray<{ key: keyof Dict; url?: string }> = [
   { key: 'designFiles.usefulInfoTip14' },
   { key: 'designFiles.usefulInfoTip15' },
   { key: 'designFiles.usefulInfoTip5' },
-  { key: 'designFiles.usefulInfoTip6', url: 'https://discord.gg/mHAjSMV6gz' },
+  { key: 'designFiles.usefulInfoTip6', url: SUPPORT_DISCORD_URL },
   { key: 'designFiles.usefulInfoTip7', url: 'https://github.com/nexu-io/open-design' },
   { key: 'designFiles.usefulInfoTip8', url: 'https://x.com/OpenDesignHQ' },
   { key: 'designFiles.usefulInfoTip16', url: 'https://www.threads.com/@opendesign.ai' },
@@ -1809,7 +1810,7 @@ export function DesignFilesPanel({
                               void handlePluginFolderAgentAction(folder.path, 'contribute')
                             }
                           >
-                            {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'OpenDesign PR'}
+                            {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'ACP Design PR'}
                           </button>
                         </div>
                       ) : null}

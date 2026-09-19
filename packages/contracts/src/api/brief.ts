@@ -486,7 +486,7 @@ export function formatOpenDesignBriefForCli(
   displayArtifactType: string = brief.artifactType,
 ): string {
   const lines = [
-    'OpenDesign brief',
+    'ACP Design brief',
     `Artifact: ${displayArtifactType}`,
   ];
   if (brief.questions.length > 0) {

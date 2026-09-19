@@ -105,7 +105,7 @@ function buildPluginMarketplacePath(record: InstalledPluginRecord): string {
 }
 
 function buildMarkdownBadge(record: InstalledPluginRecord, url: string): string {
-  return `[![${record.title} — OpenDesign plugin](https://img.shields.io/badge/Open%20Design-${encodeURIComponent(record.title)}-d65a31?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2C)](${url})`;
+  return `[![${record.title} — ACP Design plugin](https://img.shields.io/badge/ACP%20Design-${encodeURIComponent(record.title)}-d65a31?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2C)](${url})`;
 }
 
 export function PluginShareMenu({ record, variant = 'default' }: Props) {

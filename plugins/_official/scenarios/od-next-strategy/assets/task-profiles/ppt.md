@@ -25,11 +25,11 @@ truthful data, layout fitted to content, and consistency across the deck.
 
 The canonical deliverable is fixed: one editable single-file HTML deck with a
 stable entry, complete content and slide order, openable and pageable from
-Open Design's real entry point, with no overflow or cropping.
+ACP Design's real entry point, with no overflow or cropping.
 
 - The Agent generates and modifies only the HTML primary deliverable; it
   never generates, previews, exports, or validates PPTX or PDF.
-- PPTX, PDF, and other formats are produced by Open Design's product-side
+- PPTX, PDF, and other formats are produced by ACP Design's product-side
   engineering after the HTML primary deliverable is written; they are outside
   the Agent's responsibility. The Agent does not claim an output that the
   declared production route did not create.
@@ -42,7 +42,7 @@ Open Design's real entry point, with no overflow or cropping.
   current task contract explicitly assigns them to the Agent; they never
   apply to PPTX or PDF.
 
-This boundary is an Open Design product runtime boundary, not a default
+This boundary is an ACP Design product runtime boundary, not a default
 design preference a prompt can override. Writing the single-file HTML to disk
 IS the delivery: no previewing, no paging back through slides, no
 slide-by-slide inspection, and no generating, opening, previewing, or
@@ -203,7 +203,7 @@ Meet the following in one pass, while writing the source:
 - Edit tasks touch only the affected slides, keeping the slide-flow structure
   and every slide outside the authorized scope exactly as they were.
 - The output is a genuinely usable, still-editable single-file HTML; never
-  describe a PPTX or PDF that Open Design's engineering has not yet produced
+  describe a PPTX or PDF that ACP Design's engineering has not yet produced
   as completed.
 
 ## Build Packages

@@ -93,7 +93,7 @@ describe('i18n locales', () => {
     const zh = await loadDict('zh-CN');
     expect(zh['chat.runError.title.cliSessionRefused']).toBe('智能体版本不兼容');
     expect(zh['chat.runError.cliSessionRefusedMessage']).toBe(
-      '{agent} 拒绝开始会话。通常是当前版本与 Open Design 不兼容，换一个版本后重试。',
+      '{agent} 拒绝开始会话。通常是当前版本与 ACP Design 不兼容，换一个版本后重试。',
     );
 
     // `{agent}` is the ONLY slot the card fills. A locale that carries a
@@ -511,6 +511,18 @@ describe('i18n locales', () => {
           value,
           `${locale}.assistant.waitingFirstOutput reports the model's first OUTPUT, not its input`,
         ).not.toMatch(wrongDirection);
+      }
+    }
+  });
+
+  it('names the product ACP Design in every locale value and never ships Open Design', async () => {
+    // @OpenDesignHQ / OpenDesignHQ stay until a replacement handle exists.
+    const retiredBrand = /(?<!@)OpenDesign(?!HQ)|Open Design/;
+    for (const locale of LOCALES) {
+      const dict = await loadDict(locale);
+      expect(dict['app.brand'], `${locale}.app.brand`).toBe('ACP Design');
+      for (const [key, value] of Object.entries(dict)) {
+        expect(value, `${locale}.${key}`).not.toMatch(retiredBrand);
       }
     }
   });

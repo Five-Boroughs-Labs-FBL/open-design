@@ -62,7 +62,7 @@ const App = dynamic(() => import('../../src/App').then((m) => m.App), {
       <span>
         {typeof window !== 'undefined' && isAcpStudioShell(window)
           ? ACP_OPEN_DESIGN_LOADING
-          : 'Loading OpenDesign…'}
+          : 'Loading ACP Design…'}
       </span>
     </div>
   ),

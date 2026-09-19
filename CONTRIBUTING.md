@@ -1,4 +1,4 @@
-# Contributing to OpenDesign
+# Contributing to ACP Design
 
 Thanks for thinking about contributing. OD is small on purpose — most of the value lives in **files** (skills, design systems, prompt fragments) rather than framework code. That means the highest-leverage contributions are usually one folder, one Markdown file, or one PR-sized adapter.
 
@@ -41,7 +41,7 @@ Node `~24` and pnpm `10.33.x` are required. `nvm` / `fnm` are optional; use `nvm
 
 ## Docker Setup
 
-Run OpenDesign without installing Node.js or pnpm.
+Run ACP Design without installing Node.js or pnpm.
 
 ### Prerequisites
 
@@ -51,7 +51,7 @@ Make sure Docker Desktop with Compose v2 is installed:
 docker compose version
 ```
 
-### Start OpenDesign
+### Start ACP Design
 
 ```bash
 cd deploy
@@ -318,7 +318,7 @@ If you've been contributing consistently and want to know what the path to becom
 The tl;dr: ship good PRs, review thoughtfully, hang out in [Discussions][discussions] / [Discord][discord], and the rest takes care of itself.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 
