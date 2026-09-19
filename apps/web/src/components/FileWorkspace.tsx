@@ -51,6 +51,7 @@ import {
 import type { Dict } from '../i18n/types';
 import { STAGE_ATTACHMENT_EVENT, type StageAttachmentEventDetail } from './ChatComposer';
 import { setPendingDesignSystemCreateEntry } from '../analytics/ds-create-entry';
+import { isAmcEmbedActive } from '../amc-embed';
 import { navigate, registerNavigationGuard } from '../router';
 import { downloadDesignSystemArchive, downloadProjectArchive } from '../runtime/exports';
 import { finalizeBrandProject } from '../runtime/brands';
@@ -460,6 +461,19 @@ function shouldKeepCurrentSketchState(
 export const DESIGN_FILES_TAB = '__design_files__';
 export const DESIGN_SYSTEM_TAB = '__design_system__';
 export { STREAMING_HTML_PREVIEW_NAME } from './streaming-html-preview';
+
+const DESIGN_ASSET_PREVIEW_NAME = /\.(png|jpe?g|gif|webp|avif|mp4|mov|webm|mp3|wav|m4a)$/i;
+
+function hasDesignManifestCanvas(
+  state: { projectId: string } | null,
+  projectId: string,
+): boolean {
+  return state?.projectId === projectId;
+}
+
+function isDesignAssetPreviewName(name: string): boolean {
+  return DESIGN_ASSET_PREVIEW_NAME.test(name);
+}
 
 // Module-level default so a caller that omits `previewComments` doesn't mint
 // a fresh [] every render — that identity feeds the memoized FileViewer.
@@ -2123,6 +2137,19 @@ export function FileWorkspace({
       setPersistedActive(nextActive);
       return;
     }
+    // Generated images/video steal the All Screens canvas mid-run. Keep the
+    // canvas in front until a surface HTML lands or the user opens the asset.
+    if (
+      streaming
+      && isDesignAssetPreviewName(name)
+      && activeTab === DESIGN_FILES_TAB
+      && (
+        hasDesignManifestCanvas(manifestCanvasState, projectId)
+        || isAmcEmbedActive()
+      )
+    ) {
+      return;
+    }
     if (isBrowserTabId(name) && browserTabs.some((tab) => tab.id === name)) {
       setPersistedActive(name);
       return;
@@ -3521,8 +3548,7 @@ export function FileWorkspace({
       onFileSaved={refreshFilesWithoutResult}
       onOpenFileReplacing={stableOpenFileReplacing}
       onShowAllScreens={
-        manifestCanvasState?.projectId === projectId
-        && manifestCanvasState.surfaceFiles.has(designManifestPathIdentity(file.name))
+        hasDesignManifestCanvas(manifestCanvasState, projectId)
           ? stableShowAllDesignScreens
           : undefined
       }
