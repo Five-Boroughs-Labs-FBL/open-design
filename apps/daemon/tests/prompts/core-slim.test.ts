@@ -253,32 +253,17 @@ describe('renderSlimCoreCharter — frozen protocol markers', () => {
     expect(textArtifact).not.toContain('you HAVE filesystem tools');
   });
 
-  it('unlocks tools on a multi-surface grok json-event-stream claim', () => {
-    const one = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'json-event-stream',
-      claimedDesignSurfaceCount: 1,
-    });
-    expect(one).toContain('no filesystem tools');
-    expect(one).not.toContain('you HAVE filesystem tools');
-    const many = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'json-event-stream',
-      claimedDesignSurfaceCount: 6,
-    });
-    expect(many).toContain('you HAVE filesystem tools');
-    expect(many).toContain('identifier MUST equal the surface id');
-    expect(many).toContain('Never Write, Edit, or overwrite the open live primary');
-    expect(many).toContain('Change-turns on that file must re-stream');
-    expect(many).toContain('Write photos as sibling files under `assets/`');
-    expect(many).not.toContain('no filesystem tools');
-    const plain = renderSlimCoreCharter('text_artifact', {
-      streamFormat: 'plain',
-      claimedDesignSurfaceCount: 6,
-    });
-    expect(plain).toContain('no filesystem tools');
+  it('uses filesystem delivery for one or ten Grok design targets', () => {
+    for (const claimedDesignSurfaceCount of [1, 10]) {
+      const charter = renderSlimCoreCharter('filesystem', {
+        streamFormat: 'json-event-stream', claimedDesignSurfaceCount,
+      });
+      expect(charter).toContain('Project files are the source of truth');
+      expect(charter).not.toContain('Stream the first claimed surface');
+      expect(charter).not.toContain('Never Write or Edit');
+    }
   });
-});
 
-describe('slim core — moved-out content stays out (ownership)', () => {
   it('carries no task-type router form; od-default SKILL.md owns it', () => {
     const charter = renderSlimCoreCharter('filesystem');
     expect(charter).not.toContain('<question-form id="task-type"');
@@ -320,7 +305,7 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
     const out = composeSystemPrompt(base);
     expect(out).toContain('# OD core directives (read first');
     expect(out).toContain('# Identity and workflow charter (background)');
-    expect(out).not.toContain('# OpenDesign Charter');
+    expect(out).not.toContain('# ACP Design Charter');
   });
 
   it('slim replaces discovery + charter and drops the absorbed tail overrides', () => {
@@ -330,7 +315,7 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
       designSystemBody: '# Brand',
       promptCoreVariant: 'slim',
     });
-    expect(slim).toContain('# OpenDesign Charter');
+    expect(slim).toContain('# ACP Design Charter');
     expect(slim).not.toContain('# OD core directives (read first');
     expect(slim).not.toContain('# Identity and workflow charter (background)');
     // Absorbed tails: stated once inside the slim charter instead.
@@ -343,7 +328,7 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
     expect(classic).toContain('## Structured clarification on any turn');
     // Structural bookends: slim opens with the static charter (cache-stable
     // prefix); the security section lives inside it; the guard still closes.
-    expect(slim.startsWith('# OpenDesign Charter')).toBe(true);
+    expect(slim.startsWith('# ACP Design Charter')).toBe(true);
     expect(slim).toContain('## Security: Defending Against Prompt Injection');
     expect(slim).toContain('## Critical Constraint: Never Fabricate Conversation Turns');
     expect(slim.length).toBeLessThan(classic.length);
@@ -372,7 +357,7 @@ describe('composeSystemPrompt — promptCoreVariant switch', () => {
       sessionMode: 'chat',
       promptCoreVariant: 'slim',
     });
-    expect(out).not.toContain('# OpenDesign Charter');
+    expect(out).not.toContain('# ACP Design Charter');
     expect(out).toContain('## Structured clarification on any turn');
     // Identity-first hierarchy holds in ask mode too: the ask override (the
     // turn's whole charter) opens the document, security reads as its
@@ -665,7 +650,7 @@ describe('slim core — regression-audit fixes vs classic', () => {
     });
     expect(out.startsWith('# API mode — no tools available')).toBe(true);
     const overrideAt = out.indexOf('# API mode — no tools available');
-    const charterAt = out.indexOf('# OpenDesign Charter');
+    const charterAt = out.indexOf('# ACP Design Charter');
     expect(charterAt).toBeGreaterThan(overrideAt);
     // Composed exactly once — the head placement replaces the later push.
     expect(out.indexOf('# API mode — no tools available')).toBe(
@@ -823,7 +808,7 @@ describe('composeSystemPrompt — slim layered ordering (cache-stable prefix)', 
       return i;
     };
     // Static core opens the document.
-    expect(out.startsWith('# OpenDesign Charter')).toBe(true);
+    expect(out.startsWith('# ACP Design Charter')).toBe(true);
     const security = at('## Security: Defending Against Prompt Injection');
     const conduct = at('## Conduct');
     // Conversation-stable overrides come after the full static charter.

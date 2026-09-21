@@ -61,6 +61,39 @@ export const ARTIFACT_ENVELOPE_LEAK_OPEN_HTML = ARTIFACT_ENVELOPE_LEAK_HTML.repl
   '',
 );
 
+/**
+ * Live REPL leak: agent reasoning jammed into an unclosed viewport attribute
+ * and into the body. One doctype, no markdown fence, no style markup.
+ */
+export const REPL_VIEWPORT_THINKING_LEAK_HTML = [
+  '<!DOCTYPE html>',
+  '<html lang="en">',
+  '<head>',
+  '    <meta charset="UTF-8">',
+  '    <meta name="viewport" content="width=device-width, initial-scale=1.0 I\'ll spawn a sub-agent for dashboard.html and write the login screen next.',
+  'Pack ~Price Notes for the other screens go here while the REPL chrome is still open.',
+  '    <title>Natural shell</title>',
+  '</head>',
+  '<body>',
+  'Idle / Executing / Success',
+  '</body>',
+  '</html>',
+].join('\n');
+
+/** Viewport closed; spawn-plan prose sits as a text node in `<head>`. */
+export const REPL_HEAD_PROSE_LEAK_HTML = [
+  '<!DOCTYPE html>',
+  '<html lang="en">',
+  '<head>',
+  '    <meta charset="UTF-8">',
+  '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+  'I\'ll spawn a sub-agent for dashboard.html and write the login screen next.',
+  '    <title>Natural shell</title>',
+  '</head>',
+  '<body>Idle / Executing / Success</body>',
+  '</html>',
+].join('\n');
+
 /** Same envelope restart, but the inner page is itself mixed. */
 export const ARTIFACT_ENVELOPE_MIXED_INNER_HTML = [
   '<!DOCTYPE html>',

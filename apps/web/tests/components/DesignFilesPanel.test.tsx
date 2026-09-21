@@ -153,6 +153,31 @@ describe("DesignFilesPanel design manifest", () => {
     vi.unstubAllGlobals();
   });
 
+  it("previews an on-disk claimed file while the manifest still says generating", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/design-manifest")) {
+        return new Response(JSON.stringify({ manifest: {
+          schema: "open-design.design-manifest.v2", revision: 2,
+          projectId: "test-project", entrySurfaceId: "home",
+          surfaces: ["home", "search"].map((id) => ({
+            id, title: id, file: `${id}.html`, status: "generating",
+            filePresent: id === "home", required: true,
+          })),
+        } }), { status: 200 });
+      }
+      return new Response("<!doctype html><html><body>Written page</body></html>", { status: 200 });
+    }));
+    const { onOpenFile } = renderPanel([file({ name: "home.html" })]);
+    await screen.findByTestId("design-surface-canvas-viewport");
+    const home = screen.getByRole("button", { name: "Open home" });
+    await waitFor(() => expect(home.querySelector("iframe")).not.toBeNull());
+    expect(home.dataset.status).toBe("generating");
+    expect(home.querySelector("iframe")!.getAttribute("srcdoc")).toContain("Written page");
+    expect(screen.getByRole("button", { name: "Open search" }).querySelector("iframe")).toBeNull();
+    fireEvent.doubleClick(home);
+    expect(onOpenFile).toHaveBeenCalledWith("home.html");
+  });
+
   it("loads the ordered manifest and replaces the ordinary Pages grid with the canvas", async () => {
     const onManifestCanvasChange = vi.fn();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

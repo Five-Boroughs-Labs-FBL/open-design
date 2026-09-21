@@ -1,12 +1,13 @@
 import type { Express } from 'express';
-import type {
-  OpenDesignDiscordPresenceResponse,
-  OpenDesignGithubLatestReleaseResponse,
-  OpenDesignGithubRepoResponse,
+import {
+  ACP_DISCORD_INVITE_CODE,
+  ACP_DISCORD_INVITE_URL,
+  type OpenDesignDiscordPresenceResponse,
+  type OpenDesignGithubLatestReleaseResponse,
+  type OpenDesignGithubRepoResponse,
 } from '@open-design/contracts';
 import type { RouteDeps } from '../server-context.js';
 import {
-  OPEN_DESIGN_DISCORD_INVITE_URL,
   type OpenDesignPublicMetadataService,
 } from '../services/open-design-public-metadata.js';
 
@@ -59,8 +60,8 @@ export function registerOpenDesignPublicMetadataRoutes(
     try {
       const presence = await openDesignPublicMetadata.readDiscordPresence();
       const payload: OpenDesignDiscordPresenceResponse = {
-        inviteCode: 'mHAjSMV6gz',
-        inviteUrl: OPEN_DESIGN_DISCORD_INVITE_URL,
+        inviteCode: ACP_DISCORD_INVITE_CODE,
+        inviteUrl: ACP_DISCORD_INVITE_URL,
         onlineCount: presence.onlineCount,
         memberCount: presence.memberCount,
         fetchedAt: presence.fetchedAt,

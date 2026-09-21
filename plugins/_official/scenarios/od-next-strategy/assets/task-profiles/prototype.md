@@ -28,7 +28,7 @@ visual consistency, responsive behavior, and reference adherence.
 ## Artifact contract
 
 The canonical deliverable is editable prototype source with a stable runnable
-entry. Open Design resolves that entry by looking for a root `index.html`,
+entry. ACP Design resolves that entry by looking for a root `index.html`,
 then a single root-level html file, then a single file matching the project
 kind; a delivery in which none of those resolves is rejected as an invalid
 canonical deliverable, so lay the files out accordingly. Required deliverables
@@ -133,7 +133,7 @@ record them in the Design Spec:
 
 When the target device is a phone — the brief names iPhone / iOS, Android, or
 a mobile / 手机 app without naming a platform — the prototype ships inside the
-bundled handset shell, never a hand-drawn approximation of one. Open Design
+bundled handset shell, never a hand-drawn approximation of one. ACP Design
 stages the shells at `.od-frames/` in the project directory and, when it
 resolved the platform, names the selected shell in the `device-frame` context
 fact and quotes its source in `device-frame-shell`.
@@ -171,7 +171,7 @@ fact and quotes its source in `device-frame-shell`.
 
 ### Variable-length text and stacked information
 
-Open Design stages `.od-frames/layout.css` beside the handset shells and
+ACP Design stages `.od-frames/layout.css` beside the handset shells and
 quotes it in the `layout-primitives` context fact. It is structure only —
 display, flex/grid, overflow, wrapping, ratio — and sets no palette, type,
 spacing scale, or component look. Put the whole block into the document's own

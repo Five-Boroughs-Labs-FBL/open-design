@@ -1158,6 +1158,9 @@ const HIDDEN_BRAND_ASSISTANT_STATUS_LABELS = new Set([
   'empty_response',
   'done',
   'completed',
+  // Muse JSONL: stream.kind === "session" is resume metadata, not a turn.
+  'session',
+  'complete',
 ]);
 
 function hasVisibleBrandAssistantEvent(event: NonNullable<ChatMessage['events']>[number]): boolean {
@@ -7033,7 +7036,7 @@ export function buildRunErrorDiagnosticText(input: RunErrorDiagnosticInput): str
   }
 
   lines.push(
-    'OpenDesign run error diagnostics',
+    'ACP Design run error diagnostics',
     `trace_id: ${input.traceId ?? 'n/a'}`,
     `run_id: ${input.traceId ?? 'n/a'}`,
     `error_code: ${input.errorCode ?? 'n/a'}`,

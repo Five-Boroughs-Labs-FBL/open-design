@@ -3850,7 +3850,7 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} {acpLoginLayout ? 'Agent Control Panel' : 'OpenDesign'} · {t('settings.onboardingCloudRights')}
+              © {new Date().getFullYear()} {acpLoginLayout ? 'Agent Control Panel' : 'ACP Design'} · {t('settings.onboardingCloudRights')}
             </span>
           </footer>
         </div>
@@ -3980,7 +3980,7 @@ function OnboardingView({
           <footer className="onboarding-cloud__footer">
             <LanguageMenu placement="up" align="start" />
             <span>
-              © {new Date().getFullYear()} OpenDesign ·{' '}
+              © {new Date().getFullYear()} ACP Design ·{' '}
               {t('settings.onboardingCloudRights')}
             </span>
           </footer>

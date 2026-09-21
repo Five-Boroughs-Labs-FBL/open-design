@@ -4,7 +4,7 @@
   "name": "open-design-community",
   "version": "0.2.10",
   "owner": {
-    "name": "OpenDesign Community",
+    "name": "ACP Design Community",
     "url": "https://open-design.ai/marketplace/community"
   },
   "metadata": {
@@ -138,7 +138,7 @@
         "code-agent",
         "design-to-code"
       ],
-      "description": "Hand an Open Design project off to OpenCode as an offline-complete bundle: a verbatim project mirror, the design system materialized with real font binaries, and a machine-enforced adherence config."
+      "description": "Hand an ACP Design project off to OpenCode as an offline-complete bundle: a verbatim project mirror, the design system materialized with real font binaries, and a machine-enforced adherence config."
     }
   ]
 }

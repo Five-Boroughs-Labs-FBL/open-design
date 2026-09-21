@@ -28,9 +28,9 @@ od:
 
 # Web Clone · 网站复刻方法论
 
-把"复刻一个网站"做成可重复的流程。在 OpenDesign 中，默认在当前项目目录工作：`NOTES.md`、`RECON/`、`CLONE_REPORT.md`、`CLONE_AUDIT.md` 和最终可预览的 `index.html` 都应写在当前项目内，除非用户明确指定外部工作目录。
+把"复刻一个网站"做成可重复的流程。在 ACP Design 中，默认在当前项目目录工作：`NOTES.md`、`RECON/`、`CLONE_REPORT.md`、`CLONE_AUDIT.md` 和最终可预览的 `index.html` 都应写在当前项目内，除非用户明确指定外部工作目录。
 
-**OpenDesign 环境准备（跑任何 `scripts/` 前先看）**：
+**ACP Design 环境准备（跑任何 `scripts/` 前先看）**：
 - 本 skill 的脚本会被 stage 到项目内 `.od-skills/<插件目录>/scripts/`（skill 前言里有确切路径）。文中命令写的 `node scripts/xxx.mjs` 按该路径解析，例如 `node .od-skills/<插件目录>/scripts/recon-site.mjs ...`；`RECON/`、`assets/` 等产物仍写到项目根。
 - 脚本内置基于 Chrome DevTools Protocol 的零依赖控制层，直接复用系统已有的 Chrome、Edge 或 Chromium；无需启动 Electron 客户端，也支持纯 `od` CLI。Agent 沙箱内会通过本地 daemon 创建临时 CDP 会话，避免沙箱阻止 Chrome 子进程。**禁止在用户项目里执行 `npm install playwright` 或下载 Chromium。** 若预检报告没有兼容浏览器，直接说明缺少系统浏览器或通过 `OD_BROWSER_EXECUTABLE_PATH` 指定路径，不要改为目测，也不要反复安装依赖。源码开发环境若已经提供 `OD_PLAYWRIGHT_PACKAGE`，脚本仍兼容该运行时，但它不是产品链路的前置条件。
 
@@ -146,7 +146,7 @@ L4-L6 复杂站按 `references/complex-playbooks.md` 走，不要只用普通官
 ### Step 4 · 在当前项目里搭工程
 
 ```bash
-# 当前 OpenDesign 项目目录就是复刻工作区。
+# 当前 ACP Design 项目目录就是复刻工作区。
 pwd
 # git 源码：clone 到 source/ 或直接放入当前目录；单文件：放进来。原始源码留一份只读基准 index-original.html
 # 检查 Node 版本（package.json engines），nvm use 对应版本，钉 .nvmrc
@@ -155,7 +155,7 @@ pwd
 ### Step 5 · 删追踪 + 写元信息 + 验证
 
 - **删追踪**：Google Analytics（`gtag` / `googletagmanager`）、像素、热图——逐行精确切除（GA 块常在 `<head>` 顶部）。
-- **OpenDesign 预览适配**：交付前必须把项目根资源引用改成相对路径，避免 `/reference-assets/...` 在文件预览里打到 OpenDesign 应用根导致裸 HTML：
+- **ACP Design 预览适配**：交付前必须把项目根资源引用改成相对路径，避免 `/reference-assets/...` 在文件预览里打到 ACP Design 应用根导致裸 HTML：
 
 ```bash
 node scripts/od-preview-rewrite.mjs --project .
@@ -266,7 +266,7 @@ SSL_CERT_FILE=/etc/ssl/cert.pem gh api repos/<u>/<r> | jq '.license'  # + 找 LI
 - 需要对外汇报或评估 skill 效果时追加：`CLONE_REPORT.md`（原站 vs 克隆站完整对比）
 - 上线前追加：`CLONE_AUDIT.md`（追踪脚本、原站品牌/语言残留、TODO、外链风险）
 - `RECON/screenshots/`：原站 vs 克隆对照图
-- 如用户有外部复刻索引，再按需更新该索引；OpenDesign 项目内不强制维护全局中枢 README。
+- 如用户有外部复刻索引，再按需更新该索引；ACP Design 项目内不强制维护全局中枢 README。
 
 ## 内置脚本
 - `scripts/init-clone.mjs`：初始化克隆项目骨架和 `NOTES.md`。
@@ -280,7 +280,7 @@ SSL_CERT_FILE=/etc/ssl/cert.pem gh api repos/<u>/<r> | jq '.license'  # + 找 LI
 - `scripts/compare-recon.mjs`：读取原站与克隆站的侦察 JSON、路由图、交互证据，生成 `CLONE_REPORT.md`。
 - `scripts/visual-diff.mjs`：用浏览器 canvas 做截图像素差异，输出 visual score 和差异图。
 - `scripts/audit-clone.mjs`：扫描追踪脚本、原站品牌残留、日文残留、TODO、外部 URL 风险；带 `--recon --strict` 时额外校验字体自托管/图片落地/关键区块颜色逐字一致，有硬伤 exit 2。
-- `scripts/od-preview-rewrite.mjs`：把 HTML/CSS/SVG 里的项目根资源引用（如 `/reference-assets/main.css`）改成相对路径，保证 OpenDesign 文件预览和导出 zip 在嵌套路由下仍能加载资源。
+- `scripts/od-preview-rewrite.mjs`：把 HTML/CSS/SVG 里的项目根资源引用（如 `/reference-assets/main.css`）改成相对路径，保证 ACP Design 文件预览和导出 zip 在嵌套路由下仍能加载资源。
 - `scripts/dna-scaffold.mjs`：从侦察 JSON 生成 `design-dna.json` 设计身份骨架（字体/色候选/框架特效信号 best-effort 预填），给「视觉复刻 / 内容爆改」模式用。详见 `references/design-dna.md`。
 
 ## 能力边界（默认口径）

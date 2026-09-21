@@ -16,6 +16,8 @@ import {
   CLEAN_LOGIN_HTML,
   LIVE_PRIMARY_LEAK_HTML,
   MOBILE_LOGIN_HTML,
+  REPL_HEAD_PROSE_LEAK_HTML,
+  REPL_VIEWPORT_THINKING_LEAK_HTML,
 } from './html-document.fixtures.js';
 
 describe('isMixedHtmlDocument', () => {
@@ -62,6 +64,21 @@ describe('isMixedHtmlDocument', () => {
     const draft = '<!doctype html><html><head><style>body{color:#111}';
     expect(isMixedHtmlDocument(draft)).toBe(false);
     expect(isSingleHtmlDocument(draft)).toBe(true);
+  });
+
+  it('rejects thinking jammed into an unclosed viewport attribute', () => {
+    expect(REPL_VIEWPORT_THINKING_LEAK_HTML).toContain('I\'ll spawn a sub-agent');
+    expect(countDoctypes(REPL_VIEWPORT_THINKING_LEAK_HTML)).toBe(1);
+    expect(isMixedHtmlDocument(REPL_VIEWPORT_THINKING_LEAK_HTML)).toBe(true);
+    expect(isSingleHtmlDocument(REPL_VIEWPORT_THINKING_LEAK_HTML)).toBe(false);
+  });
+
+  it('rejects spawn-plan prose as a text node in head', () => {
+    expect(REPL_HEAD_PROSE_LEAK_HTML).toContain('I\'ll spawn a sub-agent');
+    expect(countDoctypes(REPL_HEAD_PROSE_LEAK_HTML)).toBe(1);
+    expect(isMixedHtmlDocument(REPL_HEAD_PROSE_LEAK_HTML)).toBe(true);
+    expect(isSingleHtmlDocument(REPL_HEAD_PROSE_LEAK_HTML)).toBe(false);
+    expect(isMixedHtmlDocument(CLEAN_LOGIN_HTML)).toBe(false);
   });
 
   it('treats the artifact-envelope + second-doctype leak as mixed until unwrapped', () => {

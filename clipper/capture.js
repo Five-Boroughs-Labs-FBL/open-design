@@ -1,4 +1,4 @@
-// OpenDesign web clipper page-capture runtime.
+// ACP Design web clipper page-capture runtime.
 //
 // Injected on demand by the service worker via
 // `chrome.scripting.executeScript({ files: ['capture.js'] })`. It runs in the

@@ -10,7 +10,7 @@
  *      **字面的 `{agent}`**。
  *
  *   ② **一个键装两句话。** S02(本地 agent 没登录,新稿「{智能体} 尚未登录」)和
- *      S04(Open Design 智能体没授权,新稿「Open Design 尚未登录」)今天共用
+ *      S04(Open Design 智能体没授权,新稿「ACP Design 尚未登录」)今天共用
  *      `chat.runError.title.signInRequired`,渲染出来一模一样。Antigravity 那条
  *      终端登录的分流也挂在同一个键上,是 S02 那一边的第三个调用点。
  *
@@ -147,7 +147,7 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'AMR_AUTH_REQUIRED' });
 
     expect(title).not.toMatch(/\{agent\}/);
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('ACP Design 尚未登录');
   });
 
   it('S02 和 S04 不是同一句话 —— 一个键装不下两格', () => {
@@ -181,7 +181,7 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
   it('AMR 的通用 401(UNAUTHORIZED)仍然是 S04 那句,不会掉到 S02', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'UNAUTHORIZED' });
 
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('ACP Design 尚未登录');
   });
 
   it('非 AMR 的通用 401(UNAUTHORIZED)是 S02 那句', () => {

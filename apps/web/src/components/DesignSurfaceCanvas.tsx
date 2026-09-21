@@ -473,7 +473,10 @@ const SurfaceFrame = forwardRef<HTMLButtonElement, SurfaceFrameProps>(function S
     surface.status === 'ready' && (!surface.file || surface.file.kind !== 'html')
       ? 'missing'
       : surface.status;
-  const hasPreview = effectiveStatus === 'ready' && surface.file?.kind === 'html';
+  // Files arrive before the lead seals the claim; preview them without
+  // promoting the manifest's generation status to ready.
+  const hasPreview = surface.file?.kind === 'html'
+    && (effectiveStatus === 'ready' || effectiveStatus === 'generating');
   const openLabel = labels.openSurface(surface.title);
   return (
     <button
@@ -500,7 +503,7 @@ const SurfaceFrame = forwardRef<HTMLButtonElement, SurfaceFrameProps>(function S
             projectId={projectId}
             file={surface.file}
             filesRefreshKey={filesRefreshKey}
-            fallback={<SurfaceStatusPlaceholder status="ready" labels={labels} />}
+            fallback={<SurfaceStatusPlaceholder status={effectiveStatus} labels={labels} />}
             freezeMotion
             allowDownloads={false}
             inert

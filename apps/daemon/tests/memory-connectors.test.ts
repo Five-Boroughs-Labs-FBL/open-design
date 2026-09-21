@@ -72,7 +72,7 @@ function createNotionService(
           pages: [
             {
               title: 'OpenDesign memory plan',
-              text: 'OpenDesign connector memory should collect design preferences, UI decisions, and visual references from Notion.',
+              text: 'ACP Design connector memory should collect design preferences, UI decisions, and visual references from Notion.',
             },
           ],
         },
@@ -1007,7 +1007,7 @@ process.stdout.write(JSON.stringify({
         'gpt-5',
       ]));
       expect(captured.stdin).toContain('You are a design-memory extractor');
-      expect(captured.stdin).toContain('OpenDesign connector memory should collect design preferences');
+      expect(captured.stdin).toContain('ACP Design connector memory should collect design preferences');
     } finally {
       if (previousPath == null) {
         delete process.env.PATH;
@@ -1111,7 +1111,7 @@ process.stdout.write(JSON.stringify({
       expect(captured.args).not.toContain('-f');
       expect(captured.files).toEqual([]);
       expect(captured.stdin).toContain('You are a design-memory extractor');
-      expect(captured.stdin).toContain('OpenDesign connector memory should collect design preferences');
+      expect(captured.stdin).toContain('ACP Design connector memory should collect design preferences');
     } finally {
       if (previousPath == null) {
         delete process.env.PATH;

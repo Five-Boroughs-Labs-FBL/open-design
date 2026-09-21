@@ -24,5 +24,7 @@ describe('od brand help surface', () => {
     expect(BRAND_USAGE).toContain('od brand continue');
     expect(BRAND_USAGE).toContain('od brand extract-from-html');
     expect(BRAND_USAGE).toContain('od brand finalize');
+    expect(BRAND_USAGE).toContain('ACP Design daemon HTTP base');
+    expect(BRAND_USAGE).not.toContain('OpenDesign daemon HTTP base');
   });
 });

@@ -31,8 +31,8 @@ od:
 
 # Hatch Pet
 
-> **OpenDesign integration.** This is the unmodified Codex `hatch-pet` skill,
-> vendored under `skills/hatch-pet/` so any OpenDesign agent can run it. After
+> **ACP Design integration.** This is the unmodified Codex `hatch-pet` skill,
+> vendored under `skills/hatch-pet/` so any ACP Design agent can run it. After
 > the skill finishes packaging, the resulting `spritesheet.webp` (under
 > `${CODEX_HOME:-$HOME/.codex}/pets/<pet-name>/`) can be imported into the
 > floating pet companion via **Settings → General → Pets → Import Codex sprite**. The

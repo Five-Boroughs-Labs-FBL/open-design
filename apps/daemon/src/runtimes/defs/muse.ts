@@ -20,11 +20,21 @@ export function buildMuseHeadlessArgs(input: {
     '--approval-mode',
     'never',
     '--trust-workspace',
+    '--disable-sandbox',
     '--prompt-file',
     promptFilePath,
   ];
-  const model = String(input.model || '').trim();
-  if (model && model !== 'default' && SAFE_MODEL_RE.test(model)) {
+  const rawModel = String(input.model || '').trim();
+  const model =
+    !rawModel ||
+    rawModel === 'default' ||
+    rawModel === 'subscription-default' ||
+    rawModel === 'muse-spark-1.2' ||
+    rawModel === 'muse-spark-1.3' ||
+    rawModel === 'muse-spark-1.3-contributor'
+      ? 'muse-spark-1.2-contributor'
+      : rawModel;
+  if (SAFE_MODEL_RE.test(model)) {
     args.push('--model', model);
   }
   const reasoning = String(input.reasoning || '').trim().toLowerCase();
@@ -45,8 +55,11 @@ export function buildMuseHeadlessArgs(input: {
  * `amcCredential.family=muse` / `META_API_KEY`. This adapter must exist or
  * OD falls through to the host default (often grok-build).
  *
- * Headless: `muse exec --json --approval-mode never --trust-workspace --prompt-file`.
- * JSONL is `{stream, payload_type, payload}`, not Grok `{type,sessionId}`.
+ * Headless: `muse exec --json --approval-mode never --trust-workspace
+ * --disable-sandbox --prompt-file`. Default model is Spark 1.2
+ * contributor (Railway 1.3-contributor exec still 404s). JSONL is
+ * `{stream, payload_type, payload}`, not Grok.
+
  */
 export const museAgentDef = {
   id: 'muse',
@@ -59,9 +72,10 @@ export const museAgentDef = {
   },
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
-    { id: 'muse-spark-1.3', label: 'muse-spark-1.3 (Meta · default)' },
-    { id: 'muse-spark-1.3-contributor', label: 'muse-spark-1.3-contributor' },
-    { id: 'muse-spark-1.2', label: 'muse-spark-1.2' },
+    { id: 'muse-spark-1.2-contributor', label: 'muse-spark-1.2-contributor (default)' },
+    { id: 'muse-spark-1.2', label: 'muse-spark-1.2 → contributor' },
+    { id: 'muse-spark-1.3', label: 'muse-spark-1.3 → 1.2 contributor' },
+    { id: 'muse-spark-1.3-contributor', label: 'muse-spark-1.3-contributor → 1.2 contributor' },
     { id: 'muse-spark-1.1', label: 'muse-spark-1.1' },
   ],
   buildArgs: (

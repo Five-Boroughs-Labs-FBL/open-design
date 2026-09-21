@@ -95,7 +95,7 @@ describe('OpenDesign shared Brief decisions', () => {
     expect(Object.keys(initial.answers)).toHaveLength(openDesignBriefCatalog.audio.length);
 
     const cli = formatOpenDesignBriefForCli(initial);
-    expect(cli).toContain('OpenDesign brief');
+    expect(cli).toContain('ACP Design brief');
     expect(cli).toContain('Artifact: audio');
     expect(cli).toContain('Ready to confirm');
     expect(cli).toContain('Current choices:');

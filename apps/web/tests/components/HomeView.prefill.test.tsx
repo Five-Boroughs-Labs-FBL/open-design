@@ -56,7 +56,7 @@ const AUTHORING_PLUGIN = {
     od: {
       kind: 'scenario',
       taskKind: 'new-generation',
-      useCase: { query: 'Create an OpenDesign plugin for {{pluginGoal}}.' },
+      useCase: { query: 'Create an ACP Design plugin for {{pluginGoal}}.' },
       inputs: [
         {
           name: 'pluginGoal',

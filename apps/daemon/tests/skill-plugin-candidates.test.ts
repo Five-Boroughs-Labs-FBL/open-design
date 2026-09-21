@@ -88,6 +88,41 @@ describe('skill plugin candidates', () => {
     expect(manifest.od.kind).toBe('skill');
     await expect(readFile(path.join(result!.folder, 'references', 'provenance.json'), 'utf8'))
       .resolves.toContain(candidate!.id);
+    const skillMd = await readFile(path.join(result!.folder, 'SKILL.md'), 'utf8');
+    expect(skillMd).toContain(`Formalized by ACP Design from candidate ${candidate!.id}.`);
+    expect(skillMd).not.toMatch(/\bOpenDesign\b|Open Design/);
+  });
+
+  it('names ACP Design in synthesized skill provenance when source files are missing', async () => {
+    const db = openDatabase(tmpDir, { dataDir: path.join(tmpDir, 'data') });
+    insertProject(db, {
+      id: 'proj_1',
+      name: 'Candidate project',
+      skillId: null,
+      designSystemId: null,
+      pendingPrompt: null,
+      metadata: { kind: 'prototype' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const candidate = insertSkillPluginCandidate(db, {
+      projectId: 'proj_1',
+      runId: null,
+      conversationId: null,
+      assistantMessageId: null,
+      title: 'URL only skill',
+      description: 'A reusable skill from a URL.',
+      confidence: 0.8,
+      sourceRefs: [{ kind: 'url', value: 'https://github.com/acme/skill/blob/main/SKILL.md' }],
+      provenance: { summary: 'test', detectedAt: 1 },
+      fingerprint: 'url-only',
+      draftPath: null,
+    })!;
+    const result = await generateSkillPluginDraft(db, projectRoot, 'proj_1', candidate.id, 20);
+    expect(result?.ok).toBe(true);
+    const skillMd = await readFile(path.join(result!.folder, 'SKILL.md'), 'utf8');
+    expect(skillMd).toContain(`Formalized by ACP Design from candidate ${candidate.id}.`);
+    expect(skillMd).not.toMatch(/\bOpenDesign\b|Open Design/);
   });
 
   it('does not detect generic prompt heading blocks', async () => {

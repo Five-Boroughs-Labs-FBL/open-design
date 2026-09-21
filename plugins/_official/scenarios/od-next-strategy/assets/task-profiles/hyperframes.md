@@ -26,7 +26,7 @@ readability, asset fidelity, and audio-picture sync.
 
 The canonical deliverable is editable HyperFrames source — a timeline-driven
 HTML source artifact — with a stable render entry. Final-cut files such as
-MP4 are rendered by Open Design's product-side engineering capability after
+MP4 are rendered by ACP Design's product-side engineering capability after
 the source is written and are outside the Agent's responsibility, unless the
 task contract explicitly assigns a rendered media file to a Build Package; a
 package that owns rendering declares the exact format, duration, frame
