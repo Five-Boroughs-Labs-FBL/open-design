@@ -9,7 +9,7 @@ Exécutez le produit complet localement.
 - **Node.js :** `~24` (Node 24.x). Le repo l’impose via `package.json#engines`.
 - **pnpm :** `10.33.x`. Le repo fixe `pnpm@10.33.2` via `packageManager` ; utilisez Corepack pour que la bonne version soit sélectionnée automatiquement.
 - **OS :** macOS, Linux et WSL2 sont les environnements principaux pris en charge. Si vos CLI d’agents s’exécutent dans WSL2, suivez le [guide WSL2](../wsl-setup.md). Windows natif est pris en charge au mieux ; consultez le [guide de dépannage Windows](../windows-troubleshooting.md) pour sa configuration.
-- **CLI d’agent locale optionnelle :** OpenDesign prend en charge un registre de runtimes locaux, dont Claude Code, Codex, Devin for Terminal, OpenCode, Cursor Agent, Qwen, Qoder CLI, GitHub Copilot CLI et d’autres. La liste actuelle se trouve dans [`apps/daemon/src/runtimes/registry.ts`](../../apps/daemon/src/runtimes/registry.ts). Si aucun n’est installé, utilisez un runtime BYOK configuré dans Settings.
+- **CLI d’agent locale optionnelle :** ACP Design prend en charge un registre de runtimes locaux, dont Claude Code, Codex, Devin for Terminal, OpenCode, Cursor Agent, Qwen, Qoder CLI, GitHub Copilot CLI et d’autres. La liste actuelle se trouve dans [`apps/daemon/src/runtimes/registry.ts`](../../apps/daemon/src/runtimes/registry.ts). Si aucun n’est installé, utilisez un runtime BYOK configuré dans Settings.
 
 ### CLI d'agent locale et PATH
 
@@ -36,7 +36,7 @@ corepack pnpm --version   # doit afficher 10.33.2
 
 ## Configuration Docker
 
-Exécutez OpenDesign dans un environnement entièrement conteneurisé sans installer Node.js ou pnpm localement.
+Exécutez ACP Design dans un environnement entièrement conteneurisé sans installer Node.js ou pnpm localement.
 
 ### Prérequis
 
@@ -51,7 +51,7 @@ docker compose version
 
 ---
 
-## Démarrer OpenDesign
+## Démarrer ACP Design
 
 Depuis la racine du dépôt :
 
@@ -231,7 +231,7 @@ ls -la apps/daemon/dist/cli.js
 curl -s http://127.0.0.1:7457/api/health
 ```
 
-Ouvrez ensuite de nouveau le projet depuis l’app OpenDesign au lieu de reprendre une ancienne session agent dans le terminal. Un agent lancé par le daemon devrait voir des valeurs comme :
+Ouvrez ensuite de nouveau le projet depuis l’app ACP Design au lieu de reprendre une ancienne session agent dans le terminal. Un agent lancé par le daemon devrait voir des valeurs comme :
 
 ```bash
 echo "OD_BIN=$OD_BIN"
@@ -318,7 +318,7 @@ open-design/
 │   └── desktop/               # runtime Electron, lancé/inspecté par tools-dev
 ├── packages/
 │   ├── contracts/             # contrats app partagés web/daemon
-│   ├── sidecar-proto/         # contrat du protocole sidecar OpenDesign
+│   ├── sidecar-proto/         # contrat du protocole sidecar ACP Design
 │   ├── sidecar/               # primitives runtime sidecar génériques
 │   └── platform/              # primitives process/platform génériques
 ├── tools/dev/                 # lifecycle `pnpm tools-dev` et inspect CLI
@@ -335,17 +335,17 @@ open-design/
 ## Dépannage
 
 - **Échec du chargement de `better-sqlite3` / incompatibilité ABI après un changement de version de Node.js** — `pnpm install` relance automatiquement `postinstall` pour recompiler le module natif avec la version active de Node.js. Pour le recompiler et vérifier son chargement manuellement : `pnpm --filter @open-design/daemon rebuild better-sqlite3`, puis `pnpm --filter @open-design/daemon exec node -e "require('better-sqlite3')"`. Les outils `python3`, `make` et `g++` (ou `clang++`) sont nécessaires. Si votre `.npmrc` contient `ignore-scripts=true` — fréquent avec les paquets AUR — lancez `pnpm bootstrap` après `pnpm install`.
-- **Claude Code se termine avec le code 1** — OpenDesign a pu lancer `claude`, mais l'exécution non interactive a échoué avant de produire une réponse. Dans le même shell ou environnement d'application que celui qui lance OpenDesign, vérifiez :
+- **Claude Code se termine avec le code 1** — ACP Design a pu lancer `claude`, mais l'exécution non interactive a échoué avant de produire une réponse. Dans le même shell ou environnement d'application que celui qui lance ACP Design, vérifiez :
   ```bash
   claude --version
   claude auth status --text
   printf 'hello' | claude -p --output-format stream-json --verbose --permission-mode bypassPermissions
   ```
-  Si ce test signale `401`, `apiKeySource: "none"` ou une autre erreur d'authentification sans point de terminaison personnalisé, lancez `claude`, utilisez `/login`, quittez Claude et réessayez dans OpenDesign. Si vous utilisez plusieurs profils Claude, indiquez leur chemin, par exemple `~/.claude-2`, dans **Models & providers → Local CLI → Claude Code config directory**. Si `ANTHROPIC_BASE_URL` ou un proxy est configuré, vérifiez l'URL, les identifiants du proxy, les variables d'authentification du point de terminaison et l'accès au modèle. Ne retirez ce point de terminaison personnalisé que si vous souhaitez réessayer avec l'authentification standard de Claude Code. Sous Windows, PowerShell natif et WSL utilisent des installations et des magasins d'identifiants distincts : reconnectez-vous dans l'environnement utilisé par OpenDesign et vérifiez le Gestionnaire d'informations d'identification Windows si `/login` ne répare pas les identifiants natifs.
+  Si ce test signale `401`, `apiKeySource: "none"` ou une autre erreur d'authentification sans point de terminaison personnalisé, lancez `claude`, utilisez `/login`, quittez Claude et réessayez dans ACP Design. Si vous utilisez plusieurs profils Claude, indiquez leur chemin, par exemple `~/.claude-2`, dans **Models & providers → Local CLI → Claude Code config directory**. Si `ANTHROPIC_BASE_URL` ou un proxy est configuré, vérifiez l'URL, les identifiants du proxy, les variables d'authentification du point de terminaison et l'accès au modèle. Ne retirez ce point de terminaison personnalisé que si vous souhaitez réessayer avec l'authentification standard de Claude Code. Sous Windows, PowerShell natif et WSL utilisent des installations et des magasins d'identifiants distincts : reconnectez-vous dans l'environnement utilisé par ACP Design et vérifiez le Gestionnaire d'informations d'identification Windows si `/login` ne répare pas les identifiants natifs.
 - **"no agents found on PATH"** — installez l’un des runtimes locaux enregistrés dans [`apps/daemon/src/runtimes/registry.ts`](../../apps/daemon/src/runtimes/registry.ts), vérifiez que son exécutable est visible par le daemon, puis utilisez **Rescan** dans **Models & providers → Local CLI**. Ou configurez un runtime BYOK dans Settings.
 - **daemon 500 sur /api/chat** — vérifiez la fin de stderr dans le terminal daemon ; la CLI a généralement rejeté ses args. Les CLIs n’acceptent pas toutes la même forme d’argv ; consultez la définition correspondante sous `apps/daemon/src/runtimes/defs/` si vous devez l’ajuster.
-- **la génération média dit que `OD_BIN` manque ou que l’URL daemon vaut `:0`** — exécutez les checks du dispatcher média ci-dessus. Ne reprenez pas l’ancienne session CLI ; rouvrez le projet depuis l’app OpenDesign pour que le daemon injecte des variables `OD_*` fraîches.
-- **Codex charge trop de contexte plugin** — démarrez OpenDesign avec `OD_CODEX_DISABLE_PLUGINS=1 pnpm tools-dev` pour que les processus Codex lancés par le daemon tournent avec `--disable plugins`.
+- **la génération média dit que `OD_BIN` manque ou que l’URL daemon vaut `:0`** — exécutez les checks du dispatcher média ci-dessus. Ne reprenez pas l’ancienne session CLI ; rouvrez le projet depuis l’app ACP Design pour que le daemon injecte des variables `OD_*` fraîches.
+- **Codex charge trop de contexte plugin** — démarrez ACP Design avec `OD_CODEX_DISABLE_PLUGINS=1 pnpm tools-dev` pour que les processus Codex lancés par le daemon tournent avec `--disable plugins`.
 - **l’artifact ne rend jamais** — identifiez d’abord le profil de remise. Avec un runtime local doté d’un système de fichiers, vérifiez qu’un fichier de projet prévisualisable a été créé et que ses événements ont atteint le daemon ; sa source ne doit pas être dans `<artifact>`. Pour une exécution plain/texte uniquement ou BYOK, vérifiez la présence d’un unique bloc `<artifact>` complet, puis repérez dans les logs du daemon la première frontière en échec.
 
 - **Le navigateur demande une authentification sur macOS** — conservez le réseau bridge par défaut de Docker Desktop. Utilisez `open-design` comme nom d'utilisateur et la valeur de `OD_API_TOKEN` dans `deploy/.env` comme mot de passe. Le réseau hôte n'est pas nécessaire. Voir [`deploy/README.md` — Docker Desktop sur macOS](../../deploy/README.md#docker-desktop-on-macos).

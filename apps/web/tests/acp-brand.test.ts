@@ -95,6 +95,7 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
   });
 
   it('stamps ACP Design identity on the hosted studio host', () => {
+    expect(ACP_OPEN_DESIGN_NAME).toBe('ACP Design');
     const win = hostedWin();
     Object.defineProperty(win.document, 'documentElement', {
       configurable: true,

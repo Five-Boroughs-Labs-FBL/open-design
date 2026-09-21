@@ -137,7 +137,7 @@ export async function launchChromium(chromium, options = {}) {
   } catch (error) {
     throw new Error(
       "No compatible Chrome, Edge, or Chromium executable is available. " +
-        "Open Design does not download a browser during web-clone tasks. " +
+        "ACP Design does not download a browser during web-clone tasks. " +
         "Install a system browser or set OD_BROWSER_EXECUTABLE_PATH to its executable. " +
         `Browser launch detail: ${systemBrowserError?.message || error.message}`,
     );

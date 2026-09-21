@@ -6,7 +6,7 @@ Per user feedback ([[feedback_outreach_minimal]]), keep it minimal. The PR body 
 
 1. **Always end the PR body with two things:**
    - "👋 This is my first OD contribution." (or a similar one-line warmth)
-   - The OD Discord invite: <https://discord.gg/qhbcCH8Am4> (read from `OD_DISCORD_INVITE` env, never hardcode)
+   - The OD Discord invite: <https://discord.gg/jE4MzArHX> (read from `OD_DISCORD_INVITE` env, never hardcode)
 2. **Never claim more than the PR actually does.** A typo fix is a typo fix — don't dress it up as "improving documentation quality" or list 5 fake checkboxes.
 3. **Plain language only.** No "ergonomic", "DX", "stakeholder", "stack rank". Talk like a friendly user, not a startup blog.
 4. **No emojis except the opening 👋 and one optional 🎨 / 🌍 / 📝 / 🐛 in the title or first line.** OD is design-loving but the maintainers read a *lot* of PRs.

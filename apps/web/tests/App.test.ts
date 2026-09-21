@@ -135,7 +135,7 @@ describe('shouldBounceCloudHomeToOnboarding', () => {
     amrAuthRequired: false,
   };
 
-  it('bounces a signed-out OpenDesign Cloud home to onboarding', () => {
+  it('bounces a signed-out ACP Design Cloud home to onboarding', () => {
     expect(shouldBounceCloudHomeToOnboarding(signedOutCloudHome)).toBe(true);
   });
 

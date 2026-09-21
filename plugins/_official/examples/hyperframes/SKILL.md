@@ -33,9 +33,9 @@ od:
 
 HTML is the source of truth for video. A composition is an HTML file with `data-*` attributes for timing, a GSAP timeline for animation, and CSS for appearance. The framework handles clip visibility, media playback, and timeline sync.
 
-## OpenDesign integration (load-bearing for this surface)
+## ACP Design integration (load-bearing for this surface)
 
-When this skill runs inside OpenDesign (i.e. `$OD_PROJECT_DIR` is set), the
+When this skill runs inside ACP Design (i.e. `$OD_PROJECT_DIR` is set), the
 output flow is fixed: only the rendered `.mp4` should land in the project
 root. Composition source files (`hyperframes.json`, `meta.json`,
 `index.html`, assets) belong inside a hidden cache directory so they don't
@@ -44,7 +44,7 @@ clutter the user's FileViewer or the chat's "produced files" chips.
 **Render workflow inside OD — fast path**:
 
 For most OD requests ("test video", "5s product reveal", "demo clip"),
-do NOT write the composition HTML from scratch. Use Open Design's
+do NOT write the composition HTML from scratch. Use ACP Design's
 deterministic scaffold and edit only what the prompt actually changes. The
 "author from scratch" path costs minutes of model output and silent
 chat-tool time; the scaffold path costs seconds.
@@ -57,7 +57,7 @@ COMP="$OD_PROJECT_DIR/$COMP_REL"
 
 # 2. Get an immediately-renderable scaffold (hyperframes.json,
 #    meta.json, index.html with GSAP CDN + window.__timelines.main
-#    already registered). Open Design writes these files itself; it does
+#    already registered). ACP Design writes these files itself; it does
 #    not run `hyperframes init`, consult an npx cache, or install global skills.
 "$OD_NODE_BIN" "$OD_BIN" media scaffold \
   --project "$OD_PROJECT_ID" \

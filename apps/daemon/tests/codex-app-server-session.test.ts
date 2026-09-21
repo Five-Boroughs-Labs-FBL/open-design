@@ -87,7 +87,8 @@ describe('codex app-server session', () => {
       const { child } = harness();
       const frames = child.frames();
       expect(frames[0]?.method).toBe('initialize');
-      expect(frames[0]?.params?.clientInfo?.name).toBeTruthy();
+      expect(frames[0]?.params?.clientInfo?.name).toBe('open-design');
+      expect(frames[0]?.params?.clientInfo?.title).toBe('ACP Design');
     });
 
     it('does NOT opt into the experimental API surface', () => {

@@ -7,9 +7,9 @@ import type { RuntimeAgentDef } from '../types.js';
 // REASONIX_ACP_SYSTEM_APPEND. This ensures the model follows OpenDesign's
 // design workflow (artifact output, design system, skill instructions)
 // instead of treating every request as a pure coding task.
-const DESIGN_INSTRUCTIONS = `# OpenDesign integration — MUST follow
+const DESIGN_INSTRUCTIONS = `# ACP Design integration — MUST follow
 
-You are running inside OpenDesign, a design tool. The user message contains
+You are running inside ACP Design, a design tool. The user message contains
 design context (system prompt, skill instructions, design system tokens).
 Follow these rules:
 

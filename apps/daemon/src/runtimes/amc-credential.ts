@@ -95,7 +95,7 @@ export function parseAmcCredentialBlock(raw: unknown): AmcCredential | null {
   const allowed = ENV_ALLOWLIST[family];
   if (!allowed) {
     throw new Error(
-      `amcCredential family "${family}" is not supported by this Open Design build`,
+      `amcCredential family "${family}" is not supported by this ACP Design build`,
     );
   }
 

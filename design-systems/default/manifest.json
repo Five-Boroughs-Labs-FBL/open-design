@@ -3,10 +3,10 @@
   "id": "default",
   "name": "Neutral Modern",
   "category": "Starter",
-  "description": "Bundled OpenDesign package for Neutral Modern, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
+  "description": "Bundled ACP Design package for Neutral Modern, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
   "source": {
     "type": "bundled",
-    "origin": "OpenDesign curated bundled fixture"
+    "origin": "ACP Design curated bundled fixture"
   },
   "files": {
     "design": "DESIGN.md",

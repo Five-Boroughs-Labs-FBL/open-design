@@ -1,7 +1,7 @@
 /**
  * Cloud-session expiry can bounce the SPA to the sign-in onboarding view.
  * ACP Design iframes a project conversation with chrome hidden, so that bounce
- * would trap the embed on "Sign in to OpenDesign" and drop `?t=` / `acpEmbed`.
+ * would trap the embed on "Sign in to ACP Design" and drop `?t=` / `acpEmbed`.
  * Hosted ACP SSO is the identity path — do not bounce to OpenDesign Cloud AMR.
  * Project deep links follow the same rule as first-run onboarding: do not hijack.
  */

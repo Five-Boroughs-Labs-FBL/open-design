@@ -2514,7 +2514,7 @@ describe('ALL /api/integrations/vela/message-center/*', () => {
 });
 
 describe('POST /api/integrations/vela/analytics-entry', () => {
-  it('mirrors OpenDesign AMR entry clicks to the AMR analytics ingest shape', async () => {
+  it('mirrors ACP entry clicks to the AMR analytics ingest shape', async () => {
     const requests: unknown[] = [];
     const captureServer = createServer((req, res) => {
       let raw = '';
