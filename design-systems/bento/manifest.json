@@ -3,10 +3,10 @@
   "id": "bento",
   "name": "Bento",
   "category": "Layout & Structure",
-  "description": "Bundled OpenDesign package for Bento, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
+  "description": "Bundled ACP Design package for Bento, derived from curated DESIGN.md, tokens.css, and components.html fixtures.",
   "source": {
     "type": "bundled",
-    "origin": "OpenDesign curated bundled fixture"
+    "origin": "ACP Design curated bundled fixture"
   },
   "files": {
     "design": "DESIGN.md",
