@@ -79,24 +79,24 @@ describe('buildAgentGuideMarkdown', () => {
     const md = buildAgentGuideMarkdown({
       daemonUrl: 'http://127.0.0.1:7456',
       mcpInstallInfo: {
-        command: 'C:\\Program Files\\Open Design\\Open Design.exe',
+        command: 'C:\\Program Files\\ACP Design\\Open Design.exe',
         args: [
-          'C:\\Program Files\\Open Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'C:\\Program Files\\ACP Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
           'mcp',
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1',
-          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\ACP Design',
         },
       },
     });
 
-    expect(md).toContain('"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"');
+    expect(md).toContain('"command": "C:\\\\Program Files\\\\ACP Design\\\\Open Design.exe"');
     expect(md).toContain(
-      '"C:\\\\Program Files\\\\Open Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
+      '"C:\\\\Program Files\\\\ACP Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
     );
     expect(md).toContain('"ELECTRON_RUN_AS_NODE": "1"');
-    expect(md).toContain('"OD_DATA_DIR": "C:\\\\Users\\\\Ada\\\\AppData\\\\Roaming\\\\Open Design"');
+    expect(md).toContain('"OD_DATA_DIR": "C:\\\\Users\\\\Ada\\\\AppData\\\\Roaming\\\\ACP Design"');
     expect(md).not.toContain('"command": "od"');
   });
 
@@ -104,19 +104,19 @@ describe('buildAgentGuideMarkdown', () => {
     const md = buildAgentGuideMarkdown({
       daemonUrl: 'http://127.0.0.1:7456',
       mcpInstallInfo: {
-        command: 'C:\\Program Files\\Open Design\\Open Design.exe',
+        command: 'C:\\Program Files\\ACP Design\\Open Design.exe',
         args: [
-          'C:\\Program Files\\Open Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'C:\\Program Files\\ACP Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
           'mcp',
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1',
-          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\ACP Design',
         },
       },
     });
 
-    expect(md).toContain('"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"');
+    expect(md).toContain('"command": "C:\\\\Program Files\\\\ACP Design\\\\Open Design.exe"');
     expect(md).toContain('"ELECTRON_RUN_AS_NODE": "1"');
     expect(md).toContain('od skills list --json');
     expect(md).not.toMatch(/^\s*ELECTRON_RUN_AS_NODE=1\s+OD_DATA_DIR=/m);

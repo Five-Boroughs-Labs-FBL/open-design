@@ -80,6 +80,7 @@ import {
   getFirstProjectConversation,
   getConversation,
   getProject,
+  listProjectsAwaitingInput,
   normalizeConversationSessionMode,
   updateProject,
   upsertMessage,
@@ -226,7 +227,10 @@ import {
   type RunSteeringRefusal,
 } from '../runtimes/run-steering.js';
 import { runMessageEventPersistenceAnalytics } from '../runtimes/chat-run-messages.js';
-import { TERMINAL_RUN_STATUSES } from '../runtimes/runs.js';
+import {
+  isLegacyHydratedRunWithoutAppliedSnapshot,
+  TERMINAL_RUN_STATUSES,
+} from '../runtimes/runs.js';
 import {
   deriveActivationMilestones,
   runAskedUserQuestion,
@@ -326,7 +330,20 @@ function withSeededSlideIndex(
  * path strings; persisted messages store `{ path, name, kind, order }` so the
  * UI can reload chips and annotation context after a headless omit-pin seed.
  */
-function seededUserMessageAttachmentFields(meta: JsonRecord): {
+function seededAttachmentSize(projectRoot: string | null | undefined, attachmentPath: string): number | undefined {
+  if (!projectRoot) return undefined;
+  try {
+    const absolute = path.resolve(projectRoot, attachmentPath);
+    const relative = path.relative(path.resolve(projectRoot), absolute);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) return undefined;
+    const stat = fs.statSync(absolute);
+    return stat.isFile() ? stat.size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function seededUserMessageAttachmentFields(meta: JsonRecord, projectRoot?: string | null): {
   attachments?: Array<{ path: string; name: string; kind: 'image' | 'file'; order: number }>;
   commentAttachments?: SeededCommentAttachment[];
 } {
@@ -336,10 +353,12 @@ function seededUserMessageAttachmentFields(meta: JsonRecord): {
         .map((attachmentPath, index) => {
           const name = path.basename(attachmentPath) || attachmentPath;
           const ext = path.extname(name).toLowerCase();
+          const size = seededAttachmentSize(projectRoot, attachmentPath);
           return {
             path: attachmentPath,
             name,
             kind: SEEDED_USER_IMAGE_EXTS.has(ext) ? ('image' as const) : ('file' as const),
+            ...(size === undefined ? {} : { size }),
             order: index,
           };
         })
@@ -1313,7 +1332,22 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       telemetry: ctx.telemetry,
     }),
   });
-  const strategyTaskForRun = (run: ChatRun): StrategyTaskExecutionRecord | null => {
+  const runMatchesTaskImmutableOwner = (
+    run: ChatRun,
+    task: StrategyTaskExecutionRecord,
+  ): boolean => Boolean(
+    run.odNextTaskInputSnapshot
+    && run.odNextTaskInputSnapshot.taskExecutionId === task.taskExecutionId
+    && run.odNextTaskInputSnapshot.manifestSha256
+      === task.frozenInputIdentity.taskInputManifestSha256
+    && run.projectId === task.projectId
+    && run.conversationId === task.conversationId
+    && run.agentId === task.selectedAgentId
+  );
+  const strategyTaskForRun = (
+    run: ChatRun,
+    allowLegacyReadProjection = false,
+  ): StrategyTaskExecutionRecord | null => {
     const task = getStrategyTaskExecutionByRunId(db, run.id);
     if (!task && run.odNextTaskInputSnapshot) {
       throw new InvalidStrategyTaskRecordError(
@@ -1323,14 +1357,11 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (
       task
       && (
-        !run.odNextTaskInputSnapshot
-        || run.odNextTaskInputSnapshot.taskExecutionId !== task.taskExecutionId
-        || run.odNextTaskInputSnapshot.manifestSha256
-          !== task.frozenInputIdentity.taskInputManifestSha256
-        || run.projectId !== task.projectId
-        || run.conversationId !== task.conversationId
-        || run.agentId !== task.selectedAgentId
-        || run.appliedPluginSnapshotId !== task.snapshotId
+        !runMatchesTaskImmutableOwner(run, task)
+        || (
+          run.appliedPluginSnapshotId !== task.snapshotId
+          && !(allowLegacyReadProjection && isLegacyHydratedRunWithoutAppliedSnapshot(run))
+        )
       )
     ) {
       throw new InvalidStrategyTaskRecordError(
@@ -1340,10 +1371,14 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     return task;
   };
   const statusWithStrategyTask = (run: ChatRun): ChatRunStatusResponse => {
+    let projectedSnapshotId: string | undefined;
     try {
-      const strategyTask = strategyTaskForRun(run);
+      const strategyTask = strategyTaskForRun(run, true);
       const projection = strategyTask ? projectStrategyTask(strategyTask, run.id) : null;
       if (projection) run.strategyTask = projection;
+      if (strategyTask && isLegacyHydratedRunWithoutAppliedSnapshot(run)) {
+        projectedSnapshotId = strategyTask.snapshotId;
+      }
     } catch (error) {
       if (
         !(error instanceof InvalidFrozenSkillPackageError)
@@ -1360,7 +1395,12 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         );
       }
     }
-    return design.runs.statusBody(run);
+    const status = design.runs.statusBody(run);
+    // A read can derive display identity from the validated task, but must not
+    // stamp the source Run and bypass clarification's linked-snapshot witness.
+    return projectedSnapshotId
+      ? { ...status, appliedPluginSnapshotId: projectedSnapshotId }
+      : status;
   };
 
   /**
@@ -1429,6 +1469,32 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     | { kind: 'ordinary' }
     | { kind: 'error'; status: number; code: string; message: string }
     | { kind: 'continuation'; value: ClarificationContinuation };
+
+  /**
+   * A source Run restored from durable state may miss its applied snapshot
+   * id: `durableRunState` historically never serialized the field, so any
+   * daemon restart dropped it while the task record kept its locked snapshot.
+   * The `applied_plugin_snapshots` row keeps `run_id` FK-linked to the source
+   * Run across restarts; that link is the ownership witness authorizing this
+   * one-time backfill. A Run whose field is set must never be touched — the
+   * caller treats it as a genuine mismatch.
+   */
+  function recoverSourceRunSnapshotId(
+    task: StrategyTaskExecutionRecord,
+    sourceRun: ChatRun,
+  ): boolean {
+    if (sourceRun.appliedPluginSnapshotId) return false;
+    const linkedSnapshot = db
+      .prepare(
+        `SELECT id FROM applied_plugin_snapshots
+          WHERE id = ? AND run_id = ? AND project_id = ?`,
+      )
+      .get(task.snapshotId, sourceRun.id, task.projectId);
+    if (!linkedSnapshot) return false;
+    sourceRun.appliedPluginSnapshotId = task.snapshotId;
+    design.runs.persistState(sourceRun);
+    return true;
+  }
 
   /**
    * Resolve only an explicit daemon-issued task handle. Conversation order is
@@ -1599,7 +1665,17 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       || sourceRun.projectId !== task.projectId
       || sourceRun.conversationId !== task.conversationId
       || sourceRun.agentId !== task.selectedAgentId
-      || sourceRun.appliedPluginSnapshotId !== task.snapshotId
+    ) {
+      return {
+        kind: 'error',
+        status: 409,
+        code: 'STRATEGY_TASK_SOURCE_RUN_INVALID',
+        message: 'strategy clarification source Run is unavailable or does not match the locked task',
+      };
+    }
+    if (
+      sourceRun.appliedPluginSnapshotId !== task.snapshotId
+      && !recoverSourceRunSnapshotId(task, sourceRun)
     ) {
       return {
         kind: 'error',
@@ -1631,6 +1707,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       nativeSessionResume: true,
       taskExecutionId: task.taskExecutionId,
       taskRunIndex,
+      executionIntent: task.executionIntent ?? 'produce',
       answer,
     });
     meta.taskExecutionId = task.taskExecutionId;
@@ -3005,7 +3082,10 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
       // message is still seedable when attachment metadata is present so
       // chips/annotations survive reload for omit-pin clients that leave
       // currentPrompt unset.
-      const seededAttachments = seededUserMessageAttachmentFields(meta);
+      const projectRoot = runProject && meta.projectId
+        ? resolveProjectDir(PROJECTS_DIR, meta.projectId, runProject.metadata)
+        : null;
+      const seededAttachments = seededUserMessageAttachmentFields(meta, projectRoot);
       const hasSeedableAttachmentMetadata =
         (seededAttachments.attachments?.length ?? 0) > 0 ||
         (seededAttachments.commentAttachments?.length ?? 0) > 0;
@@ -3345,6 +3425,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
                       snapshotId: resolvedSnapshot.snapshotId,
                       selectedAgentId: candidate.agentId!,
                       initialRunId: candidate.id,
+                      sessionMode: meta.sessionMode === 'chat' || meta.sessionMode === 'plan' ? meta.sessionMode : 'design',
                       frozenSkillPackage,
                       promptBundleText: preparedPromptBundleText,
                       taskInputManifestSha256: initialTaskInputSnapshot.manifestSha256,
@@ -3758,7 +3839,27 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         'projectId is required when listing Workspace-bound runs',
       );
     }
-    const body = { runs: visibleRuns.map(statusWithStrategyTask) };
+    // `ChatRunStatus` cannot say "waiting on the user": the run that asked the
+    // question reports `succeeded` and exits, while the project stays blocked.
+    // Clients rendering a per-project status off this feed would show such a
+    // project as finished, so ship the awaiting-input set alongside — the same
+    // one `GET /api/projects` composes `awaiting_input` from.
+    //
+    // Intersected with the projects `visibleRuns` already reveals: the query
+    // itself is unscoped, and returning it raw would leak the ids of projects
+    // this caller is not authorized to see.
+    const visibleProjectIds = new Set(
+      visibleRuns
+        .map((run) => run.projectId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    );
+    const awaitingInputProjectIds = visibleProjectIds.size
+      ? [...listProjectsAwaitingInput(db)].filter((id) => visibleProjectIds.has(id))
+      : [];
+    const body = {
+      runs: visibleRuns.map(statusWithStrategyTask),
+      awaitingInputProjectIds,
+    };
     res.json(body);
   });
 
@@ -4384,8 +4485,16 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     }
     const chatPluginId = clarificationTask?.strategyId
       ?? (typeof requestBody.pluginId === 'string' ? requestBody.pluginId : null);
+    // Same authority as POST /api/runs: the validated task and frozen snapshot
+    // own an internal continuation; it is not a newly requested public plugin.
+    const internalStrategyContinuation = Boolean(
+      clarificationTask?.strategyId === 'od-next-strategy'
+      && clarificationContinuation?.snapshot.pluginId === clarificationTask.strategyId
+      && clarificationContinuation.snapshot.strategy?.id === clarificationTask.strategyId,
+    );
     if (
-      chatPluginId
+      !internalStrategyContinuation
+      && chatPluginId
       && ctx.plugins.authorizePluginRequest
       && !await ctx.plugins.authorizePluginRequest(req, res, chatPluginId)
     ) return;

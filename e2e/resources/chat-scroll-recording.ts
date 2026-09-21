@@ -1,5 +1,5 @@
 /**
- * A recorded Open Design run, replayed by `e2e/ui/chat-scroll-wheel-reach.test.ts`
+ * A recorded ACP Design run, replayed by `e2e/ui/chat-scroll-wheel-reach.test.ts`
  * to make one chat turn stream deterministically.
  *
  * Provenance: captured from a real daemon run (1592 events over

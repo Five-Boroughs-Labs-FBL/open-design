@@ -574,7 +574,7 @@ test('[P0] completed BYOK setup stays usable while the unrelated Cloud session i
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Choose your model source|选择模型来源/i })).toHaveCount(0);
-  // PRODUCT INVARIANT: Cloud identity gates OpenDesign Cloud execution only.
+  // PRODUCT INVARIANT: Cloud identity gates ACP Design Cloud execution only.
   // A configured BYOK runtime neither redirects to onboarding nor starts a
   // passive Cloud login merely because the independent AMR status is signed out.
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(0);
@@ -1451,7 +1451,7 @@ async function gotoOnboarding(page: Page) {
   await waitForLoadingToClear(page);
   await dismissPrivacyDialog(page);
   // The runtime-picker "Choose a runtime" heading was removed. The Connect
-  // step now opens on a centered OpenDesign Cloud sign-in landing whose
+  // step now opens on a centered ACP Design Cloud sign-in landing whose
   // heading is the stable marker that onboarding has rendered.
   await expect(
     page.getByRole('heading', { name: /Sign in to ACP Design|登录 ACP Design/i }),

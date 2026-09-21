@@ -36,7 +36,7 @@ async function stubCatalogsEmpty(page: import('@playwright/test').Page) {
   await routeAgents(page, [
     {
       id: 'amr',
-      name: 'OpenDesign AMR',
+      name: 'ACP Design AMR',
       bin: 'vela',
       available: true,
       version: 'test',
@@ -118,7 +118,7 @@ test('[P0] after local Sign out, the app returns to Cloud sign-in without cleari
 
   const settings = await openSettingsDialog(page);
   // Scope to the AMR agent card: the settings sidebar also carries an
-  // "OpenDesign MCP" nav item, so a surface-wide /OpenDesign/i now resolves
+  // "ACP Design MCP" nav item, so a surface-wide /Open Design/i now resolves
   // to that `settings-nav-item` (which has no aria-pressed) instead of the
   // agent card's select button.
   await expect(amrAgentToggle(settings)).toHaveAttribute('aria-pressed', 'true');

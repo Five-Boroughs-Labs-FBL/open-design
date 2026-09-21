@@ -169,7 +169,7 @@ describe('web updater model', () => {
         incoming: {
           arch: 'arm64',
           artifact: {
-            name: 'Open Design Beta 1.2.3-beta.5.dmg',
+            name: 'ACP Design Beta 1.2.3-beta.5.dmg',
             platformKey: 'macAppleSilicon',
             type: 'dmg',
             url: 'https://fixture.test/Open Design Beta 1.2.3-beta.5.dmg',

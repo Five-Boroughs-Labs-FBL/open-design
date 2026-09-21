@@ -183,7 +183,7 @@ describe('MessageCenter', () => {
   it('keeps anonymous read state locally and restores it', async () => {
     renderMessageCenter();
     await openCenter();
-    fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ACP Design 0\.14 is available/ }));
     await waitFor(() => expect(screen.queryByLabelText(/unread/)).toBeNull());
     expect(localStorage.getItem('open-design.message-center.anonymous-read-ids.v1')).toContain('release');
   });
@@ -192,7 +192,7 @@ describe('MessageCenter', () => {
     mockFetch({ loggedIn: true });
     renderMessageCenter();
     await openCenter();
-    fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ACP Design 0\.14 is available/ }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url).includes('/release/read') && init?.method === 'POST')).toBe(true));
   });
 
@@ -204,15 +204,54 @@ describe('MessageCenter', () => {
     expect(within(dialog).queryByRole('button', { name: 'Unread' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Read' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Mark all read' })).toBeNull();
+    // The panel is the inbox and nothing else: no subtitle under the title and
+    // no desktop-settings footer (the setting still lives in Settings).
+    expect(within(dialog).queryByText('ACP Design updates, platform announcements, and account notices.')).toBeNull();
+    expect(within(dialog).queryByText('Task completion sounds and system notifications stay in Settings.')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Desktop notification settings' })).toBeNull();
     expect(within(dialog).getByText('ACP Design 0.14 is available')).toBeTruthy();
     expect(within(dialog).getByText('Credits added')).toBeTruthy();
+  });
+
+  it('reveals the media on expand with type and date below it', async () => {
+    const imageUrl = 'https://open-design.ai/update-card.png';
+    mockFetch({
+      messages: [{ ...defaultMessages[0]!, imageUrl }],
+    });
+    renderMessageCenter();
+    const dialog = await openCenter();
+    const row = within(dialog).getByRole('button', { name: /ACP Design 0\.14 is available/ });
+    const title = within(row).getByText('ACP Design 0.14 is available');
+    const type = within(row).getByText('Product update');
+    const date = row.querySelector('time');
+    const icon = row.querySelector('svg');
+
+    expect(date).toBeTruthy();
+    expect(icon).toBeTruthy();
+    // Title leads the card with the chevron beside it; type · date close it.
+    expect(title.compareDocumentPosition(icon as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(type.compareDocumentPosition(date as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    expect(row.querySelector('img')).toBeNull();
+
+    fireEvent.click(icon as SVGElement);
+
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    const image = row.querySelector('img');
+    expect(image).toHaveAttribute('src', imageUrl);
+    expect((image as Node).compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(icon as SVGElement);
+
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    expect(row.querySelector('img')).toBeNull();
   });
 
   it('expands the whole message row and opens its CTA', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderMessageCenter();
     await openCenter();
-    const row = screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ });
+    const row = screen.getByRole('button', { name: /ACP Design 0\.14 is available/ });
 
     expect(row).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: 'View update' })).toBeNull();
@@ -522,7 +561,7 @@ describe('MessageCenter', () => {
     renderMessageCenter();
     await openCenter();
 
-    fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ACP Design 0\.14 is available/ }));
     await waitFor(() => expect(screen.getByText('ACP Design 0.14 is available')).toBeTruthy());
     expect(unhandled).not.toHaveBeenCalled();
     window.removeEventListener('unhandledrejection', unhandled);
@@ -545,7 +584,7 @@ describe('MessageCenter', () => {
       ).toBeGreaterThanOrEqual(2),
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ACP Design 0\.14 is available/ }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Check failed. Please retry.'));
     expect(screen.getByText('ACP Design 0.14 is available')).toBeTruthy();
 
@@ -560,7 +599,7 @@ describe('MessageCenter', () => {
     });
     renderMessageCenter();
     await openCenter();
-    fireEvent.click(screen.getByRole('button', { name: /OpenDesign 0\.14 is available/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ACP Design 0\.14 is available/ }));
     expect(screen.queryByRole('button', { name: 'View update' })).toBeNull();
   });
 
