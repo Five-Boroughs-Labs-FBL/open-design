@@ -314,7 +314,7 @@ curl -fsSL https://open-design.ai/install.sh | sh -s <agent>
 
 `install.sh` is a thin shell wrapper around `od mcp install`; it exists so the
 hosted URL returns shell instead of the landing-page HTML fallback and fails
-fast if your shell resolves a non-Open-Design `od` binary.
+fast if your shell resolves an `od` binary that is not ACP Design.
 
 > **macOS / WSL2 users:** `/usr/bin/od` is a system octal-dump command and can
 > shadow ACP Design's `od` command. Desktop-app users should prefer the

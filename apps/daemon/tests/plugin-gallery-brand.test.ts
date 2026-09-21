@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const RETIRED_BRAND = /\bOpenDesign\b|Open Design/;
-const TEXT_FILES = new Set(['.json', '.md']);
+const RETIRED_BRAND = /(?<![A-Za-z0-9_@])OpenDesign(?![A-Za-z0-9_])|Open Design|\bOpen-Design\b|\bOPENDESIGN\b/;
+const TEXT_FILES = new Set(['.json', '.md', '.html', '.svg']);
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

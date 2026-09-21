@@ -22,9 +22,9 @@
   },
   "version": "0.1.0",
   "publishedAt": "2026-06-05T08:09:04Z",
-  "description": "Package the work the user just finished into an ACP Design plugin and route them to the existing Add-to-My-plugins / Open-Design-PR buttons. Triggered by the post-completion 'Share to ACP Design' submission action.",
+  "description": "Package the work the user just finished into an ACP Design plugin and route them to the existing Add-to-My-plugins / ACP Design PR buttons. Triggered by the post-completion 'Share to ACP Design' submission action.",
   "description_i18n": {
-    "en": "Package the work the user just finished into an ACP Design plugin and route them to the existing Add-to-My-plugins / Open-Design-PR buttons. Triggered by the post-completion 'Share to ACP Design' submission action.",
+    "en": "Package the work the user just finished into an ACP Design plugin and route them to the existing Add-to-My-plugins / ACP Design PR buttons. Triggered by the post-completion 'Share to ACP Design' submission action.",
     "zh-CN": "把用户刚做完的作品打包成 ACP Design 插件,然后引导他们点已有的 Add to My plugins / ACP Design PR 按钮。由生成完成后的 'Share to ACP Design' 投稿操作触发。"
   },
   "license": "MIT",

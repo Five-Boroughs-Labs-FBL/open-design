@@ -3214,7 +3214,7 @@ export const hu: Dict = {
   'fileViewer.shareMenuPresentation': 'Prezentáció',
   'fileViewer.shareMenuSourceFiles': 'Forrásfájlok',
   'fileViewer.shareMenuSave': 'MENTÉS',
-  'fileViewer.shareMenuPublishViaOd': 'GYORS MEGOSZTÁS · OPENDESIGN',
+  'fileViewer.shareMenuPublishViaOd': 'GYORS MEGOSZTÁS · ACP DESIGN',
   'fileViewer.unifiedShareAria': 'Share and export actions',
   'fileViewer.unifiedShareTab': 'Share',
   'fileViewer.unifiedExportTab': 'Export',

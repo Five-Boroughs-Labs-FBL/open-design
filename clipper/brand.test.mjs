@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const RETIRED_BRAND = /\bOpenDesign\b|Open Design/;
+const RETIRED_BRAND = /(?<![A-Za-z0-9_@])OpenDesign(?![A-Za-z0-9_])|Open Design|\bOpen-Design\b|\bOPENDESIGN\b/;
 const TEXT_EXT = new Set(['.js', '.html', '.json', '.md', '.css']);
 
 function walk(dir, acc = []) {

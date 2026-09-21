@@ -32,7 +32,7 @@
     "zh-TW": "入門級下游匯出外掛：把已 accept 的 ACP Design 產物轉成 React 元件交付。",
     "ja": "受理済みの ACP Design アーティファクトを React コンポーネントのハンドオフへ変換する、入門用ダウンストリームエクスポートプラグイン。",
     "ko": "수락된 ACP Design 산출물을 React 컴포넌트 핸드오프로 변환하는 입문용 다운스트림 익스포트 플러그인.",
-    "de": "Einsteiger-Downstream-Export: macht aus einem akzeptierten Open-Design-Artefakt eine React-Komponenten-Übergabe.",
+    "de": "Einsteiger-Downstream-Export: macht aus einem akzeptierten ACP Design-Artefakt eine React-Komponenten-Übergabe.",
     "fr": "Plugin d'export downstream de démarrage pour transformer un artefact ACP Design accepté en handoff de composant React.",
     "ru": "Стартовый downstream-экспорт-плагин: превращает принятый артефакт ACP Design в передачу React-компонента.",
     "es": "Plugin de exportación downstream inicial para convertir un artefacto aceptado de ACP Design en un handoff de componente React.",

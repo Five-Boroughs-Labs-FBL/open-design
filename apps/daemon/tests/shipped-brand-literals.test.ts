@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const RETIRED = /\bOpenDesign\b|Open Design/;
+const RETIRED = /(?<![A-Za-z0-9_@])OpenDesign(?![A-Za-z0-9_])|Open Design|\bOpen-Design\b|\bOPENDESIGN\b/;
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', 'coverage']);
 
@@ -23,6 +23,9 @@ const ALLOWED_SUBSTRINGS = [
   'Open Design Beta',
   '@OpenDesignHQ',
   'OpenDesignHQ',
+  '@Open-Design-ai',
+  'Open-Design-ai',
+  'X-Open-Design',
   'support@open-design.ai',
   'open-design.ai',
   'nexu-io/open-design',
@@ -135,7 +138,7 @@ describe('shipped product literals', () => {
       const files = walk(surface);
       for (const rel of files) {
         const norm = rel.replaceAll('\\', '/');
-        if (norm.includes('/i18n/locales/') || /\/i18n\/content\./.test(norm)) continue;
+        if (norm.includes('/i18n/locales/')) continue;
         const src = readFileSync(path.join(REPO_ROOT, rel), 'utf8');
         const rows = rel.endsWith('.md')
           ? src.split(/\r?\n/).map((text, i) => ({ line: i + 1, text }))

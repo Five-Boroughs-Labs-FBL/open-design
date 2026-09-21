@@ -3214,7 +3214,7 @@ export const ptBR: Dict = {
   'fileViewer.shareMenuPresentation': 'Apresentação',
   'fileViewer.shareMenuSourceFiles': 'Arquivos-fonte',
   'fileViewer.shareMenuSave': 'SALVAR',
-  'fileViewer.shareMenuPublishViaOd': 'COMPARTILHAMENTO RÁPIDO · OPENDESIGN',
+  'fileViewer.shareMenuPublishViaOd': 'COMPARTILHAMENTO RÁPIDO · ACP DESIGN',
   'fileViewer.unifiedShareAria': 'Share and export actions',
   'fileViewer.unifiedShareTab': 'Share',
   'fileViewer.unifiedExportTab': 'Export',

@@ -3214,7 +3214,7 @@ export const id: Dict = {
   'fileViewer.shareMenuPresentation': 'Presentasi',
   'fileViewer.shareMenuSourceFiles': 'File sumber',
   'fileViewer.shareMenuSave': 'SIMPAN',
-  'fileViewer.shareMenuPublishViaOd': 'BAGIKAN CEPAT · OPENDESIGN',
+  'fileViewer.shareMenuPublishViaOd': 'BAGIKAN CEPAT · ACP DESIGN',
   'fileViewer.unifiedShareAria': 'Share and export actions',
   'fileViewer.unifiedShareTab': 'Share',
   'fileViewer.unifiedExportTab': 'Export',

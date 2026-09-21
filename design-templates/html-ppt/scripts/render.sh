@@ -9,7 +9,7 @@
 #
 # Uses Playwright's managed Chromium. Do not fall back to the user's installed
 # Google Chrome on macOS; Crashpad/profile permissions can abort it inside the
-# OpenDesign desktop sandbox.
+# ACP Design desktop sandbox.
 
 set -euo pipefail
 

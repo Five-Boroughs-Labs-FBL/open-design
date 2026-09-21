@@ -2,9 +2,9 @@
 
 > ⚡ **[ACP Design Cloud — der offizielle Modell-Service.](https://open-design.ai/zh/pricing/)** Einmal aufladen und Agent- sowie Bildmodelle direkt in ACP Design nutzen: GPT, Claude und DeepSeek für Agents; GPT Image 2.0, Seedream 5.0 Pro und Nano Banana 2.0 für Bilder.
 >
-> 🚀 **[DeepSeek V4 Flash und V4 Pro sind jetzt verfügbar.](https://open-design.ai/zh/pricing/)** Nutzen Sie Spitzenintelligenz für Prototypen, Präsentationen, Designsysteme und alltägliche Agent-Aufgaben. Open-Design-Mitglieder können beide Modelle zwei Wochen lang unbegrenzt direkt in der App verwenden.
+> 🚀 **[DeepSeek V4 Flash und V4 Pro sind jetzt verfügbar.](https://open-design.ai/zh/pricing/)** Nutzen Sie Spitzenintelligenz für Prototypen, Präsentationen, Designsysteme und alltägliche Agent-Aufgaben. ACP Design-Mitglieder können beide Modelle zwei Wochen lang unbegrenzt direkt in der App verwenden.
 >
-> 🧩 **[DeepSeek Harness wird jetzt unterstützt.](https://open-design.ai/zh/agents/deepseek-harness-design/)** Verbinden Sie DeepSeeks offizielles `dsh` Agent Harness als native Laufzeit mit ACP Design — inklusive strukturiertem Denken, Tool-Aufrufen, Modellerkennung, Abbruch und Sitzungsfortsetzung. Generierte Dateien bleiben für Live-Vorschau und Auslieferung im Open-Design-Workflow.
+> 🧩 **[DeepSeek Harness wird jetzt unterstützt.](https://open-design.ai/zh/agents/deepseek-harness-design/)** Verbinden Sie DeepSeeks offizielles `dsh` Agent Harness als native Laufzeit mit ACP Design — inklusive strukturiertem Denken, Tool-Aufrufen, Modellerkennung, Abbruch und Sitzungsfortsetzung. Generierte Dateien bleiben für Live-Vorschau und Auslieferung im ACP Design-Workflow.
 
 <p align="center">
   <img src="https://repo-assets.open-design.ai/resources/images/hero.png" alt="ACP Design hero banner" width="100%" />
@@ -320,7 +320,7 @@ docker compose up -d
 
 [![Deploy on Sealos](https://sealos.io/Deploy-on-Sealos.svg)](https://sealos.io/products/app-store/open-design/)
 
-Die Sealos-App-Store-Vorlage führt das veröffentlichte Open-Design-Docker-Image mit persistentem Workspace-Speicher und Basic Auth am öffentlichen Proxy aus. Folgen Sie für eigene öffentliche oder gemeinsam genutzte Docker-Deployments den Reverse-Proxy- und `OPEN_DESIGN_ALLOWED_ORIGINS`-Hinweisen in [`deploy/README.md`](../../deploy/README.md#local-compose).
+Die Sealos-App-Store-Vorlage führt das veröffentlichte ACP Design-Docker-Image mit persistentem Workspace-Speicher und Basic Auth am öffentlichen Proxy aus. Folgen Sie für eigene öffentliche oder gemeinsam genutzte Docker-Deployments den Reverse-Proxy- und `OPEN_DESIGN_ALLOWED_ORIGINS`-Hinweisen in [`deploy/README.md`](../../deploy/README.md#local-compose).
 
 ### 🧑‍💻 Aus dem Quellcode ausführen
 
@@ -349,7 +349,7 @@ Node `~24`, pnpm `10.33.x`. Windows-Nutzer, siehe [`docs/windows-troubleshooting
 
 ## ACP Design aus deinem Coding-Agent nutzen
 
-ACP Design liefert einen **stdio-MCP-Server** und **Installationsskripte pro Agent** aus. Jeder MCP-kompatible Agent in einem anderen Repo kann Dateien aus deinen lokalen Open-Design-Projekten direkt lesen — Token-CSS, JSX-Komponenten, Einstiegs-HTML — als eine strukturierte, nach Namen abfragbare API. Der Agent sieht immer die Live-Datei, nicht einen veralteten Export.
+ACP Design liefert einen **stdio-MCP-Server** und **Installationsskripte pro Agent** aus. Jeder MCP-kompatible Agent in einem anderen Repo kann Dateien aus deinen lokalen ACP Design-Projekten direkt lesen — Token-CSS, JSX-Komponenten, Einstiegs-HTML — als eine strukturierte, nach Namen abfragbare API. Der Agent sieht immer die Live-Datei, nicht einen veralteten Export.
 
 ```bash
 # One-line install (16+ CLIs supported):
@@ -481,7 +481,7 @@ Jeder Befehl unterstützt `--json`, sodass du ihn über `jq` / `xargs` in Automa
 
 ### Ein Plugin bauen
 
-Ein Open-Design-Plugin benötigt `open-design.json` plus den Payload seines Typs. Workflow-Skills und Szenarien enthalten zusätzlich `SKILL.md`; andere Plugin-Typen verwenden ihren eigenen Payload:
+Ein ACP Design-Plugin benötigt `open-design.json` plus den Payload seines Typs. Workflow-Skills und Szenarien enthalten zusätzlich `SKILL.md`; andere Plugin-Typen verwenden ihren eigenen Payload:
 
 ```
 my-plugin/

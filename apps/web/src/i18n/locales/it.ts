@@ -3214,7 +3214,7 @@ export const it: Dict = {
   'fileViewer.shareMenuPresentation': 'Presentazione',
   'fileViewer.shareMenuSourceFiles': 'File sorgente',
   'fileViewer.shareMenuSave': 'SALVA',
-  'fileViewer.shareMenuPublishViaOd': 'CONDIVISIONE RAPIDA · OPENDESIGN',
+  'fileViewer.shareMenuPublishViaOd': 'CONDIVISIONE RAPIDA · ACP DESIGN',
   'fileViewer.unifiedShareAria': 'Share and export actions',
   'fileViewer.unifiedShareTab': 'Share',
   'fileViewer.unifiedExportTab': 'Export',

@@ -517,7 +517,10 @@ describe('i18n locales', () => {
 
   it('names the product ACP Design in every locale value and never ships Open Design', async () => {
     // @OpenDesignHQ / OpenDesignHQ stay until a replacement handle exists.
-    const retiredBrand = /(?<!@)OpenDesign(?!HQ)|Open Design/;
+    // Hyphenated German "Open-Design-…" and the all-caps share-chip
+    // "OPENDESIGN" are the same product name. "Open design system" is a verb
+    // phrase and must stay.
+    const retiredBrand = /(?<![A-Za-z0-9_@])OpenDesign(?![A-Za-z0-9_])|Open Design|\bOpen-Design\b|\bOPENDESIGN\b/;
     for (const locale of LOCALES) {
       const dict = await loadDict(locale);
       expect(dict['app.brand'], `${locale}.app.brand`).toBe('ACP Design');

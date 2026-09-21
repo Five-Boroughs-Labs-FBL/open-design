@@ -1,6 +1,6 @@
 ---
 name: od-share-to-community
-description: Package the user's just-finished work as an ACP Design plugin without asking for fields the project files already answer, then surface the existing Add-to-My-plugins / Open-Design-PR buttons.
+description: Package the user's just-finished work as an ACP Design plugin without asking for fields the project files already answer, then surface the existing Add-to-My-plugins / ACP Design PR buttons.
 od:
   scenario: plugin-sharing
   mode: scenario
@@ -42,7 +42,7 @@ Run `od plugin validate` on the folder, then `od plugin pack` for a tarball, the
 
 Write a single summary turn covering: files created, `od plugin validate` status, local install / run status, and `od plugin pack` output. Then STOP.
 
-## Do NOT chain the publish-repo / Open-Design-PR flows yourself
+## Do NOT chain the publish-repo / ACP Design PR flows yourself
 
 Do NOT suggest follow-up CLI commands such as `od plugin publish`, `od plugin publish --to open-design`, `gh repo create`, `git init` / `git remote add` / `git push`, or any other publish / repo wiring. The plugin-folder card under Design Files already exposes three buttons whose prompts drive those flows end-to-end with the right auth gates, fallbacks, and retry rules baked in:
 

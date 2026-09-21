@@ -3228,7 +3228,7 @@ export const en: Dict = {
   'fileViewer.shareMenuPresentation': 'Presentation',
   'fileViewer.shareMenuSourceFiles': 'Source files',
   'fileViewer.shareMenuSave': 'SAVE',
-  'fileViewer.shareMenuPublishViaOd': 'QUICK SHARE · OPENDESIGN',
+  'fileViewer.shareMenuPublishViaOd': 'QUICK SHARE · ACP DESIGN',
   'fileViewer.unifiedShareAria': 'Share and export actions',
   'fileViewer.unifiedShareTab': 'Share',
   'fileViewer.unifiedExportTab': 'Export',

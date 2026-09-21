@@ -32,7 +32,7 @@
     "zh-TW": "入門級下游匯出外掛：把已 accept 的 ACP Design 產物轉成 Vue 3 單文件元件交付。",
     "ja": "受理済みの ACP Design アーティファクトを Vue 3 単一ファイルコンポーネントのハンドオフへ変換する、入門用ダウンストリームエクスポートプラグイン。",
     "ko": "수락된 ACP Design 산출물을 Vue 3 단일 파일 컴포넌트 핸드오프로 변환하는 입문용 다운스트림 익스포트 플러그인.",
-    "de": "Einsteiger-Downstream-Export: macht aus einem akzeptierten Open-Design-Artefakt eine Vue-3-Single-File-Component-Übergabe.",
+    "de": "Einsteiger-Downstream-Export: macht aus einem akzeptierten ACP Design-Artefakt eine Vue-3-Single-File-Component-Übergabe.",
     "fr": "Plugin d'export downstream de démarrage pour transformer un artefact ACP Design accepté en handoff de composant single-file Vue 3.",
     "ru": "Стартовый downstream-экспорт-плагин: превращает принятый артефакт ACP Design в передачу Vue 3 single-file component.",
     "es": "Plugin de exportación downstream inicial para convertir un artefacto aceptado de ACP Design en un handoff de componente single-file de Vue 3.",
