@@ -127,7 +127,7 @@ describe('ACP SSO login pane', () => {
     expect(container.querySelector('.acp-mark.is-spinning')).not.toBeNull();
   });
 
-  it('does not offer OpenDesign Cloud sign-in on the ACP studio shell', async () => {
+  it('does not offer ACP Design Cloud sign-in on the ACP studio shell', async () => {
     sessionStorage.setItem('od-acp-studio-preview', '1');
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -142,7 +142,7 @@ describe('ACP SSO login pane', () => {
     await waitFor(() => {
       expect(screen.getByText('Sign in')).toBeTruthy();
     });
-    expect(screen.queryByRole('button', { name: /Sign in to OpenDesign/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Sign in to ACP Design/i })).toBeNull();
     const cta = screen.getByRole('button', { name: /Continue with ACP|Loading/i });
     expect(cta).toBeDisabled();
   });

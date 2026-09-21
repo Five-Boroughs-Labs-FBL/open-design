@@ -1,3 +1,5 @@
+import { ACP_DISCORD_INVITE_CODE, ACP_DISCORD_INVITE_URL } from '@open-design/contracts';
+
 export interface OpenDesignGithubRepoStats {
   stargazersCount: number;
   fetchedAt: number;
@@ -70,9 +72,9 @@ const OPEN_DESIGN_GITHUB_REPO_API = 'https://api.github.com/repos/nexu-io/open-d
 const OPEN_DESIGN_GITHUB_RELEASE_LATEST_API = 'https://api.github.com/repos/nexu-io/open-design/releases/latest';
 const OPEN_DESIGN_GITHUB_CACHE_TTL_MS = 60 * 60 * 1000;
 const OPEN_DESIGN_GITHUB_TIMEOUT_MS = 4_000;
-const OPEN_DESIGN_DISCORD_INVITE_CODE = 'mHAjSMV6gz';
-export const OPEN_DESIGN_DISCORD_INVITE_URL = `https://discord.gg/${OPEN_DESIGN_DISCORD_INVITE_CODE}`;
-const OPEN_DESIGN_DISCORD_INVITE_API = `https://discord.com/api/v10/invites/${OPEN_DESIGN_DISCORD_INVITE_CODE}?with_counts=true`;
+export const OPEN_DESIGN_DISCORD_INVITE_CODE = ACP_DISCORD_INVITE_CODE;
+export const OPEN_DESIGN_DISCORD_INVITE_URL = ACP_DISCORD_INVITE_URL;
+const OPEN_DESIGN_DISCORD_INVITE_API = `https://discord.com/api/v10/invites/${ACP_DISCORD_INVITE_CODE}?with_counts=true`;
 const OPEN_DESIGN_DISCORD_CACHE_TTL_MS = 5 * 60 * 1000;
 const OPEN_DESIGN_DISCORD_TIMEOUT_MS = 4_000;
 

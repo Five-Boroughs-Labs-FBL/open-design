@@ -112,7 +112,7 @@ function accountBilling(membershipTier: string) {
 function amrAgent(): AgentInfo {
   return {
     id: 'amr',
-    name: 'OpenDesign AMR',
+    name: 'ACP',
     bin: 'amr',
     available: true,
     models: [{ id: 'glm-5', label: 'GLM 5' }],

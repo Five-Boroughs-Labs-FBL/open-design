@@ -511,7 +511,7 @@ describe('resolveRunFailureUi', () => {
     }
   });
 
-  it('does not promote OpenDesign Cloud on hosted ACP Studio', () => {
+  it('does not promote ACP Design Cloud on hosted ACP Studio', () => {
     const ui = resolveRunFailureUi(
       'AGENT_AUTH_REQUIRED',
       null,

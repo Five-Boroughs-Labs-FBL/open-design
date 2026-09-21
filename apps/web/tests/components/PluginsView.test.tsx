@@ -781,14 +781,14 @@ describe('PluginsView', () => {
         'bundled',
         'bundled',
         'Publish Plugin to GitHub',
-        'Creates a public GitHub repository for a local OpenDesign plugin using the GitHub CLI.',
+        'Creates a public GitHub repository for a local ACP Design plugin using the GitHub CLI.',
       ),
       makePlugin(
         'od-plugin-contribute-open-design',
         'bundled',
         'bundled',
-        'Contribute Plugin to OpenDesign',
-        'Opens a pull request that adds a local OpenDesign plugin to the OpenDesign community catalog.',
+        'Contribute Plugin to ACP Design',
+        'Opens a pull request that adds a local ACP Design plugin to the ACP Design community catalog.',
       ),
     ]);
     const onCreatePluginShareProject = vi.fn(async (): Promise<PluginShareProjectOutcome> => ({

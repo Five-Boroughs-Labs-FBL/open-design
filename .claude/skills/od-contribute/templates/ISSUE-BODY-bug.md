@@ -10,7 +10,7 @@
 
 {{EXPECTED}}
 
-### OpenDesign version
+### ACP Design version
 
 {{OD_VERSION}}
 

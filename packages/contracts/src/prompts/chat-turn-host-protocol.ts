@@ -64,7 +64,7 @@ function nextStepLanguageRule(locale: string | undefined): string {
     return 'Write them in the language the user is speaking, and keep each under 120 characters.';
   }
   return [
-    `Write all three in ${promptLanguageName(normalized)}: the OpenDesign UI locale for this`
+    `Write all three in ${promptLanguageName(normalized)}: the ACP Design UI locale for this`
     + ` run is \`${normalized}\`, and these three lines are user-visible chat prose, not`
     + ' machine-readable values. The markers above show the marker format only, not the'
     + ' output language.',

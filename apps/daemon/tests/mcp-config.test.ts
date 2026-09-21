@@ -492,7 +492,7 @@ describe('buildOpenCodeMcpConfigContent', () => {
         extraConfig: {
           provider: {
             'open-design-byok': {
-              name: 'OpenDesign BYOK',
+              name: 'ACP Design BYOK',
               npm: '@ai-sdk/openai-compatible',
               options: { apiKey: '{env:OPEN_DESIGN_BYOK_API_KEY}' },
               models: { 'gpt-4o-mini': { name: 'gpt-4o-mini' } },
@@ -510,7 +510,7 @@ describe('buildOpenCodeMcpConfigContent', () => {
     };
 
     expect(parsed.provider?.['open-design-byok']).toMatchObject({
-      name: 'OpenDesign BYOK',
+      name: 'ACP Design BYOK',
       npm: '@ai-sdk/openai-compatible',
     });
     expect(parsed.mcp?.['basic-memory']).toBeTruthy();
@@ -825,6 +825,19 @@ describe('MCP_TEMPLATES', () => {
       expect(t.label.trim().length).toBeGreaterThan(0);
       expect(t.description.trim().length).toBeGreaterThan(0);
     }
+  });
+
+  it('names ACP Design in picker copy instead of OpenDesign', () => {
+    const retiredBrand = /OpenDesign|Open Design/;
+    for (const t of MCP_TEMPLATES) {
+      expect(t.label, t.id).not.toMatch(retiredBrand);
+      expect(t.description, t.id).not.toMatch(retiredBrand);
+      if (t.example) expect(t.example, t.id).not.toMatch(retiredBrand);
+    }
+    const higgsfield = MCP_TEMPLATES.find((t) => t.id === 'higgsfield-openclaw');
+    expect(higgsfield?.description).toContain('ACP Design completes OAuth');
+    const filesystem = MCP_TEMPLATES.find((t) => t.id === 'filesystem');
+    expect(filesystem?.description).toContain('ACP Design project');
   });
 
   it('every template has a category in the canonical enum', () => {

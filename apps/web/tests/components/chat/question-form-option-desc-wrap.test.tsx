@@ -77,7 +77,7 @@ const LONG_DESC =
 
 const FORM: QuestionForm = {
   id: 'dify-rewrite',
-  title: 'OpenDesign 落地页 → Dify 改版口径',
+  title: 'ACP Design 落地页 → Dify 改版口径',
   lang: 'zh-CN',
   questions: [
     {

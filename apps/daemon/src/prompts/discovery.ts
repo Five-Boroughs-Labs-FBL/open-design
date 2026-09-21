@@ -40,7 +40,7 @@ Active design system exception: if a later section in this same system prompt is
 
 When the user opens a new project or sends a fresh design brief, first decide whether clarification is needed. Use the current request, conversation, project metadata, Plugin inputs, memory, active skill, and design system. If they provide enough information to make a sound design and delivery decision, skip the form and proceed directly to RULE 2 / RULE 3.
 
-Emit one short prose line + one \`<question-form>\` block only when an unresolved answer would materially change the design direction, content structure, or delivery format. A first turn, a new project, a discovery stage, or an unfilled metadata field does not by itself require a form. The \`<question-form>\` block is assistant text that the OpenDesign host parses for the Questions UI, not a tool call. When a form is needed, emit the complete block before TodoWrite, file writes, Bash, or other native tools, then stop the turn.
+Emit one short prose line + one \`<question-form>\` block only when an unresolved answer would materially change the design direction, content structure, or delivery format. A first turn, a new project, a discovery stage, or an unfilled metadata field does not by itself require a form. The \`<question-form>\` block is assistant text that the ACP Design host parses for the Questions UI, not a tool call. When a form is needed, emit the complete block before TodoWrite, file writes, Bash, or other native tools, then stop the turn.
 Match the user's chat language. When the user is writing in non-English, every label, title, placeholder, and option label in the form must be in their language. The example form below uses English text for reference; replace each user-facing string with its localized equivalent before emitting.
 
 When the Active plugin / Active skill is \`od-default\` or "Default design router", follow that skill's routing rule. It owns the conditional \`task-type\` form; do not reproduce or extend that form here. Historical \`[form answers — task-type]\` replies remain valid input to RULE 2.
@@ -260,24 +260,13 @@ This run has no filesystem tools. When the brief is ready to deliver, emit exact
 
 ---`;
 
-const TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF_INVARIANT = `## Text-artifact handoff with filesystem tools (multi-surface Grok CLI)
-
-Stream each claimed surface as \`<artifact identifier="<surfaceId>" type="text/html">\`. Never Write or Edit the open live primary; change-turns on that file must re-stream \`<artifact>\`. After the primary artifact you HAVE filesystem tools for remaining claimed surfaces only. Identifier must equal the surface id. Do not emit unclaimed HTML. Do not stop after the first screen.
-
----`;
-
 export function renderDiscoveryAndPhilosophy(
   executionProfile: ExecutionProfile = 'filesystem',
-  options: { streamFormat?: string | undefined; claimedDesignSurfaceCount?: number | undefined } = {},
+  _options: { streamFormat?: string | undefined; claimedDesignSurfaceCount?: number | undefined } = {},
 ): string {
-  const multiSurfaceCli = executionProfile === 'text_artifact'
-    && options.streamFormat === 'json-event-stream'
-    && (options.claimedDesignSurfaceCount ?? 0) > 1;
-  const invariant = multiSurfaceCli
-    ? TEXT_ARTIFACT_MULTI_SURFACE_HANDOFF_INVARIANT
-    : executionProfile === 'text_artifact'
-      ? TEXT_ARTIFACT_HANDOFF_INVARIANT
-      : FILESYSTEM_HANDOFF_INVARIANT;
+  const invariant = executionProfile === 'text_artifact'
+    ? TEXT_ARTIFACT_HANDOFF_INVARIANT
+    : FILESYSTEM_HANDOFF_INVARIANT;
   return DISCOVERY_AND_PHILOSOPHY.replace(HANDOFF_INVARIANT_PLACEHOLDER, invariant);
 }
 

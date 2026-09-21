@@ -73,7 +73,7 @@ export function validateHtmlArtifact(content: string): HtmlArtifactValidationRes
     return { ok: false, reason: 'content does not start with <!doctype html> or <html — looks like prose, not a complete HTML document' };
   }
   if (isMixedHtmlDocument(trimmed)) {
-    return { ok: false, reason: 'content is not a single HTML document (second doctype, markdown fence, or markup inside <style>)' };
+    return { ok: false, reason: 'content is not a single HTML document (second doctype, markdown fence, unclosed attribute, head prose, or markup inside <style>)' };
   }
   if (referencesReservedProjectPath(trimmed)) {
     return { ok: false, reason: 'content references an internal project storage path such as .live-artifacts, .od, or .tmp' };
@@ -86,7 +86,64 @@ function isMixedHtmlDocument(content: string): boolean {
   if ((doctypes?.length ?? 0) > 1) return true;
   if (NESTED_DOCUMENT_AFTER_FENCE_RE.test(content)) return true;
   if (MARKDOWN_HTML_FENCE_RE.test(content) && (doctypes?.length ?? 0) >= 1) return true;
+  if (hasUnclosedQuotedAttribute(content)) return true;
+  if (headHasStrayProse(content)) return true;
   return styleContainsMarkupOrFence(content);
+}
+
+function hasUnclosedQuotedAttribute(content: string): boolean {
+  let i = 0;
+  const n = content.length;
+  while (i < n) {
+    const lt = content.indexOf('<', i);
+    if (lt < 0) return false;
+    if (content.startsWith('<!--', lt)) {
+      const end = content.indexOf('-->', lt + 4);
+      if (end < 0) return false;
+      i = end + 3;
+      continue;
+    }
+    const rest = content.slice(lt);
+    const specialTag = rest.match(/^<(script|style)\b/i)?.[1];
+    const parsed = readHtmlTag(content, lt);
+    if (parsed.unclosedQuote) return true;
+    if (specialTag) {
+      const close = new RegExp(`</${specialTag}\\s*>`, 'i');
+      const closeRel = content.slice(parsed.nextIndex).search(close);
+      i = closeRel < 0 ? n : parsed.nextIndex + closeRel + specialTag.length + 3;
+      continue;
+    }
+    i = parsed.nextIndex;
+  }
+  return false;
+}
+
+function readHtmlTag(content: string, start: number): { nextIndex: number; unclosedQuote: boolean } {
+  let quote: '"' | "'" | null = null;
+  for (let i = start + 1; i < content.length; i += 1) {
+    const ch = content[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '>') return { nextIndex: i + 1, unclosedQuote: false };
+  }
+  return { nextIndex: content.length, unclosedQuote: quote != null };
+}
+
+function headHasStrayProse(content: string): boolean {
+  const match = content.match(/<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|$)/i);
+  if (!match) return false;
+  let inner = match[1] ?? '';
+  inner = inner.replace(/<!--[\s\S]*?-->/g, '');
+  inner = inner.replace(/<(script|style|title|noscript)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
+  inner = inner.replace(/<[^>]+>/g, ' ');
+  const leftover = inner.replace(/\s+/g, ' ').trim();
+  return /[A-Za-z]{3,}\s+[A-Za-z]{3,}/.test(leftover);
 }
 
 function styleContainsMarkupOrFence(content: string): boolean {

@@ -1,5 +1,5 @@
-ARG NODE_IMAGE=docker.io/library/node:24-alpine
-ARG RUNTIME_IMAGE=docker.io/library/node:24-alpine
+ARG NODE_IMAGE=docker.io/library/node:24-bookworm-slim
+ARG RUNTIME_IMAGE=docker.io/library/node:24-bookworm-slim
 
 FROM ${NODE_IMAGE} AS build
 
@@ -18,7 +18,9 @@ ENV no_proxy=${no_proxy}
 ENV NO_PROXY=${NO_PROXY}
 ENV CI=true
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -83,16 +85,38 @@ COPY assets ./assets
 COPY data ./data
 COPY plugins/_official ./plugins/_official
 
+# Cursor Agent is a glibc Node plus `*-linux-*-gnu.node` addons. Alpine
+# gcompat died on fcntl64; copying Debian libs into musl still failed at
+# `cursor-agent --version` while loading those addons (Railway truncated
+# the stack to index.js:414). Run the daemon on bookworm-slim too so
+# better-sqlite3 and Cursor share a real glibc. Grok is static-pie and
+# does not care which libc the OS uses.
 FROM ${RUNTIME_IMAGE}
 
-RUN apk add --no-cache tini poppler-utils bash git curl && \
-    addgroup -S -g 1001 open-design && \
-    adduser -S -D -H -u 1001 -G open-design open-design
+# bash: Cursor's launcher is `#!/usr/bin/env bash`. wget: linux compose
+# healthcheck. ca-certificates: Cursor `--use-system-ca`.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      tini \
+      poppler-utils \
+      bash \
+      git \
+      curl \
+      wget \
+      ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --gid 1001 open-design && \
+    useradd --uid 1001 --gid open-design --no-create-home \
+      --home-dir /home/open-design --shell /usr/sbin/nologin open-design && \
+    mkdir -p /home/open-design && \
+    chown open-design:open-design /home/open-design
+
+ENV HOME=/home/open-design
 
 # Same Grok + Muse CLIs AMC planner/builder/Design use (static linux-x86_64).
 ARG GROK_VERSION=1.0.4
-ARG MUSE_VERSION=1.3.0-R3057.1
-ARG MUSE_SHA256=5187dfc9e5b460999acb5c2326b09190d307e3fe09127490eb5de39a8b200309
+ARG MUSE_VERSION=1.3.0-R3233.1
+ARG MUSE_SHA256=dfc52dc7d37e23d7618ed37a7ec3dd8d0f4c83c647b0f1cc2c2791274acabe78
 ENV MUSE_NO_AUTO_UPDATE=1
 RUN curl -fsSL -o /usr/local/bin/grok \
       "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${GROK_VERSION}-linux-x86_64" && \
@@ -102,8 +126,28 @@ RUN curl -fsSL -o /usr/local/bin/grok \
       "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=${MUSE_VERSION}&file=muse-x86-linux" && \
     echo "${MUSE_SHA256}  /usr/local/bin/muse" | sha256sum -c - && \
     chmod 0755 /usr/local/bin/muse && \
-    /usr/local/bin/muse --version && \
-    apk del curl
+    /usr/local/bin/muse --version
+
+# Design runs execute in this container. ACP forwards the selected Cursor
+# model and CURSOR_API_KEY, but the ACP Design daemon still needs the Cursor
+# Agent executable locally. Pin the package so image builds are reproducible;
+# expose both the documented `agent` command and ACP Design's stable
+# `cursor-agent` adapter name.
+ARG TARGETARCH
+ARG CURSOR_AGENT_VERSION=2026.09.10-fd3934a
+RUN case "${TARGETARCH}" in \
+      amd64) cursor_arch=x64 ;; \
+      arm64) cursor_arch=arm64 ;; \
+      *) echo "Unsupported Cursor Agent architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /opt/cursor-agent && \
+    curl -fsSL \
+      "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${cursor_arch}/agent-cli-package.tar.gz" \
+      | tar --strip-components=1 -xzf - -C /opt/cursor-agent && \
+    chmod 0755 /opt/cursor-agent/cursor-agent && \
+    ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent && \
+    ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent && \
+    /usr/local/bin/cursor-agent --version
 
 WORKDIR /app
 COPY --from=build --chown=open-design:open-design /app/deploy/daemon ./apps/daemon
@@ -127,6 +171,7 @@ RUN mkdir -p /app/.od && \
 
 ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=192
+ENV HOME=/home/open-design
 ENV OD_BIND_HOST=0.0.0.0
 ENV OD_PORT=7456
 ENV OD_DATA_DIR=/app/.od
@@ -134,5 +179,5 @@ ENV OD_DATA_DIR=/app/.od
 EXPOSE 7456
 
 USER open-design
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "apps/daemon/dist/cli.js", "--no-open"]

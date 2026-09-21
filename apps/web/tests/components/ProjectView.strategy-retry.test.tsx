@@ -249,7 +249,7 @@ const localConfig: AppConfig = {
 
 const agents = [
   { id: 'agent-1', name: 'OpenCode', bin: 'opencode', available: true, models: [] },
-  { id: 'amr', name: 'OpenDesign Cloud', available: true, models: [] },
+  { id: 'amr', name: 'ACP Design Cloud', available: true, models: [] },
 ] as unknown as AgentInfo[];
 
 function renderProjectView(config: AppConfig = localConfig) {

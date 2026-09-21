@@ -8,7 +8,7 @@
   "description": "Resolves the visual direction at the plan stage from the brief and design system, without asking the user.",
   "license": "MIT",
   "author": {
-    "name": "OpenDesign",
+    "name": "ACP Design",
     "url": "https://github.com/nexu-io"
   },
   "homepage": "https://github.com/nexu-io/open-design/tree/main/plugins/_official/atoms/direction-picker",

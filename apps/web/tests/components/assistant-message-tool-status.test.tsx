@@ -760,6 +760,28 @@ describe('AssistantMessage 执行记录', () => {
     expect(body).not.toContain('Here is the finished answer.');
   });
 
+  it('hides Muse stream.kind session status pills', () => {
+    const { container } = render(
+      <AssistantMessage
+        projectKind="prototype"
+        conversationId="conv-1"
+        message={messageWithEvents([
+          { kind: 'status', label: 'session', detail: 'sess-muse' },
+          { kind: 'text', text: 'Drawing the HUD.' },
+          { kind: 'status', label: 'session', detail: 'sess-muse' },
+          { kind: 'status', label: 'complete' },
+        ])}
+        streaming={false}
+        projectId="project-1"
+      />,
+    );
+
+    expect(container.querySelector('[data-status="session"]')).toBeNull();
+    expect(container.querySelector('[data-status="complete"]')).toBeNull();
+    expect(container.textContent).toContain('Drawing the HUD.');
+    expect(container.textContent).not.toContain('sess-muse');
+  });
+
   it('hides empty tool_call / tool_call_update status rows (no displayable detail) (#4618)', () => {
     const { container } = render(
       <AssistantMessage

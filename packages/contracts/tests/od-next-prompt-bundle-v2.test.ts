@@ -10,7 +10,7 @@ import {
 function bundle(overrides: Partial<OdNextPromptBundleV2> = {}): OdNextPromptBundleV2 {
   return {
     coreSystemPrompt: {
-      executionBoundary: '# Open Design execution and security boundary',
+      executionBoundary: '# ACP Design execution and security boundary',
       nativeExecution: { profile: 'filesystem', body: 'Project directory is truth.' },
       discoveryAndPlanningSurface: 'Plan before Build.',
       coreStrategy: '# OD Next Core Strategy v2.0.0\n\n## Role\n\nMain agent.',

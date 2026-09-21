@@ -390,6 +390,10 @@ import {
   subscribeHomeAttachmentUploads,
 } from '../state/home-attachment-handoff';
 import { effectiveAgentModelChoice, effectiveAgentModelId } from './agentModelSelection';
+import {
+  retryAssistantAgentId,
+  retryAssistantModel,
+} from './retry-run-identity';
 import { mediaExecutionPolicyForProjectMetadata } from '../media/execution-policy';
 import { mediaModelProviderId } from '../media/models';
 import { byokProviderRequiresApiKey } from '../utils/byokProvider';
@@ -1211,7 +1215,7 @@ function buildCreateDesignSystemFromProjectPrompt(input: {
       ]
     : ['- Active design system: (none)'];
   return [
-    'Create this project as a complete OpenDesign design system workspace.',
+    'Create this project as a complete ACP Design design system workspace.',
     '',
     'Autonomy requirement:',
     '- Do not ask setup or clarification questions during design-system generation.',
@@ -1300,7 +1304,7 @@ function historyWithWorkspaceContext(
     '',
     '',
     '<active-workspace-context>',
-    'OpenDesign selected or inferred these workspace contexts for this turn. Treat absolute paths as reference context unless the user explicitly asks to edit them.',
+    'ACP Design selected or inferred these workspace contexts for this turn. Treat absolute paths as reference context unless the user explicitly asks to edit them.',
     ...items.map((item, index) => {
       const details = [
         item.path ? `path: ${item.path}` : null,
@@ -8224,6 +8228,10 @@ export function ProjectView({
         ? resolveRetryTarget(messages, meta.retryOfAssistantId)
         : null;
       if (meta?.retryOfAssistantId && !retryTarget) return false;
+      const sendAgentId = retryAssistantAgentId(
+        retryTarget?.failedAssistant,
+        config.agentId,
+      );
       const blockedRequestKey = JSON.stringify([
         prompt,
         attachments.map((attachment) => [attachment.path, attachment.name]),
@@ -8280,7 +8288,7 @@ export function ProjectView({
       const byokOpenCodeProvider = byokOpenCodeProviderFromConfig(config);
       const requiresByokPreflight =
         (config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
-        (config.mode === 'daemon' && config.agentId === 'byok-opencode');
+        (config.mode === 'daemon' && sendAgentId === 'byok-opencode');
       if (requiresByokPreflight && !byokOpenCodeProvider) {
         const blockReason = byokPreflightBlockReason(config) ?? 'config_invalid';
         const recoveryActionInstanceId = `blocked:${taskAnalytics.taskExecutionId}`;
@@ -8363,7 +8371,7 @@ export function ProjectView({
        */
       const amrGateApplies =
         config.mode === 'daemon'
-        && config.agentId === 'amr'
+        && sendAgentId === 'amr'
         && !meta?.amrGatePrechecked;
       // The gate's await opens a window where the conversation is not yet
       // marked busy. A second send arriving during that window behaves like
@@ -8422,12 +8430,12 @@ export function ProjectView({
         ),
       );
       const selectedAgent =
-        config.mode === 'daemon' && config.agentId
-          ? agentsById.get(config.agentId)
+        config.mode === 'daemon' && sendAgentId
+          ? agentsById.get(sendAgentId)
           : null;
       const selectedAgentChoice =
-        config.mode === 'daemon' && config.agentId
-          ? config.agentModels?.[config.agentId]
+        config.mode === 'daemon' && sendAgentId
+          ? config.agentModels?.[sendAgentId]
           : undefined;
       const effectiveSelectedAgentChoice = effectiveAgentModelChoice(
         selectedAgent,
@@ -8435,14 +8443,17 @@ export function ProjectView({
       );
       const assistantAgentId =
         config.mode === 'daemon'
-          ? config.agentId ?? undefined
+          ? sendAgentId ?? undefined
           : apiProtocolAgentId(config.apiProtocol, config.model, config.baseUrl);
       const assistantAgentName =
         config.mode === 'daemon'
           ? agentModelDisplayName(
-              config.agentId,
+              sendAgentId,
               selectedAgent?.name,
-              effectiveSelectedAgentChoice?.model,
+              retryAssistantModel(
+                retryTarget?.failedAssistant,
+                effectiveSelectedAgentChoice?.model,
+              ) ?? effectiveSelectedAgentChoice?.model,
             )
           : apiProtocolModelLabel(config.apiProtocol, config.model, config.baseUrl);
       const preTurnFileNames = projectFiles.map((f) => f.name);
@@ -9911,12 +9922,12 @@ export function ProjectView({
       };
 
       if (config.mode === 'daemon') {
-        if (!config.agentId) {
+        if (!sendAgentId) {
           handlers.onError(new Error('Pick a local agent first (top bar).'));
           return true;
         }
         const choice = effectiveSelectedAgentChoice;
-        const daemonByokOpenCode = config.agentId === 'byok-opencode';
+        const daemonByokOpenCode = sendAgentId === 'byok-opencode';
         if (daemonByokOpenCode && !agentsById.get('byok-opencode')?.available) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
@@ -9980,7 +9991,7 @@ export function ProjectView({
           hasExistingArtifact,
           runtimeType: daemonByokOpenCode
             ? ('byok' as const)
-            : config.agentId === 'amr'
+            : sendAgentId === 'amr'
               ? ('amr_cloud' as const)
               : ('local_cli' as const),
           taskExecutionId: taskAnalytics.taskExecutionId,
@@ -9991,7 +10002,7 @@ export function ProjectView({
           recoveryActionInstanceId: taskAnalytics.recoveryActionInstanceId,
         };
         void streamViaDaemon({
-          agentId: config.agentId,
+          agentId: sendAgentId,
           history: nextHistory,
           signal: controller.signal,
           cancelSignal: cancelController.signal,
@@ -10013,7 +10024,9 @@ export function ProjectView({
             meta?.appliedPluginSnapshotId ?? meta?.appliedPluginSnapshot?.snapshotId ?? null,
           research: meta?.research,
           mediaExecution: mediaExecutionPolicyForProjectMetadata(project.metadata),
-          model: daemonByokOpenCode ? config.model : choice?.model ?? null,
+          model: daemonByokOpenCode
+            ? config.model
+            : retryAssistantModel(retryTarget?.failedAssistant, choice?.model),
           reasoning: daemonByokOpenCode ? null : choice?.reasoning ?? null,
           serviceTier: daemonByokOpenCode ? null : choice?.serviceTier ?? null,
           ...(daemonByokOpenCode && byokOpenCodeProvider
@@ -14652,7 +14665,7 @@ function latestDesignSystemActivityEvents(messages: ChatMessage[]): AgentEvent[]
 }
 
 function pluginWorkflowTitle(action: PluginFolderAgentAction): string {
-  return action === 'publish' ? 'Publish repo' : 'OpenDesign PR';
+  return action === 'publish' ? 'Publish repo' : 'ACP Design PR';
 }
 
 function pluginWorkflowCliCommand(action: PluginFolderAgentAction, relativePath: string): string {
@@ -14671,7 +14684,7 @@ function pluginWorkflowPlannedSteps(action: PluginFolderAgentAction): string[] {
     ];
   }
   return [
-    'Ensure the OpenDesign fork exists',
+    'Ensure the ACP Design fork exists',
     'Clone the fork and prepare a branch',
     'Copy the plugin into plugins/community',
     'Push the branch and open the PR form',
@@ -14792,7 +14805,7 @@ export function resolveSucceededRunStatus(status: ChatMessage['runStatus']): Cha
 const DESIGN_RESULT_MISSING_DETAIL =
   'The design run finished without producing a deliverable project file.';
 const DESIGN_RESULT_DELIVERY_FAILED_DETAIL =
-  'The design result was generated, but OpenDesign could not save it to the project.';
+  'The design result was generated, but ACP Design could not save it to the project.';
 
 function applyDesignDeliveryOutcome(
   message: ChatMessage,

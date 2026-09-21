@@ -1741,8 +1741,8 @@ interface Props {
   // atomic tab-state update. The React module pointer uses this to jump to the
   // HTML entry that renders a module and drop the dead-end module tab.
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
-  /** Return to the durable manifest canvas. Present only for files that belong
-   * to a validated multi-surface design manifest. */
+  /** Return to the durable manifest canvas when this project has a design
+   * manifest — including generated images that are not themselves surfaces. */
   onShowAllScreens?: () => void;
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
@@ -1982,7 +1982,7 @@ export const FileViewer = memo(function FileViewer({
     return <SvgViewer projectId={projectId} file={file} />;
   }
   if (file.kind === 'image') {
-    return <ImageViewer projectId={projectId} file={file} />;
+    return <ImageViewer projectId={projectId} file={file} onShowAllScreens={onShowAllScreens} />;
   }
   if (file.kind === 'video') {
     return <VideoViewer projectId={projectId} file={file} />;
@@ -18966,9 +18966,11 @@ function escapeHtmlAttr(value: string): string {
 function ImageViewer({
   projectId,
   file,
+  onShowAllScreens,
 }: {
   projectId: string;
   file: ProjectFile;
+  onShowAllScreens?: () => void;
 }) {
   const t = useT();
   const { workspaceContext } = useProjectCollabContext();
@@ -18980,6 +18982,19 @@ function ImageViewer({
     <div className="viewer image-viewer">
       <div className="viewer-toolbar">
         <div className="viewer-toolbar-left">
+          {onShowAllScreens ? (
+            <Button
+              variant="ghost"
+              className="viewer-all-screens"
+              data-testid="file-viewer-all-screens"
+              title={t('designFiles.allScreens')}
+              aria-label={t('designFiles.allScreens')}
+              onClick={onShowAllScreens}
+            >
+              <Icon name="grid" size={14} />
+              <span className="viewer-all-screens-label">{t('designFiles.allScreens')}</span>
+            </Button>
+          ) : null}
           <span className="viewer-meta">
             {file.kind === 'sketch'
               ? t('fileViewer.sketchMeta', { size: humanSize(file.size) })

@@ -14,6 +14,7 @@ describe('agentDisplayName', () => {
     expect(agentDisplayName('deepseek-harness')).toBe('DeepSeek Harness');
     expect(agentDisplayName('kimi')).toBe('Kimi CLI');
     expect(agentDisplayName('minimax')).toBe('MiniMax');
+    expect(agentDisplayName('amr')).toBe('ACP');
   });
 
   it('resolves common aliases like "claude code" and "qodercli"', () => {
