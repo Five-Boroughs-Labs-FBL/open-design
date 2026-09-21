@@ -248,7 +248,7 @@ describe('PluginsView', () => {
         url: 'https://open-design.ai/marketplace/open-design-marketplace.json',
         trust: 'official',
         manifest: {
-          name: 'OpenDesign Official',
+          name: 'ACP Design Official',
           version: '1.0.0',
           plugins: [
             {
@@ -688,7 +688,7 @@ describe('PluginsView', () => {
         url: 'https://open-design.ai/marketplace/open-design-marketplace.json',
         trust: 'official',
         manifest: {
-          name: 'OpenDesign Official',
+          name: 'ACP Design Official',
           version: '0.1.0',
           plugins: [{
             name: 'open-design/official-plugin',

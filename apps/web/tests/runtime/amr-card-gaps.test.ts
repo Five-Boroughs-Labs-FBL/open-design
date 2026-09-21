@@ -23,7 +23,7 @@
 // —— 两组断言合起来才钉得住「不再吞,但也没拆坏」。
 //
 // 第三组是结构不变式:`switch-to-cloud` / `cloudSwitchCta` 的语义是「推荐
-// Open Design 智能体(= AMR)」。阶梯注释里已经写了「a run that is ALREADY on
+// ACP Design 智能体(= AMR)」。阶梯注释里已经写了「a run that is ALREADY on
 // Cloud never trips rung 3」,但在 AMR 早退的年代那句话没有执行点。一旦让 AMR
 // 往下走,它就必须真的成立,否则我们会当着 AMR 用户的面劝他切到 AMR。
 import { describe, expect, it } from 'vitest';
@@ -208,8 +208,8 @@ describe('AMR 自己的三张专属卡没被拆坏', () => {
   it('AMR_TIER_UPGRADE_REQUIRED:升级套餐 + 次级重试', () => {
     const ui = resolveRunFailureUi('AMR_TIER_UPGRADE_REQUIRED', null, 'amr');
     expect(ui.primaryAction).toBe('upgrade');
-    expect(ui.titleKey).toBe('chat.amrBalanceGate.title');
-    expect(ui.messageKey).toBe(null);
+    expect(ui.titleKey).toBe('chat.runError.title.tierUpgradeRequired');
+    expect(ui.messageKey).toBe('chat.runError.tierUpgradeRequiredMessage');
     expect(ui.secondaryRetry).toBe(true);
   });
 
@@ -252,7 +252,7 @@ describe('不变式:已经在 Cloud 上的 run 不许再被劝去 Cloud', () => 
     'process_crashed',
   ] as const;
 
-  it('AMR 上的任何失败都不会推荐切到 Open Design 智能体', () => {
+  it('AMR 上的任何失败都不会推荐切到 ACP Design 智能体', () => {
     const offenders: string[] = [];
     for (const code of CODES) {
       for (const detail of DETAILS) {

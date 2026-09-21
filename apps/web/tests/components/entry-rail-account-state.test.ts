@@ -107,7 +107,7 @@ describe('shouldShowCloudSignInTip', () => {
 });
 
 describe('resolveAcpCatalogChrome', () => {
-  it('keeps OpenDesign chrome on a local daemon', () => {
+  it('keeps ACP Design chrome on a local daemon', () => {
     expect(resolveAcpCatalogChrome({
       resolved: true,
       acpSsoUrl: null,

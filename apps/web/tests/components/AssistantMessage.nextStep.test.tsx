@@ -178,7 +178,7 @@ describe('AssistantMessage next-step affordance', () => {
   /**
    * ⚠️ 落点变更,**待产品拍板**。
    *
-   * 「贡献到 OpenDesign 社区」(`onShareToOpenDesign`)原来挂在
+   * 「贡献到 ACP Design 社区」(`onShareToOpenDesign`)原来挂在
    * 更多 → 分享 → 贡献 这条三级路径上,而那条路径只在 `default` 档出现。
    * `default` 档现在整档换成 agent 现写的三条建议,所以这个入口在常规交付
    * 回合上**没有落点了**(仅在 brand / plan / design-system 这些工作流档上

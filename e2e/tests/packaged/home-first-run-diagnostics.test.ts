@@ -45,7 +45,7 @@ function createSnapshotFixture(options: SnapshotFixtureOptions) {
         selector === '[data-assistant-message-id]' && options.assistantText != null
           ? [{ textContent: options.assistantText }]
           : [],
-      title: 'Open Design',
+      title: 'ACP Design',
     },
     fetch: async (path: string): Promise<FakeResponse> => {
       const requestPath = String(path);

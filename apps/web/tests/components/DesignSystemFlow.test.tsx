@@ -874,7 +874,7 @@ describe('DesignSystemCreationFlow', () => {
     await waitFor(() => expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('Create this project as a complete OpenDesign design system workspace.'),
+        pendingPrompt: expect.stringContaining('Create this project as a complete ACP Design design system workspace.'),
       }),
     ));
     await waitFor(() => expect(onProjectPrepared).toHaveBeenCalledWith(
@@ -961,7 +961,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('Create this project as a complete OpenDesign design system workspace.'),
+        pendingPrompt: expect.stringContaining('Create this project as a complete ACP Design design system workspace.'),
       }),
     );
     expect(mocks.patchProject).toHaveBeenCalledWith(
@@ -2067,7 +2067,7 @@ describe('DesignSystemCreationFlow', () => {
       id: 'user:open-design-website-design-system',
       title: 'ACP Design Website Design System',
       category: 'Custom',
-      summary: 'OpenDesign website source.',
+      summary: 'ACP Design website source.',
       swatches: [],
       surface: 'web',
       body: '# ACP Design Website Design System\n',
@@ -2112,7 +2112,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(sourceInput.value).toBe('');
 
     fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
-      target: { value: 'OpenDesign website source' },
+      target: { value: 'ACP Design website source' },
     });
     continueToGeneration();
     continueToGeneration();
@@ -2329,7 +2329,7 @@ describe('DesignSystemCreationFlow', () => {
         redirectUrl: 'https://example.com/oauth',
         expiresAt: '2099-05-08T10:00:00.000Z',
       },
-      error: 'Popup blocked. Allow popups for OpenDesign and try again.',
+      error: 'Popup blocked. Allow popups for ACP Design and try again.',
     });
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({ closed: false } as Window));
     const config = {
@@ -2350,7 +2350,7 @@ describe('DesignSystemCreationFlow', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Connect via Composio' }));
 
       await waitFor(() => expect(screen.getByText('Pending')).toBeTruthy());
-      expect(screen.getByText('Popup blocked. Allow popups for OpenDesign and try again.')).toBeTruthy();
+      expect(screen.getByText('Popup blocked. Allow popups for ACP Design and try again.')).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: 'Open authorization' }));
 

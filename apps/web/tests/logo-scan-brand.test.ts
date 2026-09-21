@@ -13,7 +13,7 @@ describe('home hero lockup SVG', () => {
   it('ships an ACP Design wordmark for PixelScanLogo to sample', () => {
     const svg = readFileSync(logoPath, 'utf8');
     expect(svg).toContain('ACP Design');
-    expect(svg).not.toMatch(/(?<!@)OpenDesign(?!HQ)/);
-    expect(svg).not.toContain('Open Design');
+    expect(svg).not.toMatch(/(?<!@)ACP Design(?!HQ)/);
+    expect(svg).not.toContain('ACP Design');
   });
 });
