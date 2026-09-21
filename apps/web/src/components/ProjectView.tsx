@@ -8264,10 +8264,6 @@ export function ProjectView({
             claimedSurface,
           );
           if (!artifactToPersist?.html) continue;
-          const latestRunStatus = await fetchChatRunStatus(
-            runId,
-            projectRunWorkspaceContext,
-          ).catch(() => null);
           if (cancelled || !recoveryTargetIsCurrent()) return;
           let nextFiles = await refreshProjectFiles();
           if (cancelled) return;
