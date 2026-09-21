@@ -8,12 +8,13 @@
  *   飞书中文社区 —— `README.md` / `docs/i18n/README.zh-CN.md` 顶部那条 applink
  *   Discord     —— `EntryHelpMenu` / `EntryNavRail` / `AssistantMessage` 都在用的同一条邀请链接
  */
+import { ACP_DISCORD_INVITE_URL } from '@open-design/contracts';
 import type { SupportChannel } from './SupportDialog';
 import { DiscordIcon, FeishuIcon } from './support-brand-icons';
 import type { Dict } from '../../i18n/types';
 
 /** 与 `EntryHelpMenu.tsx` / `EntryNavRail.tsx` 同一条邀请链接。 */
-export const SUPPORT_DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
+export const SUPPORT_DISCORD_URL = ACP_DISCORD_INVITE_URL;
 /** README 顶部那条飞书中文社区 applink。 */
 export const SUPPORT_FEISHU_URL =
   'https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=c06v4df1-9676-4672-8c77-7a30eab76154';

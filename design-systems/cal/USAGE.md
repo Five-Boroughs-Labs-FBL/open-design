@@ -1,6 +1,6 @@
 # Cal.com Usage
 
-Design System 2.0 package guide for OpenDesign agents and reviewers.
+Design System 2.0 package guide for ACP Design agents and reviewers.
 
 ## Read Order
 

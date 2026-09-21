@@ -301,7 +301,7 @@ describe("open-design host contract", () => {
       downloading: "Downloading Update…",
       install: "Install Update…",
       installing: "Installing Update…",
-      restart: "Restart to Update OpenDesign…",
+      restart: "Restart to Update ACP Design…",
     }, scope)).resolves.toEqual({ ok: true });
     expect(statusFn).toHaveBeenCalledWith({ payload: { source: "mount" } });
     expect(check).toHaveBeenCalledWith({ payload: { source: "button" } });

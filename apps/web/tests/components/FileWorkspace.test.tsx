@@ -813,6 +813,190 @@ describe('FileWorkspace manifest canvas return path', () => {
     expect(screen.queryByTestId('design-files-tabs')).toBeNull();
     expect(screen.queryByTestId('design-files-tab-cat:html')).toBeNull();
   });
+
+  it('returns a generated image to All screens before any HTML surface exists', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/design-manifest')) {
+        return new Response(JSON.stringify({
+          manifest: {
+            schema: 'open-design.design-manifest.v2',
+            revision: 1,
+            projectId: 'manifest-project',
+            entrySurfaceId: 'home',
+            scope: {
+              schema: 'amc.design-scope.v1',
+              scopeId: 'scope-1',
+              revision: 1,
+              intentDigest: 'digest',
+            },
+            directionStatus: 'locked',
+            surfaces: [
+              {
+                id: 'home',
+                title: 'Home',
+                purpose: 'Entry surface',
+                priority: 'primary',
+                kind: 'screen',
+                file: 'index.html',
+                status: 'generating',
+                required: true,
+                states: [],
+                formFactors: ['responsive'],
+                latestRunId: null,
+                updatedAt: '2026-08-22T00:00:00.000Z',
+                filePresent: false,
+              },
+            ],
+            coverage: {
+              required: 1,
+              complete: 0,
+              failed: 0,
+              waived: 0,
+              pending: 1,
+              missingSurfaceIds: ['home'],
+              percent: 0,
+              ready: false,
+            },
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('', { status: 404 });
+    }));
+
+    function Harness() {
+      const [tabsState, setTabsState] = useState<OpenTabsState>({
+        tabs: ['gallery-01.png'],
+        active: 'gallery-01.png',
+      });
+      return (
+        <FileWorkspace
+          projectId="manifest-project"
+          projectKind="prototype"
+          files={[
+            {
+              name: 'gallery-01.png',
+              path: 'gallery-01.png',
+              type: 'file',
+              size: 2048,
+              mtime: 1_700_000_000_000,
+              kind: 'image',
+              mime: 'image/png',
+            },
+          ]}
+          liveArtifacts={[]}
+          onRefreshFiles={vi.fn()}
+          isDeck={false}
+          tabsState={tabsState}
+          onTabsStateChange={setTabsState}
+        />
+      );
+    }
+
+    render(<Harness />);
+    const allScreens = await screen.findByTestId('file-viewer-all-screens');
+    fireEvent.click(allScreens);
+    expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
+    expect(screen.getByTestId('design-files-tab').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps All screens in front when a generated image lands mid-run', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/design-manifest')) {
+        return new Response(JSON.stringify({
+          manifest: {
+            schema: 'open-design.design-manifest.v2',
+            revision: 1,
+            projectId: 'manifest-project',
+            entrySurfaceId: 'home',
+            scope: {
+              schema: 'amc.design-scope.v1',
+              scopeId: 'scope-1',
+              revision: 1,
+              intentDigest: 'digest',
+            },
+            directionStatus: 'locked',
+            surfaces: [
+              {
+                id: 'home',
+                title: 'Home',
+                purpose: 'Entry surface',
+                priority: 'primary',
+                kind: 'screen',
+                file: 'index.html',
+                status: 'generating',
+                required: true,
+                states: [],
+                formFactors: ['responsive'],
+                latestRunId: null,
+                updatedAt: '2026-08-22T00:00:00.000Z',
+                filePresent: false,
+              },
+            ],
+            coverage: {
+              required: 1,
+              complete: 0,
+              failed: 0,
+              waived: 0,
+              pending: 1,
+              missingSurfaceIds: ['home'],
+              percent: 0,
+              ready: false,
+            },
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('', { status: 404 });
+    }));
+
+    function Harness() {
+      const [tabsState, setTabsState] = useState<OpenTabsState>({
+        tabs: [],
+        active: null,
+      });
+      const [openRequest, setOpenRequest] = useState<{ name: string; nonce: number } | null>(null);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpenRequest({ name: 'gallery-01.png', nonce: Date.now() })}
+          >
+            Simulate image auto-open
+          </button>
+          <FileWorkspace
+            projectId="manifest-project"
+            projectKind="prototype"
+            files={[
+              {
+                name: 'gallery-01.png',
+                path: 'gallery-01.png',
+                type: 'file',
+                size: 2048,
+                mtime: 1_700_000_000_000,
+                kind: 'image',
+                mime: 'image/png',
+              },
+            ]}
+            liveArtifacts={[]}
+            onRefreshFiles={vi.fn()}
+            isDeck={false}
+            streaming
+            openRequest={openRequest}
+            tabsState={tabsState}
+            onTabsStateChange={setTabsState}
+          />
+        </>
+      );
+    }
+
+    render(<Harness />);
+    expect(await screen.findByTestId('design-surface-canvas-viewport')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate image auto-open' }));
+    expect(screen.getByTestId('design-surface-canvas-viewport')).toBeTruthy();
+    expect(screen.queryByTestId('file-viewer-all-screens')).toBeNull();
+    expect(screen.getByTestId('design-files-tab').getAttribute('aria-selected')).toBe('true');
+  });
 });
 
 describe('FileWorkspace upload input', () => {

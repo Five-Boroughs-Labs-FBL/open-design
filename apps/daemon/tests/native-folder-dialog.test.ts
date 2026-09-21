@@ -25,6 +25,8 @@ describe('native folder dialog helpers', () => {
     const script = buildWindowsFolderDialogCommand().args[3] ?? '';
 
     expect(script).toContain('$owner = New-Object System.Windows.Forms.Form;');
+    expect(script).toContain("$owner.Text = 'ACP Design';");
+    expect(script).not.toContain('OpenDesign');
     expect(script).toContain('$owner.TopMost = $true;');
     expect(script).toContain('$owner.ShowInTaskbar = $true;');
     expect(script).toContain("$owner.StartPosition = 'CenterScreen';");

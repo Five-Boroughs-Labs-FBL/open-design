@@ -6,7 +6,24 @@ import {
 } from '../src/api/social-share';
 
 describe('social-share contract', () => {
-  it('builds OpenDesign repository share targets', () => {
+  it('uses ACP Design when share title and text are omitted', () => {
+    const payload = buildSocialSharePayload({ kind: 'open-design-repo' });
+    expect(payload.title).toBe('ACP Design');
+    expect(payload.text).toBe(
+      'ACP Design is an open-source workspace for creating, editing, deploying, and handing off design artifacts.',
+    );
+
+    const project = buildSocialSharePayload({
+      kind: 'project-html',
+      url: 'https://example.com/demo',
+    });
+    expect(project.title).toBe('ACP Design project');
+    expect(project.text).toBe(
+      `Built with ACP Design: ACP Design project. ACP Design repo: ${OPEN_DESIGN_GITHUB_REPO_URL}`,
+    );
+  });
+
+  it('builds repository share targets from the caller-supplied title and text', () => {
     const payload = buildSocialSharePayload({
       kind: 'open-design-repo',
       locale: 'zh-CN',

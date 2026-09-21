@@ -1,8 +1,8 @@
 {
   "extensionName": {
-    "message": "OpenDesign Web Clipper"
+    "message": "ACP Design Web Clipper"
   },
   "extensionDescription": {
-    "message": "Capturez pages, systèmes de design, captures, images et JSON import Figma dans votre Library OpenDesign."
+    "message": "Capturez pages, systèmes de design, captures, images et JSON import Figma dans votre Library ACP Design."
   }
 }

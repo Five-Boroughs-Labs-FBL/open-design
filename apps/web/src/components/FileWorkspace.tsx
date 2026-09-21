@@ -51,6 +51,7 @@ import {
 import type { Dict } from '../i18n/types';
 import { STAGE_ATTACHMENT_EVENT, type StageAttachmentEventDetail } from './ChatComposer';
 import { setPendingDesignSystemCreateEntry } from '../analytics/ds-create-entry';
+import { isAmcEmbedActive } from '../amc-embed';
 import { navigate, registerNavigationGuard } from '../router';
 import { downloadDesignSystemArchive, downloadProjectArchive } from '../runtime/exports';
 import { finalizeBrandProject } from '../runtime/brands';
@@ -461,6 +462,19 @@ export const DESIGN_FILES_TAB = '__design_files__';
 export const DESIGN_SYSTEM_TAB = '__design_system__';
 export { STREAMING_HTML_PREVIEW_NAME } from './streaming-html-preview';
 
+const DESIGN_ASSET_PREVIEW_NAME = /\.(png|jpe?g|gif|webp|avif|mp4|mov|webm|mp3|wav|m4a)$/i;
+
+function hasDesignManifestCanvas(
+  state: { projectId: string } | null,
+  projectId: string,
+): boolean {
+  return state?.projectId === projectId;
+}
+
+function isDesignAssetPreviewName(name: string): boolean {
+  return DESIGN_ASSET_PREVIEW_NAME.test(name);
+}
+
 // Module-level default so a caller that omits `previewComments` doesn't mint
 // a fresh [] every render — that identity feeds the memoized FileViewer.
 const NO_PREVIEW_COMMENTS: PreviewComment[] = [];
@@ -633,7 +647,7 @@ const COMMUNITY_PAGE_PRESETS: ProjectPagePreset[] = [
   {
     id: 'community-open-design-landing',
     category: 'prototype',
-    title: pageText('OpenDesign Landing', 'OpenDesign 落地页', 'OpenDesign 落地頁'),
+    title: pageText('ACP Design Landing', 'ACP Design 落地页', 'ACP Design 落地頁'),
     description: pageText(
       'Editorial landing page with a strong hero, proof points, and product narrative.',
       '带强主视觉、信任证明和产品叙事的编辑风落地页。',
@@ -2123,6 +2137,19 @@ export function FileWorkspace({
       setPersistedActive(nextActive);
       return;
     }
+    // Generated images/video steal the All Screens canvas mid-run. Keep the
+    // canvas in front until a surface HTML lands or the user opens the asset.
+    if (
+      streaming
+      && isDesignAssetPreviewName(name)
+      && activeTab === DESIGN_FILES_TAB
+      && (
+        hasDesignManifestCanvas(manifestCanvasState, projectId)
+        || isAmcEmbedActive()
+      )
+    ) {
+      return;
+    }
     if (isBrowserTabId(name) && browserTabs.some((tab) => tab.id === name)) {
       setPersistedActive(name);
       return;
@@ -3521,8 +3548,7 @@ export function FileWorkspace({
       onFileSaved={refreshFilesWithoutResult}
       onOpenFileReplacing={stableOpenFileReplacing}
       onShowAllScreens={
-        manifestCanvasState?.projectId === projectId
-        && manifestCanvasState.surfaceFiles.has(designManifestPathIdentity(file.name))
+        hasDesignManifestCanvas(manifestCanvasState, projectId)
           ? stableShowAllDesignScreens
           : undefined
       }
@@ -7148,7 +7174,7 @@ function initialPrototypePage(title: string, body = DEFAULT_PROTOTYPE_PAGE_BODY)
   <main>
     <section class="hero">
       <div>
-        <div class="eyebrow">OpenDesign</div>
+        <div class="eyebrow">ACP Design</div>
         <h1>${safeTitle}</h1>
         <p>${safeBody}</p>
       </div>
@@ -7290,7 +7316,7 @@ function initialSlidesPage(title: string, body = DEFAULT_SLIDES_PAGE_BODY): stri
   <div class="deck-shell">
     <main class="deck-stage" id="deck-stage">
       <section class="slide active cover" data-screen-label="01 Cover">
-        <div class="kicker">OpenDesign deck</div>
+        <div class="kicker">ACP Design deck</div>
         <h1>${safeTitle}</h1>
         <p class="body">${safeBody}</p>
         <div class="num">01</div>
@@ -7428,7 +7454,7 @@ function initialDocumentPage(title: string, body = DEFAULT_DOCUMENT_PAGE_BODY): 
 </head>
 <body>
   <article>
-    <div class="meta">OpenDesign document</div>
+    <div class="meta">ACP Design document</div>
     <h1>${safeTitle}</h1>
     <p>${safeBody}</p>
     <h2>Purpose</h2>

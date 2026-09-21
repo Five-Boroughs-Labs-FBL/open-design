@@ -75,7 +75,7 @@ async function materializeDevelopmentBundle(
   if (!(await fileExists(packageJsonPath))) {
     throw new AgentCompanionSetupError(
       'BUNDLED_COMPANION_INVALID',
-      'This OpenDesign build does not contain the DeepSeek Harness connection component.',
+      'This ACP Design build does not contain the DeepSeek Harness connection component.',
     );
   }
   const destination = path.join(runtimeDataDir, 'runtime-packages', DSH_AGENT_ID);
@@ -239,7 +239,7 @@ async function installDeepSeekHarnessCompanionOnce(options: {
     );
     throw new AgentCompanionSetupError(
       'COMPANION_INSTALL_FAILED',
-      'DeepSeek Harness could not install the OpenDesign connection component. No agent selection was changed.',
+      'DeepSeek Harness could not install the ACP Design connection component. No agent selection was changed.',
     );
   }
 

@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { ACP_DISCORD_INVITE_URL } from "@open-design/contracts";
 import { BrowserWindow, Menu, app, dialog, globalShortcut, shell, type MenuItemConstructorOptions } from "electron";
 
 import {
@@ -588,7 +589,7 @@ function installDesktopMenu(
           {
             label: "Join Discord",
             click() {
-              void shell.openExternal("https://discord.gg/mHAjSMV6gz");
+              void shell.openExternal(ACP_DISCORD_INVITE_URL);
             },
           },
           { type: "separator" },

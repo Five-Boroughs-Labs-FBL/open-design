@@ -18,7 +18,7 @@ teaches the agent to:
 3. Mark a todo complete only after the matching artifact lands.
 4. Surface blockers as todos — never silently skip.
 
-The OpenDesign daemon does not enforce a particular tool name; use
+The ACP Design daemon does not enforce a particular tool name; use
 whichever plan tool this session actually exposes. The host renders
 every one of them as the same live Todos card.
 The atom's job is to keep "make a plan first" in the system prompt so

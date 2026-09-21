@@ -388,7 +388,7 @@ function auditComponent(componentName: string): string {
   return `const ${componentName}Items = [
   { id: 'primary', label: '${componentName} primary state', detail: 'Source-backed density, spacing, and active state.' },
   { id: 'secondary', label: '${componentName} secondary state', detail: 'Muted state with compact metadata and clear affordance.' },
-  { id: 'review', label: '${componentName} review state', detail: 'Reusable review surface for future OpenDesign projects.' },
+  { id: 'review', label: '${componentName} review state', detail: 'Reusable review surface for future ACP Design projects.' },
 ];
 
 const ${componentName}Styles = {

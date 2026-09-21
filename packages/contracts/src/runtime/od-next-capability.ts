@@ -102,7 +102,7 @@ export const RuntimeFixtureProvenanceV1Schema = z.union([
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['evidenceReview'],
-        message: 'Sanitized real fixtures require an Open Design evidence review.',
+        message: 'Sanitized real fixtures require an ACP Design evidence review.',
       });
     }
   }),

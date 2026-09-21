@@ -103,7 +103,12 @@ describe('muse JSONL stream', () => {
     })}\n`);
     handler.flush();
 
-    expect(events.some((event) => event.type === 'status' && event.sessionId === 'sess-muse')).toBe(true);
+    const sessionEvents = events.filter(
+      (event) => event.type === 'status' && event.label === 'session',
+    );
+    expect(sessionEvents).toEqual([
+      { type: 'status', label: 'session', sessionId: 'sess-muse' },
+    ]);
     const text = events
       .filter((event) => event.type === 'text_delta')
       .map((event) => event.delta)

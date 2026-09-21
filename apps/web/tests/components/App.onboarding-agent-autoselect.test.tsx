@@ -280,7 +280,7 @@ describe('App first-run agent auto-select', () => {
       },
       {
         id: 'amr',
-        name: 'OpenDesign Cloud',
+        name: 'ACP Design Cloud',
         bin: 'vela',
         available: true,
         authStatus: 'ok',

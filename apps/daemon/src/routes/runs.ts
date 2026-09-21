@@ -1979,7 +1979,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           res,
           403,
           'FORBIDDEN',
-          'amcGrok requires the Open Design server API token',
+          'amcGrok requires the ACP Design server API token',
         );
       }
     }
@@ -2026,7 +2026,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
           res,
           403,
           'FORBIDDEN',
-          'amcCredential requires the Open Design server API token',
+          'amcCredential requires the ACP Design server API token',
         );
       }
       try {
@@ -3554,7 +3554,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         res,
         409,
         'RUN_NOT_RECHARGE_RESUMABLE',
-        'Only a failed OpenDesign Cloud run waiting for recharge can be resumed with the same request',
+        'Only a failed ACP Design Cloud run waiting for recharge can be resumed with the same request',
       );
     }
     if (preparedRun.kind === 'assistant_claim_conflict') {
@@ -4551,7 +4551,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         res,
         409,
         'RUN_NOT_RECHARGE_RESUMABLE',
-        'Only a failed Open Design Cloud run waiting for recharge can be resumed with the same request',
+        'Only a failed ACP Design Cloud run waiting for recharge can be resumed with the same request',
       );
     }
     if (clarificationContinuation) {

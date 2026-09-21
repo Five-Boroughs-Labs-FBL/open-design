@@ -1981,6 +1981,8 @@ describe('collab sync routes', () => {
       // The load-bearing assertion: a human-readable reason ships with the code.
       expect(typeof res.body.message).toBe('string');
       expect(res.body.message).toMatch(/sign in/i);
+      expect(res.body.message).toContain('ACP Design Cloud');
+      expect(res.body.message).not.toContain('OpenDesign');
       expect(res.body.message).not.toMatch(/team workspace/i);
     }
     // The gate must short-circuit before any project read or hub call.
