@@ -118,6 +118,7 @@ import {
   todosDeclaredByLatestTurn,
 } from '../runtime/todos';
 import type { AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, Project, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
+import { acpStudioChatAgentLabel } from '../acp-brand';
 import { agentDisplayName } from '../utils/agentLabels';
 import { commentTargetDisplayName, commentsToAttachments, simplePositionLabel } from '../comments';
 import { AssistantMessage, type QuestionFormSubmitHandler } from './AssistantMessage';
@@ -2356,6 +2357,7 @@ export function ChatPane({
   // Friendly agent name for {agent} interpolation in failure copy (e.g. the
   // sign-in messages). Falls back to a neutral word when unreadable, never null.
   const failedAgentLabel =
+    acpStudioChatAgentLabel() ??
     agentDisplayName(retryAssistant?.agentId, retryAssistant?.agentName) ??
     t('chat.runError.agentFallback');
   // Values the failure copy names, localized before interpolation: the gateway
