@@ -101,6 +101,7 @@ import {
   type TodoItem,
 } from "../runtime/todos";
 import type { Dict } from "../i18n/types";
+import { ACP_FAVICON_HREF, acpStudioChatAgentLabel } from "../acp-brand";
 import { agentDisplayName, agentIconId, exactAgentDisplayName } from "../utils/agentLabels";
 import { AgentIcon } from "./AgentIcon";
 import { filterImplicitProducedFiles } from "../produced-files";
@@ -893,7 +894,8 @@ function AssistantMessageImpl({
   const usage = events.find((e) => e.kind === "usage") as
     | Extract<AgentEvent, { kind: "usage" }>
     | undefined;
-  const roleName = assistantRoleName(message, t);
+  const studioAgentLabel = acpStudioChatAgentLabel();
+  const roleName = studioAgentLabel ?? assistantRoleName(message, t);
   const roleIconId = agentIconId(message.agentId, message.agentName);
   const hasEmptyResponse = events.some(
     (e) => e.kind === "status" && e.label === "empty_response"
@@ -1305,7 +1307,18 @@ function AssistantMessageImpl({
     >
       {showRole ? (
         <div className="role" data-testid="assistant-role">
-          <AgentIcon id={roleIconId} size={20} className="role-agent-icon" />
+          {studioAgentLabel ? (
+            <img
+              src={ACP_FAVICON_HREF}
+              alt=""
+              width={20}
+              height={20}
+              className="role-agent-icon"
+              draggable={false}
+            />
+          ) : (
+            <AgentIcon id={roleIconId} size={20} className="role-agent-icon" />
+          )}
           <span className="role-name">{roleName}</span>
         </div>
       ) : null}
@@ -2044,6 +2057,8 @@ export function assistantRoleName(
   message: ChatMessage,
   t: TranslateFn
 ): string {
+  const studioLabel = acpStudioChatAgentLabel();
+  if (studioLabel) return studioLabel;
   const fromName = message.agentName?.trim();
   if (fromName) {
     const base = fromName.split(" · ")[0]?.trim() || fromName;
@@ -2061,6 +2076,8 @@ export function assistantRoleLabel(
   message: ChatMessage,
   t: TranslateFn
 ): string {
+  const studioLabel = acpStudioChatAgentLabel();
+  if (studioLabel) return studioLabel;
   const model = assistantModelDetail(message);
   const fromName = message.agentName?.trim();
   if (fromName)
