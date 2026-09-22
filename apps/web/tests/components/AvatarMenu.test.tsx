@@ -343,14 +343,14 @@ describe('AvatarMenu', () => {
   });
 
   // Product decision (2026-07-24): the popover is a model picker only. The
-  // OpenDesign account row — plan badge, balance, upgrade/console links —
+  // ACP Design account row — plan badge, balance, upgrade/console links —
   // was removed entirely (account/billing surfaces live in the nav rail and
   // Settings), so none of it may render even with a fully signed-in AMR
   // status. This is the guard for that invariant.
   it('never renders the account row, plan badge or balance in the popover', async () => {
     const amrAgent: AgentInfo = {
       id: 'amr',
-      name: 'OpenDesign AMR',
+      name: 'ACP',
       bin: 'vela',
       available: true,
       models: [{ id: 'default', label: 'Default (CLI config)' }],
@@ -505,7 +505,7 @@ describe('AvatarMenu', () => {
       agents: [
         {
           id: 'amr',
-          name: 'OpenDesign AMR',
+          name: 'ACP',
           bin: 'vela',
           available: true,
           models: [
@@ -579,7 +579,7 @@ describe('AvatarMenu', () => {
       },
       agents: [{
         id: 'amr',
-        name: 'OpenDesign AMR',
+        name: 'ACP',
         bin: 'vela',
         available: true,
         models: [{ id: 'default', label: 'Default (CLI config)' }],
@@ -764,7 +764,7 @@ describe('AvatarMenu', () => {
       },
       agents: [{
         id: 'amr',
-        name: 'OpenDesign AMR',
+        name: 'ACP',
         bin: 'vela',
         available: true,
         models: [{ id: 'paid-model', label: 'Paid model', enabled: false }],
@@ -810,7 +810,7 @@ describe('AvatarMenu', () => {
     // so without it the plan dialog would open against whichever workspace
     // vela's account-level "active workspace" happens to be.
     expect(target.origin + target.pathname).toBe(
-      'https://open-design.ai/amr/dashboard',
+      'https://open-design.ai/cloud/dashboard',
     );
     expect(target.searchParams.get('workspaceId')).toBe('workspace-a');
     expect(target.searchParams.get('billing')).toBe('plan');
@@ -1082,7 +1082,7 @@ describe('AvatarMenu', () => {
 
     expect(onAgentModelChange).not.toHaveBeenCalled();
     const target = new URL(openExternalUrlMock.mock.calls[0]![0]);
-    expect(target.origin + target.pathname).toBe('https://open-design.ai/amr/dashboard');
+    expect(target.origin + target.pathname).toBe('https://open-design.ai/cloud/dashboard');
     expect(target.searchParams.get('workspaceId')).toBe('workspace-a');
     expect(target.searchParams.get('billing')).toBe('plan');
 

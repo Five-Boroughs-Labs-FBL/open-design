@@ -8,7 +8,7 @@ import {
 } from '@/playwright/collab-cluster';
 import { startFakeCollabHub } from '@/playwright/fake-collab-hub';
 import { applyStandardMocks } from '@/playwright/mock-factory';
-import { ensureRailOpen } from '@/playwright/rail';
+import { ensureRailOpen, openTeamProjectsTab } from '@/playwright/rail';
 import { clusterTest as test, expect } from '@/playwright/suite';
 import { clickPreviewToolbarAction } from '@/playwright/workspace';
 import { T } from '@/timeouts';
@@ -411,7 +411,7 @@ test('[P0] two isolated clients converge live content, presence, and owner unsha
     ).toContain(projectId);
 
     await ensureRailOpen(memberPage);
-    await memberPage.getByTestId('entry-nav-all-projects').click();
+    await openTeamProjectsTab(memberPage);
     const memberCard = memberPage.locator(
       `.recent-projects__card[data-project-id="${projectId}"]:visible`,
     );
@@ -659,9 +659,10 @@ test('[P0] two isolated clients converge live content, presence, and owner unsha
 
     await memberPage.goto('/', { waitUntil: 'domcontentloaded' });
     await ensureRailOpen(memberPage);
-    await memberPage.getByTestId('entry-nav-all-projects').click();
-    await expect(memberCard).toHaveCount(0);
+    // 全部项目 opens on 最近浏览过, which spans both the shared catalog and the
+    // member's local mirror: neither may carry the unshared project.
     await memberPage.getByTestId('entry-nav-drafts').click();
+    await expect(memberCard).toHaveCount(0);
     const quarantinedMirror = memberPage.locator(
       `.recent-projects__card[data-project-id="${projectId}"]:visible`,
     );
@@ -1069,7 +1070,7 @@ async function pinWorkspace(page: Page, workspaceMemberId: string): Promise<void
 async function openHome(page: Page): Promise<void> {
   await page.bringToFront();
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: T.xlong });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, {
+  await expect(page.getByText('Loading ACP Design…')).toHaveCount(0, {
     timeout: T.xlong,
   });
   // Do not wait on the long-lived SSE response itself: Chromium may not emit
@@ -1077,7 +1078,7 @@ async function openHome(page: Page): Promise<void> {
   // convergence assertions below are the actual connection contract.
   const privacyDialog = page
     .getByRole('dialog')
-    .filter({ hasText: 'Help us improve OpenDesign' });
+    .filter({ hasText: 'Help us improve ACP Design' });
   if (await privacyDialog.isVisible().catch(() => false)) {
     await privacyDialog
       .getByRole('button', { name: /I get it|not now|got it|don't share/i })

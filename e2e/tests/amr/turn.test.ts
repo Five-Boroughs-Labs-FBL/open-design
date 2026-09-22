@@ -42,7 +42,7 @@ type ProjectResponse = {
   project: { id: string; metadata?: { kind?: string }; name: string };
 };
 
-// Inline fake `vela` binary. Handles the two argv shapes OpenDesign's
+// Inline fake `vela` binary. Handles the two argv shapes ACP Design's
 // daemon ever spawns:
 //
 //   `vela models`                       — legacy catalog probe compatibility.
@@ -423,6 +423,9 @@ describe('AMR chat-run end-to-end', () => {
         );
         expect(anyAssistant).toBeTruthy();
       }
+    }, {
+      // This fixture tests ACP streaming, not the OD Next task protocol.
+      env: { OD_NEXT_STRATEGY_ROLLOUT: 'off' },
     });
   }, 180_000);
 
@@ -629,6 +632,8 @@ describe('AMR chat-run end-to-end', () => {
         },
         {
           env: {
+            // Keep wallet settlement on the fixture's generic ACP turn.
+            OD_NEXT_STRATEGY_ROLLOUT: 'off',
             FAKE_VELA_SPAWN_ENV_LOG: spawnEnvLog,
             FAKE_VELA_BALANCE_FILE: balanceStateFile,
             FAKE_VELA_SETTLED_TEAM_BALANCE_USD: '17.50',

@@ -6,7 +6,7 @@
 #   TARGET_FORK   "<owner>/<name>"  push branches here. Defaults to $GH_USER/open-design at runtime.
 #   OD_BASE_BRANCH                   default: main
 #   OD_WORK_ROOT                     default: $HOME/od-contrib-work
-#   OD_DISCORD_INVITE                default: https://discord.gg/qhbcCH8Am4
+#   OD_DISCORD_INVITE                default: https://discord.gg/jE4MzArHX
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ TARGET_REPO="$OD_TARGET_REPO"
 : "${TARGET_FORK:=}"
 : "${OD_BASE_BRANCH:=main}"
 : "${OD_WORK_ROOT:="$HOME/od-contrib-work"}"
-: "${OD_DISCORD_INVITE:=https://discord.gg/qhbcCH8Am4}"
+: "${OD_DISCORD_INVITE:=https://discord.gg/jE4MzArHX}"
 
 # Sandboxed-agent fallback for gh auth.
 # Codex.app, Cursor, and other macOS App Sandbox runtimes can't reach the

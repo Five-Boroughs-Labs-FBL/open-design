@@ -32,7 +32,7 @@ import {
 } from '@open-design/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EntryShell } from '../../src/components/EntryShell';
+import { EntryShellWithGateHost } from '../helpers/entry-shell-gate-host';
 import {
   resetTeamProjectsCache,
   resetWorkspaceBillingCache,
@@ -112,7 +112,7 @@ function accountBilling(membershipTier: string) {
 function amrAgent(): AgentInfo {
   return {
     id: 'amr',
-    name: 'OpenDesign AMR',
+    name: 'ACP',
     bin: 'amr',
     available: true,
     models: [{ id: 'glm-5', label: 'GLM 5' }],
@@ -184,7 +184,7 @@ function stubFetch(
 function renderHome(onCreateProject: () => Promise<boolean>) {
   return render(
     <I18nProvider initial="en">
-      <EntryShell
+      <EntryShellWithGateHost
         skills={[]}
         designTemplates={[]}
         designSystems={[]}

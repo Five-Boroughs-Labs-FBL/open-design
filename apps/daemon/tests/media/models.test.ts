@@ -14,6 +14,10 @@ describe('image model defaults', () => {
     ]);
     expect(MEDIA_PROVIDERS.some((provider) => provider.id === 'codex')).toBe(false);
     expect(IMAGE_MODELS.some((model) => model.provider === 'codex')).toBe(false);
+    const vela = MEDIA_PROVIDERS.find((provider) => provider.id === 'vela');
+    expect(vela?.label).toBe('ACP Design Cloud');
+    expect(vela?.label).not.toContain('OpenDesign');
+    expect(IMAGE_MODELS.find((model) => model.id === 'vela/gpt-image-2')?.hint).toContain('ACP Design Cloud');
   });
 
   it('migrates the removed Codex image model id to Vela', () => {

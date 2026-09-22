@@ -418,14 +418,14 @@ async function pinWorkspace(page: Page, workspaceMemberId: string): Promise<void
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, {
+  await expect(page.getByText('Loading ACP Design…')).toHaveCount(0, {
     timeout: T.xlong,
   });
 }
 
 async function gotoDesignSystems(page: Page): Promise<void> {
   await page.goto('/design-systems', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, {
+  await expect(page.getByText('Loading ACP Design…')).toHaveCount(0, {
     timeout: T.xlong,
   });
 }
@@ -498,7 +498,7 @@ async function expectProjectSharedLogo(
       height: element.naturalHeight,
       workspaceId: new URL(element.src).searchParams.get('workspaceId'),
       workspaceMemberId: new URL(element.src).searchParams.get('workspaceMemberId'),
-    }), { timeout: T.short }).catch(() => null);
+    }), undefined, { timeout: T.short }).catch(() => null);
     const matches = image?.complete === true
       && image.width === 320
       && image.height === 160

@@ -24,7 +24,7 @@ export interface ProjectManifest {
 export function builtInProjectLocation(projectsDir: string): ProjectLocation {
   return {
     id: BUILT_IN_PROJECT_LOCATION_ID,
-    name: 'OpenDesign projects',
+    name: 'ACP Design projects',
     path: projectsDir,
     builtIn: true,
   };

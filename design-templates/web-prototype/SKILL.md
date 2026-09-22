@@ -96,6 +96,6 @@ Filesystem runs use project files as the source of truth:
 index.html
 ```
 
-OpenDesign derives the preview from the written project file. Do not also emit a source-code `<artifact>` block for the same generation turn.
+ACP Design derives the preview from the written project file. Do not also emit a source-code `<artifact>` block for the same generation turn.
 
 One short summary after writing the file. Nothing after.

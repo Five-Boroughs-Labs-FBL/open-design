@@ -73,7 +73,7 @@ export const OPEN_DESIGN_BRIEF_APP_RESOURCE =
   'ui://open-design/artifact-card-v8.html';
 
 export const MCP_SERVER_INSTRUCTIONS = [
-  'Use only these product names in user-facing replies: OpenDesign Cloud and Local Codex.',
+  'Use only these product names in user-facing replies: ACP Design Cloud and Local Codex.',
   'Tool names, runtime ids, endpoints, and correlation values are machine protocol. Never repeat them as product copy.',
 ].join('\n');
 
@@ -138,7 +138,7 @@ function normalizeDaemonUrl(value: string | URL): string {
 function isDaemonUnreachableResult(result: McpToolCallResult): boolean {
   return result.isError === true
     && result.content.some((item) =>
-      item.text.includes('cannot reach the OpenDesign daemon'),
+      item.text.includes('cannot reach the ACP Design daemon'),
     );
 }
 
@@ -321,13 +321,13 @@ const WRITE_ANNOTATIONS = {
 // shipped to the model on every session.
 const PROJECT_ARG = {
   type: 'string',
-  description: 'Project id (UUID) or name substring. Optional; defaults to the active project (expires after ~5 minutes of no OpenDesign activity).',
+  description: 'Project id (UUID) or name substring. Optional; defaults to the active project (expires after ~5 minutes of no ACP Design activity).',
 } as const;
 
 const PLUGIN_WORKFLOW_ID_ARG = {
   type: 'string',
   description:
-    'Opaque workflow id issued by the local OpenDesign MCP after the first attributed call. Reuse it for later plugin-attributed calls; never invent or display it.',
+    'Opaque workflow id issued by the local ACP Design MCP after the first attributed call. Reuse it for later plugin-attributed calls; never invent or display it.',
 } as const;
 
 const EXTERNAL_PLUGIN_CONTEXT_ARG = {
@@ -359,7 +359,7 @@ export const TOOL_DEFS = [
   {
     name: 'collect_brief',
     description:
-      'Open an interactive OpenDesign brief card for a new artifact. Use the returned human-readable confirmation with any explicit execution mode; never ask the user to copy an internal draft id or nonce.',
+      'Open an interactive ACP Design brief card for a new artifact. Use the returned human-readable confirmation with any explicit execution mode; never ask the user to copy an internal draft id or nonce.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -401,7 +401,7 @@ export const TOOL_DEFS = [
       required: ['artifactType'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Collect OpenDesign brief' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Collect ACP Design brief' },
     _meta: {
       ui: { resourceUri: OPEN_DESIGN_BRIEF_APP_RESOURCE },
       'ui/resourceUri': OPEN_DESIGN_BRIEF_APP_RESOURCE,
@@ -411,7 +411,7 @@ export const TOOL_DEFS = [
   {
     name: 'confirm_brief',
     description:
-      'Confirm the choices from the rendered OpenDesign brief card. Returns a readable summary; draft ids and nonces are internal widget data, never user-facing copy.',
+      'Confirm the choices from the rendered ACP Design brief card. Returns a readable summary; draft ids and nonces are internal widget data, never user-facing copy.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -438,22 +438,22 @@ export const TOOL_DEFS = [
       required: ['briefDraftId', 'nonce', 'answers'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Confirm OpenDesign brief' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Confirm ACP Design brief' },
   },
   {
     name: 'list_projects',
-    description: 'List every OpenDesign project on this daemon.',
+    description: 'List every ACP Design project on this daemon.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'List OpenDesign projects' },
+    annotations: { ...READ_ANNOTATIONS, title: 'List ACP Design projects' },
   },
   {
     name: 'get_active_context',
     description:
-      'Project + file the user has open in OpenDesign right now. Returns {active:false, hint:"..."} when no project is active so the agent can ask the user to interact with OpenDesign (the active context expires ~5 minutes after the last user interaction). Most tools default to this when project is omitted, so you rarely need to call this directly.',
+      'Project + file the user has open in ACP Design right now. Returns {active:false, hint:"..."} when no project is active so the agent can ask the user to interact with ACP Design (the active context expires ~5 minutes after the last user interaction). Most tools default to this when project is omitted, so you rarely need to call this directly.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
@@ -472,7 +472,7 @@ export const TOOL_DEFS = [
         entry: {
           type: 'string',
           description:
-            "Entry file path relative to project root. Defaults to the active file or project's metadata.entryFile. Active-file fallback expires after ~5 minutes of no OpenDesign activity.",
+            "Entry file path relative to project root. Defaults to the active file or project's metadata.entryFile. Active-file fallback expires after ~5 minutes of no ACP Design activity.",
         },
         include: {
           type: 'string',
@@ -499,7 +499,7 @@ export const TOOL_DEFS = [
       properties: { project: PROJECT_ARG },
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'Get OpenDesign project' },
+    annotations: { ...READ_ANNOTATIONS, title: 'Get ACP Design project' },
   },
   {
     name: 'get_file',
@@ -512,7 +512,7 @@ export const TOOL_DEFS = [
         path: {
           type: 'string',
           description:
-            'File path relative to project root, forward slashes. Optional; defaults to the active file when project is also omitted. Active-file fallback expires after ~5 minutes of no OpenDesign activity.',
+            'File path relative to project root, forward slashes. Optional; defaults to the active file when project is also omitted. Active-file fallback expires after ~5 minutes of no ACP Design activity.',
         },
         offset: {
           type: 'number',
@@ -573,7 +573,7 @@ export const TOOL_DEFS = [
   {
     name: 'create_artifact',
     description:
-      'Create one normal OpenDesign project artifact entry file. Writes name+content, rejects existing targets, and persists artifactManifest when supplied. HTML, Markdown, and SVG entries get a default manifest when omitted. Project optional; defaults to the active project.',
+      'Create one normal ACP Design project artifact entry file. Writes name+content, rejects existing targets, and persists artifactManifest when supplied. HTML, Markdown, and SVG entries get a default manifest when omitted. Project optional; defaults to the active project.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -594,13 +594,13 @@ export const TOOL_DEFS = [
         artifactManifest: {
           type: 'object',
           additionalProperties: true,
-          description: 'Optional ArtifactManifest sidecar. If omitted, OpenDesign infers one for HTML, Markdown, or SVG entry files.',
+          description: 'Optional ArtifactManifest sidecar. If omitted, ACP Design infers one for HTML, Markdown, or SVG entry files.',
         },
       },
       required: ['name', 'content'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Create OpenDesign artifact' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Create ACP Design artifact' },
   },
   {
     name: 'write_file',
@@ -627,7 +627,7 @@ export const TOOL_DEFS = [
       required: ['path', 'content'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Write OpenDesign project file' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Write ACP Design project file' },
   },
   {
     name: 'delete_file',
@@ -645,12 +645,12 @@ export const TOOL_DEFS = [
       required: ['path'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, destructiveHint: true, title: 'Delete OpenDesign project file' },
+    annotations: { ...WRITE_ANNOTATIONS, destructiveHint: true, title: 'Delete ACP Design project file' },
   },
   {
     name: 'delete_project',
     description:
-      'Permanently delete an OpenDesign project including its files and conversations. Requires both an explicit project id/name AND confirm:true — there is no active-project fallback because the operation is irreversible.',
+      'Permanently delete an ACP Design project including its files and conversations. Requires both an explicit project id/name AND confirm:true — there is no active-project fallback because the operation is irreversible.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -666,12 +666,12 @@ export const TOOL_DEFS = [
       required: ['project', 'confirm'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, destructiveHint: true, title: 'Delete OpenDesign project' },
+    annotations: { ...WRITE_ANNOTATIONS, destructiveHint: true, title: 'Delete ACP Design project' },
   },
   {
     name: 'create_project',
     description:
-      'Create a new empty OpenDesign project to generate into, then call start_run against it. Returns the project (with its id) plus a conversationId. The id is derived from name unless you pass one explicitly.',
+      'Create a new empty ACP Design project to generate into, then call start_run against it. Returns the project (with its id) plus a conversationId. The id is derived from name unless you pass one explicitly.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -690,7 +690,7 @@ export const TOOL_DEFS = [
       required: ['name'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Create OpenDesign project' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Create ACP Design project' },
   },
   // Discovery + generation. An external coding agent does NOT run a
   // skill itself — it commissions OpenDesign to, via start_run. The
@@ -702,28 +702,28 @@ export const TOOL_DEFS = [
   // reference material the caller opts into, not something to run.
   {
     name: 'list_skills',
-    description: 'List OpenDesign skills you can pass to start_run as a recipe. Discovery only — OpenDesign runs the skill, not you.',
+    description: 'List ACP Design skills you can pass to start_run as a recipe. Discovery only — ACP Design runs the skill, not you.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'List OpenDesign skills' },
+    annotations: { ...READ_ANNOTATIONS, title: 'List ACP Design skills' },
   },
   {
     name: 'list_plugins',
-    description: 'List installed OpenDesign plugins (packaged design workflows) you can pass to start_run as plugin + inputs.',
+    description: 'List installed ACP Design plugins (packaged design workflows) you can pass to start_run as plugin + inputs.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'List OpenDesign plugins' },
+    annotations: { ...READ_ANNOTATIONS, title: 'List ACP Design plugins' },
   },
   {
     name: 'start_vela_login',
     description:
-      'Start OpenDesign Cloud browser sign-in through the local OpenDesign daemon. Returns the activation URL and user code when manual browser completion is needed. The tool name is an internal compatibility identifier and must not be repeated to the user.',
+      'Start ACP Design Cloud browser sign-in through the local ACP Design daemon. Returns the activation URL and user code when manual browser completion is needed. The tool name is an internal compatibility identifier and must not be repeated to the user.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
@@ -732,13 +732,13 @@ export const TOOL_DEFS = [
     annotations: {
       ...WRITE_ANNOTATIONS,
       openWorldHint: true,
-      title: 'Sign in to OpenDesign Cloud',
+      title: 'Sign in to ACP Design Cloud',
     },
   },
   {
     name: 'get_vela_login_status',
     description:
-      'Check whether OpenDesign Cloud browser sign-in is complete. Does not expose credentials. The tool name is an internal compatibility identifier and must not be repeated to the user.',
+      'Check whether ACP Design Cloud browser sign-in is complete. Does not expose credentials. The tool name is an internal compatibility identifier and must not be repeated to the user.',
     inputSchema: {
       type: 'object',
       properties: { pluginWorkflowId: PLUGIN_WORKFLOW_ID_ARG },
@@ -747,13 +747,13 @@ export const TOOL_DEFS = [
     annotations: {
       ...READ_ANNOTATIONS,
       openWorldHint: true,
-      title: 'Check OpenDesign Cloud sign-in',
+      title: 'Check ACP Design Cloud sign-in',
     },
   },
   {
     name: 'start_run',
     description:
-      'Commission OpenDesign to generate or refine a design. OpenDesign spawns its own agent to do the work and returns a runId immediately. Poll get_run(runId) until status is terminal; its Preview/Studio reference is the default delivery. Call get_artifact only when source context is genuinely needed. Project optional; defaults to the active project. Requires an existing project (create one first with create_project).',
+      'Commission ACP Design to generate or refine a design. ACP Design spawns its own agent to do the work and returns a runId immediately. Poll get_run(runId) until status is terminal; its Preview/Studio reference is the default delivery. Call get_artifact only when source context is genuinely needed. Project optional; defaults to the active project. Requires an existing project (create one first with create_project).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -801,7 +801,7 @@ export const TOOL_DEFS = [
         resume: {
           type: 'boolean',
           description:
-            'Set true only after the user has topped up a paused OpenDesign Cloud run. Reuse the exact original requestId and payload; OpenDesign resumes the same logical run.',
+            'Set true only after the user has topped up a paused ACP Design Cloud run. Reuse the exact original requestId and payload; ACP Design resumes the same logical run.',
         },
         designGeneration: {
           type: 'object',
@@ -823,7 +823,7 @@ export const TOOL_DEFS = [
       },
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Generate with OpenDesign' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Generate with ACP Design' },
   },
   {
     name: 'get_run',
@@ -838,7 +838,7 @@ export const TOOL_DEFS = [
       required: ['runId'],
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'Check OpenDesign run' },
+    annotations: { ...READ_ANNOTATIONS, title: 'Check ACP Design run' },
   },
   {
     name: 'cancel_run',
@@ -851,12 +851,12 @@ export const TOOL_DEFS = [
       required: ['runId'],
       additionalProperties: false,
     },
-    annotations: { ...WRITE_ANNOTATIONS, title: 'Cancel OpenDesign run' },
+    annotations: { ...WRITE_ANNOTATIONS, title: 'Cancel ACP Design run' },
   },
   {
     name: 'list_agents',
     description:
-      'List the agent CLIs OpenDesign can run for start_run.agent. Returns only installed (available) agents by default — pass includeUnavailable:true to also see agents we know about but that are not on PATH (each carries an installUrl for the user). Each entry includes id, name, version, and up to 10 sample models (modelsCount carries the real total).',
+      'List the agent CLIs ACP Design can run for start_run.agent. Returns only installed (available) agents by default — pass includeUnavailable:true to also see agents we know about but that are not on PATH (each carries an installUrl for the user). Each entry includes id, name, version, and up to 10 sample models (modelsCount carries the real total).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -868,7 +868,7 @@ export const TOOL_DEFS = [
       },
       additionalProperties: false,
     },
-    annotations: { ...READ_ANNOTATIONS, title: 'List OpenDesign agents' },
+    annotations: { ...READ_ANNOTATIONS, title: 'List ACP Design agents' },
   },
 ];
 
@@ -955,10 +955,10 @@ export function localMcpResourceDefinitions() {
   return [
     {
       uri: OPEN_DESIGN_BRIEF_APP_RESOURCE,
-      name: 'OpenDesign brief',
+      name: 'ACP Design brief',
       title: 'Choose the artifact direction',
       description:
-        'Interactive local OpenDesign brief card shared by OpenDesign Cloud and Local Codex modes.',
+        'Interactive local ACP Design brief card shared by ACP Design Cloud and Local Codex modes.',
       mimeType: 'text/html;profile=mcp-app',
       _meta: {
         ui: {
@@ -1015,8 +1015,8 @@ export async function _listMcpResources(
     ...localMcpResourceDefinitions(),
     {
       uri: 'od://focus/active',
-      name: 'Active OpenDesign context',
-      description: 'The project/file the user has open in OpenDesign right now.',
+      name: 'Active ACP Design context',
+      description: 'The project/file the user has open in ACP Design right now.',
       mimeType: 'application/json',
     },
   ];
@@ -1523,7 +1523,7 @@ function mcpFailureFacts(
   const message = result.content[0]?.text ?? '';
   const errorCode = message.includes('PLUGIN_CONTRACT_REJECTED')
     ? 'PLUGIN_CONTRACT_REJECTED'
-    : message.includes('cannot reach the OpenDesign daemon')
+    : message.includes('cannot reach the ACP Design daemon')
       ? 'DAEMON_UNREACHABLE'
       : message.includes('DELIVERABLE_MISSING')
         ? 'DELIVERABLE_MISSING'
@@ -1842,7 +1842,7 @@ export async function runMcpStdio(options: RunMcpOptions): Promise<void> {
       instructions: [
         MCP_SERVER_INSTRUCTIONS,
         '',
-        'OpenDesign (OD) is a local-first design workspace. The user typically',
+        'ACP Design (OD) is a local-first design workspace. The user typically',
         'has OD running on their machine; each project contains a rendered',
         'artifact (HTML/JSX/CSS) plus its source files.',
         '',
@@ -1880,15 +1880,15 @@ export async function runMcpStdio(options: RunMcpOptions): Promise<void> {
         ' - get_active_context() if you want the active project/file',
         '    explicitly without making any other tool call.',
         '',
-        'To make OpenDesign GENERATE or refine a design (rather than just',
+        'To make ACP Design GENERATE or refine a design (rather than just',
         'read/edit files), commission a run - you do not run skills yourself:',
         ' - collect_brief first for a new artifact unless the user explicitly',
         '    asks to skip questions. Let the user complete the rendered card;',
-        '    confirm_brief returns the readable brief to reuse with OpenDesign',
+        '    confirm_brief returns the readable brief to reuse with ACP Design',
         '    Cloud or Local Codex. Never print or ask the user to copy',
         '    briefDraftId, nonce, or any other internal correlation value.',
         ' - list_skills / list_plugins to see what you can ask OD to make.',
-        ' - for OpenDesign Cloud, call the Cloud login-status tool first.',
+        ' - for ACP Design Cloud, call the Cloud login-status tool first.',
         '    If signed out, call the Cloud sign-in tool once, show its activation',
         '    URL/code when present, and poll login status until loggedIn:true.',
         '    The tool and runtime ids are internal protocol; never show them.',
@@ -1906,13 +1906,13 @@ export async function runMcpStdio(options: RunMcpOptions): Promise<void> {
         '    If get_run returns failureAction:"recharge", show rechargeUrl;',
         '    after the user confirms top-up, call the exact original start_run',
         '    once with the same requestId and resume:true.',
-        '    OpenDesign spawns its own agent to do the work.',
+        '    ACP Design spawns its own agent to do the work.',
         ' - get_run(runId) polls until status is succeeded/failed/canceled;',
         '    on success it returns a previewUrl you can open in a browser',
         '    and a hint to pull the files with get_artifact.',
         ' - cancel_run(runId) aborts an in-flight run.',
         '',
-        'Generation patience: OpenDesign runs typically take 5–30',
+        'Generation patience: ACP Design runs typically take 5–30',
         'minutes. Polls returning status:running with unchanged file',
         'mtimes is the inner agent thinking, not a hang. Do NOT cancel',
         'and substitute write_file as a "faster" workaround — that',
@@ -1924,9 +1924,9 @@ export async function runMcpStdio(options: RunMcpOptions): Promise<void> {
         '',
         'Ambiguous-format requests: words like "PPT" / "deck" / "slides" /',
         '"presentation" / "document" / "PDF" / "doc" map to two different',
-        'deliverables — OpenDesign natively produces browser-viewable',
+        'deliverables — ACP Design natively produces browser-viewable',
         'HTML/SVG (including HTML-rendered decks), but the user may want a',
-        'real binary file (.pptx / .docx / .pdf) which OpenDesign does NOT',
+        'real binary file (.pptx / .docx / .pdf) which ACP Design does NOT',
         'produce and which you would have to export yourself from OD\'s',
         'output. When the user\'s request is ambiguous, ASK them which one',
         'they want before kicking off work; do not silently pick one and do',
@@ -1944,7 +1944,7 @@ export async function runMcpStdio(options: RunMcpOptions): Promise<void> {
         'available at od://skills/<id>/SKILL.md but are mostly relevant',
         'when the user asks about how a particular artifact was generated.',
         '',
-        'When extending an OpenDesign design in another codebase, pull',
+        'When extending an ACP Design design in another codebase, pull',
         'the full bundle once with get_artifact and work from those files',
         'locally - do not fetch files one-by-one if you can avoid it.',
       ].join('\n'),
@@ -2163,7 +2163,7 @@ async function handleMcpToolCall(
         if (!data || data.active === false) {
           return ok({
             active: false,
-            hint: 'OpenDesign has no active project right now. The active context expires about 5 minutes after the last user interaction with OpenDesign, so the user may need to click into a project (or switch tabs inside one) to wake it up. Alternatively, pass project="<id-or-name>" to other tools to bypass active context entirely.',
+            hint: 'ACP Design has no active project right now. The active context expires about 5 minutes after the last user interaction with ACP Design, so the user may need to click into a project (or switch tabs inside one) to wake it up. Alternatively, pass project="<id-or-name>" to other tools to bypass active context entirely.',
           });
         }
         return ok(data);
@@ -2554,7 +2554,7 @@ async function startRun(
     || containsMcpCredentialField(args.inputs)
   ) {
     throw new Error(
-      'raw API keys are not accepted by OpenDesign MCP. Configure Local BYOK in the OpenDesign UI and start that run from the local product instead.',
+      'raw API keys are not accepted by ACP Design MCP. Configure Local BYOK in the ACP Design UI and start that run from the local product instead.',
     );
   }
   const { id, resolved, active } = await resolveProjectArg(baseUrl, args.project, headers);
@@ -2649,7 +2649,7 @@ async function startRun(
               studioUrlLifetime: 'current_daemon_session',
             }
           : {}),
-        hint: 'Run started. OpenDesign generation normally takes 5–30 minutes. Polls showing status:running with no new files / unchanged file mtimes is the inner agent thinking, NOT a hang — DO NOT cancel_run out of impatience and DO NOT substitute write_file to produce the design yourself; OD\'s pipeline is what gives the result its design quality. Poll get_run(runId) every 30–60 seconds; report "still working" to the user between polls and keep waiting. On terminal status, artifactRef is the durable identity; previewUrl and studioUrl are browser links for the current OpenDesign runtime and must be refreshed with get_run after OpenDesign restarts.',
+        hint: 'Run started. ACP Design generation normally takes 5–30 minutes. Polls showing status:running with no new files / unchanged file mtimes is the inner agent thinking, NOT a hang — DO NOT cancel_run out of impatience and DO NOT substitute write_file to produce the design yourself; OD\'s pipeline is what gives the result its design quality. Poll get_run(runId) every 30–60 seconds; report "still working" to the user between polls and keep waiting. On terminal status, artifactRef is the durable identity; previewUrl and studioUrl are browser links for the current ACP Design runtime and must be refreshed with get_run after ACP Design restarts.',
       },
       active,
       resolved,
@@ -2688,14 +2688,14 @@ async function getRun(
     if (status.failureAction === 'recharge') {
       enriched.rechargeUrl = DEFAULT_AMR_RECHARGE_URL;
       enriched.hint =
-        'OpenDesign Cloud paused this logical run because the account balance is insufficient. Preserve the brief and project, show rechargeUrl to the user, and do not switch modes. After the user confirms the top-up, call start_run once with the exact original payload, the same requestId, and resume:true; OpenDesign Cloud will resume the existing run and billing operation. Do not expose internal runtime or tool identifiers.';
+        'ACP Design Cloud paused this logical run because the account balance is insufficient. Preserve the brief and project, show rechargeUrl to the user, and do not switch modes. After the user confirms the top-up, call start_run once with the exact original payload, the same requestId, and resume:true; ACP Design Cloud will resume the existing run and billing operation. Do not expose internal runtime or tool identifiers.';
     }
     if (typeof status.eventsLogPath === 'string' && status.eventsLogPath.length > 0) {
       if (status.failureAction !== 'recharge') {
         enriched.hint = 'Run still in flight. Tail eventsLogPath in your own shell (e.g. `tail -n 50 -f "' + status.eventsLogPath + '"`) to see live text_delta / tool_use events from the inner agent — that is your in-flight progress signal. Keep polling get_run every 30–60s; do not cancel because file mtimes look static, that is the agent thinking between writes.';
       }
       if (studioUrl) {
-        enriched.hint += ` While the run is in flight, studioUrl can be used as an optional workspace progress link — render it as \`[Watch progress in OpenDesign studio](${studioUrl})\` if you choose to show it. This URL is valid for the current OpenDesign runtime; call get_run again after OpenDesign restarts.`;
+        enriched.hint += ` While the run is in flight, studioUrl can be used as an optional workspace progress link — render it as \`[Watch progress in ACP Design studio](${studioUrl})\` if you choose to show it. This URL is valid for the current ACP Design runtime; call get_run again after ACP Design restarts.`;
       }
     }
     return ok(enriched);
@@ -2740,8 +2740,8 @@ async function getRun(
     enriched.studioUrlLifetime = 'current_daemon_session';
   }
   enriched.hint = previewUrl
-    ? `Run finished. artifactRef is the durable project/file identity. previewUrl and studioUrl are browser links for the current OpenDesign runtime only; if either stops working after OpenDesign restarts, call get_run again with this runId to obtain current links. Render previewUrl as a clickable link now. agentMessage carries the inner agent's explanation; show it alongside the link. Call get_artifact({ project: "${status.projectId}" }) when you need the source files — always pass project explicitly; omitting it falls back to the active project, which may differ. eventsLogPath, when present, holds the full inner-agent event log for forensics.`
-    : 'Run finished but produced no files. The inner agent\'s output is in agentMessage — relay it to the user verbatim. Most often this is a clarifying question (e.g. a <question-form>) you should answer by calling start_run again with a more specific prompt or a chosen plugin. When studioUrl is present, show it as a clickable markdown link (`[Open OpenDesign studio](STUDIO_URL)`) so the user can navigate to the OD page that shows the chat history — never render it as inline code. eventsLogPath, when present, holds the full event log if you need to inspect what happened.';
+    ? `Run finished. artifactRef is the durable project/file identity. previewUrl and studioUrl are browser links for the current ACP Design runtime only; if either stops working after ACP Design restarts, call get_run again with this runId to obtain current links. Render previewUrl as a clickable link now. agentMessage carries the inner agent's explanation; show it alongside the link. Call get_artifact({ project: "${status.projectId}" }) when you need the source files — always pass project explicitly; omitting it falls back to the active project, which may differ. eventsLogPath, when present, holds the full inner-agent event log for forensics.`
+    : 'Run finished but produced no files. The inner agent\'s output is in agentMessage — relay it to the user verbatim. Most often this is a clarifying question (e.g. a <question-form>) you should answer by calling start_run again with a more specific prompt or a chosen plugin. When studioUrl is present, show it as a clickable markdown link (`[Open ACP Design studio](STUDIO_URL)`) so the user can navigate to the OD page that shows the chat history — never render it as inline code. eventsLogPath, when present, holds the full event log if you need to inspect what happened.';
   return ok(enriched);
 }
 
@@ -3032,7 +3032,7 @@ async function resolveProjectArg(
   }
   if (!active || active.active === false || !active.projectId) {
     throw new Error(
-      'project arg omitted and OpenDesign has no active project. The active context expires about 5 minutes after the last user interaction with OpenDesign - the user may need to click into a project to wake it up. Otherwise pass project="<id-or-name>".',
+      'project arg omitted and ACP Design has no active project. The active context expires about 5 minutes after the last user interaction with ACP Design - the user may need to click into a project to wake it up. Otherwise pass project="<id-or-name>".',
     );
   }
   return { id: active.projectId, resolved: null, active };
@@ -3504,7 +3504,7 @@ function formatError(err: unknown, daemonUrl: string): string {
   const code = e && (e.cause?.code || e.code);
   const msg = errorMessage(err);
   if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
-    return `cannot reach the OpenDesign daemon at ${daemonUrl}. Is it running? Start it with \`pnpm tools-dev\`.`;
+    return `cannot reach the ACP Design daemon at ${daemonUrl}. Is it running? Start it with \`pnpm tools-dev\`.`;
   }
   return msg;
 }

@@ -22,9 +22,9 @@ test('[P0] @critical home loads with the primary entry controls', async ({ page 
   await gotoEntryHome(page);
 
   // The rail is collapsed by default — the hero owns the first screen and the
-  // only chrome affordance is the pinned Home tab's sidebar toggle in the
-  // workspace tabs bar. Expand to reach the rail nav.
-  await expect(page.getByTestId('workspace-home-rail-toggle')).toBeVisible();
+  // chrome row carries only the search + rail-toggle cluster (#7635). Expand
+  // to reach the rail nav.
+  await expect(page.getByTestId('entry-rail-collapse')).toBeVisible();
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
   await ensureRailOpen(page);
   await expect(page.getByTestId('entry-nav-home')).toHaveAttribute('aria-current', 'page');
@@ -66,7 +66,7 @@ test('[P0] @critical prototype project creation reaches the workspace shell', as
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ACP Design' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
     await expect(privacyDialog).toHaveCount(0);
@@ -93,5 +93,5 @@ async function expectWorkspaceReady(page: Page) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }

@@ -93,10 +93,10 @@ describe('i18n locales', () => {
     const zh = await loadDict('zh-CN');
     expect(zh['chat.runError.title.cliSessionRefused']).toBe('智能体版本不兼容');
     expect(zh['chat.runError.cliSessionRefusedMessage']).toBe(
-      '{agent} 拒绝开始会话。通常是当前版本与 Open Design 不兼容，换一个版本后重试。',
+      'ACP Design 暂不支持当前智能体版本，请更换为支持的版本后再试。',
     );
 
-    // `{agent}` is the ONLY slot the card fills. A locale that carries a
+    // Product supplementary copy revision 96 has no interpolation slots. A locale with a
     // `{version}` placeholder would render a literal `{version}` at the user,
     // because nothing supplies one — which is exactly how a half-reverted
     // version variant would escape into production copy.
@@ -105,7 +105,7 @@ describe('i18n locales', () => {
       expect(
         dict['chat.runError.cliSessionRefusedMessage'],
         `${locale}.cliSessionRefusedMessage`,
-      ).not.toMatch(/\{version\}/);
+      ).not.toMatch(/\{\w+\}/);
     }
 
     // No locale may quietly fall back to English prose for these keys.
@@ -511,6 +511,21 @@ describe('i18n locales', () => {
           value,
           `${locale}.assistant.waitingFirstOutput reports the model's first OUTPUT, not its input`,
         ).not.toMatch(wrongDirection);
+      }
+    }
+  });
+
+  it('names the product ACP Design in every locale value and never ships ACP Design', async () => {
+    // @OpenDesignHQ / OpenDesignHQ stay until a replacement handle exists.
+    // Hyphenated German "ACP Design-…" and the all-caps share-chip
+    // "ACP DESIGN" are the same product name. "Open design system" is a verb
+    // phrase and must stay.
+    const retiredBrand = /(?<![A-Za-z0-9_@])ACP Design(?![A-Za-z0-9_])|ACP Design|\bOpen-Design\b|\bOPENDESIGN\b/;
+    for (const locale of LOCALES) {
+      const dict = await loadDict(locale);
+      expect(dict['app.brand'], `${locale}.app.brand`).toBe('ACP Design');
+      for (const [key, value] of Object.entries(dict)) {
+        expect(value, `${locale}.${key}`).not.toMatch(retiredBrand);
       }
     }
   });

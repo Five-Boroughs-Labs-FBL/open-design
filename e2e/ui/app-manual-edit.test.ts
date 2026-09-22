@@ -614,7 +614,7 @@ test('[P1] HTML preview toolbar exposes comments, mark, and edit workflows', asy
   const queuedStrip = page.getByTestId('chat-queued-send-strip');
   await expect(queuedStrip).toBeVisible();
   await expect(queuedStrip).toContainText('Mark this hero crop');
-  await expect(queuedStrip.getByTestId('chat-queued-send-index')).toHaveText('1');
+  await expect(queuedStrip.getByTestId('chat-queued-send-row')).toHaveCount(1);
 
   await clickPreviewToolbarAction(page, 'manual-edit-mode-toggle', /^Edit$/);
   await expect(page.getByTestId('manual-edit-mode-toggle')).toHaveAttribute('aria-pressed', 'true');
@@ -670,7 +670,7 @@ test('[P1] draw annotation composer floats near the selected mark and can be que
   const queuedStrip = page.getByTestId('chat-queued-send-strip');
   await expect(queuedStrip).toBeVisible();
   await expect(queuedStrip).toContainText('Float this note near the marked hero area');
-  await expect(queuedStrip.getByTestId('chat-queued-send-index')).toHaveText('1');
+  await expect(queuedStrip.getByTestId('chat-queued-send-row')).toHaveCount(1);
 });
 
 test('[P1] first-loop onboarding completes once after a successful artifact export', async ({ page }) => {
@@ -987,7 +987,7 @@ async function gotoEntryHome(page: Page) {
     await waitForLoadingToClear(page).catch(() => {});
     if (await page.getByTestId('home-hero').isVisible({ timeout: 3_000 }).catch(() => false)) break;
   }
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ACP Design' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
     await expect(privacyDialog).toHaveCount(0);
@@ -1245,7 +1245,7 @@ async function openDesignFile(page: Page, fileName: string) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function expectFileSource(page: Page, projectId: string, fileName: string, snippets: string[]) {

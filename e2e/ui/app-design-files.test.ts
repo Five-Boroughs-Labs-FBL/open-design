@@ -186,7 +186,7 @@ async function createProjectNameOnly(page: Page, entry: UiScenario) {
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ACP Design' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
     await expect(privacyDialog).toHaveCount(0);
@@ -405,7 +405,7 @@ async function revealDesignFileRow(page: Page, fileName: string): Promise<Locato
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function expectVisibleAcrossAnimationFrames(locator: Locator) {
@@ -494,7 +494,7 @@ async function runUploadedImageRendersInPreviewFlow(page: Page, entry: UiScenari
     projectId,
     'image-preview.html',
     // Generated pages commonly use site-root paths. Before the preview asset
-    // normalization fix, this resolved against the OpenDesign app origin and
+    // normalization fix, this resolved against the ACP Design app origin and
     // left the uploaded image broken even though its project raw URL was valid.
     '<!doctype html><html><body><main><h1>Image Preview</h1><img alt="Brand logo" src="/brand.png"></main></body></html>',
   );
@@ -763,7 +763,8 @@ test('[P1] new Excalidraw sketch emits analytics dimensions', async ({ page }) =
   // The session-mode picker left the composer (#7635), so `session_mode_toggle`
   // can no longer be produced from here; the sketch action is the analytics
   // under test.
-  await expect(page.getByTestId('chat-composer').getByTestId('composer-mode-trigger')).toHaveCount(0);  await openAllProjectFiles(page);
+  await expect(page.getByTestId('chat-composer').getByTestId('composer-mode-trigger')).toHaveCount(0);
+  await openAllProjectFiles(page);
   await page.getByTestId('design-files-empty-new-sketch').click();
 
   const sketchName = await waitForSingleSketchFile(page, projectId);
@@ -772,7 +773,8 @@ test('[P1] new Excalidraw sketch emits analytics dimensions', async ({ page }) =
 
   await expect.poll(() => analyticsBodies.join('\n'), { timeout: T.medium }).toContain('new_sketch');
   const raw = analyticsBodies.join('\n');
-  expect(raw).not.toContain('session_mode_toggle');  expect(raw).toContain(projectId);
+  expect(raw).not.toContain('session_mode_toggle');
+  expect(raw).toContain(projectId);
 });
 
 test('[P1] markdown plan documents support code, split, preview, and autosaved edits', async ({ page }) => {

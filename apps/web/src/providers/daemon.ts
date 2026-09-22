@@ -41,7 +41,6 @@ import type {
   StrategyTaskProjectionV2,
   WorkspaceCollabContext,
 } from '@open-design/contracts';
-import { OD_NEXT_AGENT_DECLARED_BLOCK_REASON } from '@open-design/contracts';
 import type { StreamHandlers } from './anthropic';
 
 /**
@@ -60,6 +59,7 @@ function isRunCancelOrigin(value: unknown): value is RunCancelOrigin {
 }
 import { workspaceProjectHeaders } from '../state/projects';
 import { setRuntimeAmrConsoleOrigin } from '../runtime/amr-guidance';
+import { canRetainSuccessfulRunForBlockedStrategy } from '../runtime/blocked-strategy-result';
 import { coalescedGet } from '../lib/coalesced-get';
 import { currentWorkspaceAccountGeneration } from '../collab/workspace-identity';
 
@@ -147,7 +147,7 @@ export function latestUserPromptFromHistory(history: ChatMessage[]): string {
 function truncateForTranscript(content: string): string {
   if (content.length <= MAX_TRANSCRIPT_MESSAGE_CHARS) return content;
   const omitted = content.length - MAX_TRANSCRIPT_MESSAGE_CHARS;
-  return `${content.slice(0, MAX_TRANSCRIPT_MESSAGE_CHARS)}\n\n[OpenDesign truncated ${omitted} chars from this prior message before sending it to the agent. Full content remains in persisted history.]`;
+  return `${content.slice(0, MAX_TRANSCRIPT_MESSAGE_CHARS)}\n\n[ACP Design truncated ${omitted} chars from this prior message before sending it to the agent. Full content remains in persisted history.]`;
 }
 
 function escapeTranscriptRoleDelimiters(content: string): string {
@@ -206,7 +206,7 @@ function buildPriorRunContextWarning(history: ChatMessage[]): string | null {
 
   return [
     '## context warning',
-    `OpenDesign detected ${notes.join(', ')}.`,
+    `ACP Design detected ${notes.join(', ')}.`,
     'Keep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.',
   ].join('\n');
 }
@@ -726,7 +726,7 @@ export function createGenericDaemonDisconnectError(): Error & { code: string } {
  * the two locale strings; the routing and the reason codes are settled.
  */
 export const STRATEGY_TASK_BLOCKED_MESSAGE =
-  "The agent's reply did not carry the machine-readable state Open Design needs "
+  "The agent's reply did not carry the machine-readable state ACP Design needs "
   + 'to record this step, so the task could not continue.';
 
 /**
@@ -751,7 +751,7 @@ export const STRATEGY_TASK_BLOCKED_MESSAGE =
  * resolver, and the error analytics can all name the gate. A projection from a
  * daemon too old to send `blockedContext` still fails, just anonymously.
  */
-function createStrategyTaskBlockedError(
+export function createStrategyTaskBlockedError(
   strategyTask: StrategyTaskProjectionV2,
 ): Error & { code?: string } {
   const error = new Error(STRATEGY_TASK_BLOCKED_MESSAGE) as Error & { code?: string };
@@ -818,7 +818,7 @@ function shouldSuppressLifecycleExitFallback(
 }
 
 const AMR_OPENCODE_INCOMPLETE_MESSAGE =
-  'OpenDesign started, but the run did not complete. Please retry or check the run details for the session stream error.';
+  'ACP Design started, but the run did not complete. Please retry or check the run details for the session stream error.';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -850,7 +850,7 @@ function daemonCreateRunError(response: Response, responseText: string): Error {
   if (!apiError || typeof apiError !== 'object') {
     return new Error(`daemon ${response.status}: ${responseText || 'no body'}`);
   }
-  const error = new Error(apiError.message || `OpenDesign service returned ${response.status}`) as Error & {
+  const error = new Error(apiError.message || `ACP Design service returned ${response.status}`) as Error & {
     code?: string;
     requestId?: string;
     retryable?: boolean;
@@ -926,10 +926,10 @@ function formatOpenCodeSessionError(value: unknown): string | null {
     return message;
   }
   if (statusCode === 404) {
-    return 'The model service returned 404 Not Found for the configured runtime endpoint. Check the OpenDesign link URL or model route.';
+    return 'The model service returned 404 Not Found for the configured runtime endpoint. Check the ACP Design link URL or model route.';
   }
   if (statusCode === 401 || statusCode === 403) {
-    return 'OpenDesign authentication failed. Please sign in again or refresh the runtime key.';
+    return 'ACP Design authentication failed. Please sign in again or refresh the runtime key.';
   }
   if (statusCode === 429) {
     return 'The model service rejected the request due to quota or rate limits. Retry later or check quota and rate limits.';
@@ -1311,6 +1311,20 @@ export function formatVelaBalanceUsd(raw?: string | null): string | null {
   return `${sign}$${Math.abs(amount).toFixed(2)}`;
 }
 
+/**
+ * Format a raw wallet `balanceUsd` string into the bare amount (e.g. "12.30")
+ * for surfaces that already name the currency some other way — the top-right
+ * credits pill leads with the plan wordmark and shows the number beside it.
+ * Same null contract as `formatVelaBalanceUsd`.
+ */
+export function formatVelaBalanceAmount(raw?: string | null): string | null {
+  if (raw == null || raw === '') return null;
+  const amount = Number(raw);
+  if (!Number.isFinite(amount)) return null;
+  const sign = amount < 0 ? '-' : '';
+  return `${sign}${Math.abs(amount).toFixed(2)}`;
+}
+
 /** Top subscription tier — no upgrade affordance is shown at/above this. */
 export const VELA_TOP_PLAN_TIER = 'max';
 
@@ -1690,6 +1704,47 @@ export async function listProjectRuns(
   }
 }
 
+/**
+ * One project's runs plus the awaiting-input flag the run bodies cannot carry.
+ *
+ * Scoped to a single project ON PURPOSE. The catalogue-wide `listProjectRuns`
+ * above 400s (`PROJECT_SCOPE_REQUIRED`) the moment any run belongs to a
+ * workspace-bound project — which, in a workspace session, is all of them — so
+ * it silently returns `[]` there. Asking per project id takes the route's
+ * authorized branch instead and actually works.
+ *
+ * Without a workspace context the request carries no Workspace headers: that
+ * is the local CLI / BYOK shell asking about an unbound local project, which
+ * the route serves through its headerless branch (OPEND-3140). A bound
+ * project asked about headerlessly is filtered to its non-AMR runs by the
+ * daemon, never refused, so a local row can only under-report, not error.
+ *
+ * Returns `null` when the project is unreadable or the daemon is unreachable,
+ * so a caller can tell "no runs" apart from "could not ask".
+ */
+export async function listRunsForProject(
+  projectId: string,
+  workspaceContext?: WorkspaceCollabContext | null,
+): Promise<{ runs: ChatRunStatusResponse[]; awaitingInputProjectIds: string[] } | null> {
+  try {
+    const resp = await fetch(`/api/runs?projectId=${encodeURIComponent(projectId)}`, {
+      ...(workspaceContext
+        ? { headers: workspaceProjectHeaders(workspaceContext) }
+        : {}),
+    });
+    if (!resp.ok) return null;
+    const body = (await resp.json()) as ChatRunListResponse;
+    return {
+      runs: body.runs ?? [],
+      // Absent on daemons older than this field; treat as "no pending
+      // question" rather than failing the whole read.
+      awaitingInputProjectIds: body.awaitingInputProjectIds ?? [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface DaemonPhysicalRunResult {
   nextRunId?: string;
   strategyTask?: StrategyTaskProjectionV2;
@@ -1999,7 +2054,12 @@ async function consumeDaemonPhysicalRun({
           }
           if (parsed.kind !== 'event') continue;
           sawStreamProgress = true;
-          sawRunEvent = true;
+          if (!sawRunEvent) {
+            sawRunEvent = true;
+            // A resumed run event proves transport recovery while the reader
+            // may stay open. Keepalive comments above do not clear the UI.
+            clearReconnect();
+          }
           trackRunProgress(runId);
           /*
            * S12 的静默计时就认这一刻 —— **上游给过我们东西**的唯一如实证据。
@@ -2298,41 +2358,27 @@ async function consumeDaemonPhysicalRun({
         // wrong answer for the other is not a fix. The stricter field keeps its
         // existing behaviour: a run that wrote the entry delivered, prose or no
         // prose.
+        //
+        // The same rule decides here, on cold history load, and on artifact
+        // recovery — `canRetainSuccessfulRunForBlockedStrategy` is the one
+        // place it is written. Two more cases keep the success there: a block
+        // the agent declared on itself and explained (OPEND-2565), and a task
+        // refused before production while the agent replied — the greeting or
+        // off-topic turn, where the reply is the whole outcome. A Run that
+        // failed keeps its error whatever the agent narrated, because narration
+        // is not a substitute for the failure the user has to act on.
         const blockedRunStatus = endStatus === 'succeeded'
           ? await fetchChatRunStatus(runId, workspaceContext)
           : null;
-        const deliveredDespiteBlock = blockedRunStatus !== null
-          && (
-            (blockedRunStatus.projectDeliverableValid === true
-              && acc.trim().length > 0)
-            || blockedRunStatus.deliverableValid === true
+        const retainSuccess = endStatus === 'succeeded'
+          && canRetainSuccessfulRunForBlockedStrategy(
+            endStatus,
+            endStrategyTask,
+            blockedRunStatus?.deliverableValid,
+            blockedRunStatus?.projectDeliverableValid,
+            acc,
           );
-        // A block the agent declared on itself is not a failure to report.
-        // Asked for a prototype with nothing to build on, the agent answers in
-        // the chat — "the requirement was skipped, so there is no runnable plan
-        // this round" — and that reply is the turn's outcome. Raising a run
-        // error on top of it restated the same sentence inside a red "task
-        // execution failed" card, so a turn that had simply asked for more
-        // detail read as a crash (OPEND-2565).
-        //
-        // Keyed on the reason code, NOT on the presence of visible text. Every
-        // other block is a gate the agent did not ask for — a missing Runtime
-        // State, an unresolvable deliverable, an unproven session — and the
-        // prose sitting next to it is the agent's ordinary reply ("sure, three
-        // pages, here is the plan"), not an account of the stop. Treating that
-        // as an explanation would hide a real protocol failure behind a
-        // cheerful sentence.
-        //
-        // Also requires a Run that reached the end on its own: a Run that
-        // failed keeps its error even when the agent narrated the failure,
-        // because narration is not a substitute for the failure the user has
-        // to act on.
-        const agentDeclaredBlock = endStrategyTask.blockedContext?.reasonCodes
-          .includes(OD_NEXT_AGENT_DECLARED_BLOCK_REASON) === true;
-        const explainedToUser = endStatus === 'succeeded'
-          && agentDeclaredBlock
-          && (endStrategyTask.blockedContext?.visibleText?.trim().length ?? 0) > 0;
-        if (!deliveredDespiteBlock && !explainedToUser) {
+        if (!retainSuccess) {
           endStatus = 'failed';
           pendingStructuredError ??= createStrategyTaskBlockedError(endStrategyTask);
         }

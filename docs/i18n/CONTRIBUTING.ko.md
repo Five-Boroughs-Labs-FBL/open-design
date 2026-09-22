@@ -1,4 +1,4 @@
-# OpenDesign 기여 가이드
+# ACP Design 기여 가이드
 
 기여를 고민하고 있다니 고맙습니다. OD는 일부러 작게 유지합니다. 대부분의 가치는 프레임워크 코드가 아니라 **파일**(skill, design system, 프롬프트 조각)에 담겨 있습니다. 그래서 가장 효과가 큰 기여는 대개 폴더 하나, Markdown 파일 하나, 또는 PR 한 건 크기의 adapter입니다.
 
@@ -41,7 +41,7 @@ Node `~24`와 pnpm `10.33.x`가 필요합니다. `nvm`이나 `fnm`은 선택 사
 
 ## Docker 설정
 
-Node.js나 pnpm을 설치하지 않고도 OpenDesign을 실행할 수 있습니다.
+Node.js나 pnpm을 설치하지 않고도 ACP Design을 실행할 수 있습니다.
 
 ### 사전 준비
 
@@ -51,7 +51,7 @@ Compose v2가 포함된 Docker Desktop이 설치되어 있는지 확인하세요
 docker compose version
 ```
 
-### OpenDesign 실행
+### ACP Design 실행
 
 ```bash
 cd deploy
@@ -315,7 +315,7 @@ CLA는 요구하지 않습니다. Apache-2.0으로 충분하며, 당신의 기�
 요컨대 좋은 PR을 내고, 사려 깊게 리뷰하고, [Discussions][discussions]와 [Discord][discord]에서 어울리다 보면 나머지는 알아서 따라옵니다.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/mHAjSMV6gz
+[discord]: https://discord.gg/jE4MzArHX
 
 ---
 

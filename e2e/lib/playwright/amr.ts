@@ -4,7 +4,7 @@ import type {
   WorkspaceCollabContext,
   WorkspaceDirectoryItem,
 } from '@open-design/contracts';
-import { ensureRailOpen } from './rail.js';
+import { dismissWhatsNewPopup, ensureRailOpen } from './rail.js';
 import { T } from '@/timeouts';
 
 export const STORAGE_KEY = 'open-design:config';
@@ -212,12 +212,12 @@ export async function mockAmrPersonalWorkspace(
 }
 
 export async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
 }
 
 export async function dismissPrivacyDialog(page: Page) {
   const privacySurface = page
-    .getByRole('region', { name: /Help us improve OpenDesign/i })
+    .getByRole('region', { name: /Help us improve ACP Design/i })
     .or(page.locator('.privacy-consent-banner'))
     .first();
   await privacySurface.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
@@ -383,6 +383,7 @@ export async function openSettingsDialog(page: Page) {
     if (await dialog.isVisible().catch(() => false)) return dialog;
 
     await dismissPrivacyDialog(page);
+    await dismissWhatsNewPopup(page);
     if (await settingsTrigger.isVisible({ timeout: 1_000 }).catch(() => false)) {
       await settingsTrigger.evaluate((element: HTMLElement) => element.click());
     } else if (!(await openSettingsFromProjectSurface(page))) {

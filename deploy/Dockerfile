@@ -129,9 +129,9 @@ RUN curl -fsSL -o /usr/local/bin/grok \
     /usr/local/bin/muse --version
 
 # Design runs execute in this container. ACP forwards the selected Cursor
-# model and CURSOR_API_KEY, but the Open Design daemon still needs the Cursor
+# model and CURSOR_API_KEY, but the ACP Design daemon still needs the Cursor
 # Agent executable locally. Pin the package so image builds are reproducible;
-# expose both the documented `agent` command and Open Design's stable
+# expose both the documented `agent` command and ACP Design's stable
 # `cursor-agent` adapter name.
 ARG TARGETARCH
 ARG CURSOR_AGENT_VERSION=2026.09.10-fd3934a

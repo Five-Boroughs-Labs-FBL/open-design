@@ -90,6 +90,7 @@ export * from './connector-probe.js';
 export * from './export.js';
 export * from './doctor.js';
 export * from './installer.js';
+export { isLocalPluginInstallSource } from './install-source.js';
 export * from './lockfile.js';
 export * from './persistence.js';
 export * from './marketplaces.js';

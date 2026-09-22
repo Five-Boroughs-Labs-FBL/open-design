@@ -35,12 +35,12 @@ function hostedWin(overrides: Partial<Window> = {}): Window {
 }
 
 describe('isAcpHostedHostname', () => {
-  it('matches the hosted Open Design studio hosts', () => {
+  it('matches the hosted ACP Design studio hosts', () => {
     expect(isAcpHostedHostname('design.agentcontrolpanel.dev')).toBe(true);
     expect(isAcpHostedHostname('dev.design.agentcontrolpanel.dev')).toBe(true);
   });
 
-  it('does not match ACP itself or local OpenDesign', () => {
+  it('does not match ACP itself or local ACP Design', () => {
     expect(isAcpHostedHostname('agentcontrolpanel.dev')).toBe(false);
     expect(isAcpHostedHostname('localhost')).toBe(false);
     expect(isAcpHostedHostname('127.0.0.1')).toBe(false);
@@ -91,10 +91,11 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
     sessionStorage.removeItem(OD_EMBED_SESSION_KEY);
     sessionStorage.removeItem(ACP_STUDIO_PREVIEW_KEY);
     localStorage.removeItem(ACP_STUDIO_THEME_KEY);
-    document.title = 'OpenDesign';
+    document.title = 'ACP Design';
   });
 
   it('stamps ACP Design identity on the hosted studio host', () => {
+    expect(ACP_OPEN_DESIGN_NAME).toBe('ACP Design');
     const win = hostedWin();
     Object.defineProperty(win.document, 'documentElement', {
       configurable: true,
@@ -135,7 +136,7 @@ describe('isAcpStudioShell / applyAcpStudioAppearance', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
-  it('does not let the OpenDesign light stamp overwrite ACP theme', () => {
+  it('does not let the ACP Design light stamp overwrite ACP theme', () => {
     const win = hostedWin();
     applyAcpStudioAppearance(win);
     applyAppearanceToDocument({ accentColor: '#059669' });

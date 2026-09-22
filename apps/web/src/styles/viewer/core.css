@@ -242,7 +242,7 @@
 .viewer-module-pointer__cta {
   margin: 4px 0 0;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
 }
 .viewer-module-pointer__entries {
@@ -586,7 +586,7 @@
   background: var(--bg-panel);
   border-color: var(--border);
   color: var(--text-strong);
-  font-weight: 500;
+  font-weight: 600;
 }
 .viewer-meta { font-size: 12px; color: var(--text-muted); }
 .ghost-link {
@@ -971,7 +971,7 @@
 }
 .live-artifact-refresh-value.muted {
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 .live-artifact-refresh-sub {
   font-size: 12px;
@@ -1169,7 +1169,7 @@
 }
 .live-artifact-refresh-tile-title {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1398,7 +1398,7 @@
   background-color: transparent;
   color: var(--text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.2;
   box-shadow: none;
 }
@@ -1459,7 +1459,7 @@
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1;
   text-align: left;
 }
@@ -1746,7 +1746,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1825,7 +1825,7 @@
 }
 .annotation-style-row span {
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 .annotation-style-row strong {
   display: inline-flex;
@@ -3032,7 +3032,7 @@ button.ghost.mcp-copy-btn:hover:not(:disabled) {
   background: var(--bg-subtle);
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0;
   overflow: hidden;
   white-space: nowrap;

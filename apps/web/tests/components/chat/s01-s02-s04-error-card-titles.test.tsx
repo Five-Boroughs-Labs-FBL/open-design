@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * 报错卡**标题**那一行的三格:S01 / S02 / S04(《Open Design 报错文案｜精简版》)。
+ * 报错卡**标题**那一行的三格:S01 / S02 / S04(《ACP Design 报错文案｜精简版》)。
  *
  * 第一批文案只落了正文,标题跳过了这三格 —— 因为它们不是纯文案改动:
  *
@@ -10,7 +10,7 @@
  *      **字面的 `{agent}`**。
  *
  *   ② **一个键装两句话。** S02(本地 agent 没登录,新稿「{智能体} 尚未登录」)和
- *      S04(Open Design 智能体没授权,新稿「Open Design 尚未登录」)今天共用
+ *      S04(ACP Design 智能体没授权,新稿「ACP Design 尚未登录」)今天共用
  *      `chat.runError.title.signInRequired`,渲染出来一模一样。Antigravity 那条
  *      终端登录的分流也挂在同一个键上,是 S02 那一边的第三个调用点。
  *
@@ -18,7 +18,7 @@
  * `<ChatPane>`,读报错卡标题那一行。键怎么拆是实现的事,拆完这几条仍要成立。
  */
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { forwardRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,7 +94,10 @@ function failedMessage(opts: { agentId: string; code: string }): ChatMessage {
 }
 
 /** 渲染一轮失败,回读报错卡**标题**那一行的文字 */
-function errorCardTitle(opts: { agentId: string; code: string }): string {
+function errorCardTitle(
+  opts: { agentId: string; code: string },
+  onSwitchToAmrAndRetry = vi.fn(),
+): string {
   render(
     <ChatPane
       messages={[failedMessage(opts)]}
@@ -106,6 +109,7 @@ function errorCardTitle(opts: { agentId: string; code: string }): string {
       onSend={vi.fn()}
       onStop={vi.fn()}
       onRetry={vi.fn()}
+      onSwitchToAmrAndRetry={onSwitchToAmrAndRetry}
       amrBalanceCardUsd={null}
       onOpenSettings={vi.fn() as never}
       conversations={[
@@ -141,13 +145,17 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
 
     expect(title).not.toMatch(/\{agent\}/);
     expect(title).toBe('Claude 尚未登录');
+    expect(screen.getByTestId('chat-run-error-description').textContent)
+      .toBe('请先完成 Claude 的登录，再重新尝试。');
   });
 
-  it('S04:Open Design 智能体没授权 —— 标题说的是 Open Design 自己', () => {
+  it('S04:ACP Design 智能体没授权 —— 标题说的是 ACP Design 自己', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'AMR_AUTH_REQUIRED' });
 
     expect(title).not.toMatch(/\{agent\}/);
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('ACP Design 尚未登录');
+    expect(screen.getByTestId('chat-run-error-description').textContent)
+      .toBe('请先登录，以便查看项目和继续对话。');
   });
 
   it('S02 和 S04 不是同一句话 —— 一个键装不下两格', () => {
@@ -158,12 +166,12 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
     expect(s02).not.toBe(s04);
     /*
      * 「两句不一样」单独一条**照不出合并回去**:S02 那句带 `{agent}` 插值,
-     * AMR 的 agent 名恰好是 `OpenDesign`,所以哪怕两格共用一个键,渲染出来
-     * 也是「Claude 尚未登录」对「OpenDesign 尚未登录」—— 仍然不相等。
-     * 判据要钉在 S04 说的**是不是产品那句**:`OpenDesign`(无空格)是 agent
-     * 标签,`Open Design`(有空格)才是产品名。
+     * AMR 的 agent 名恰好是 `ACP Design`,所以哪怕两格共用一个键,渲染出来
+     * 也是「Claude 尚未登录」对「ACP Design 尚未登录」—— 仍然不相等。
+     * 判据要钉在 S04 说的**是不是产品那句**:`ACP Design`(无空格)是 agent
+     * 标签,`ACP Design`(有空格)才是产品名。
      */
-    expect(s04).not.toContain('OpenDesign');
+    expect(s04).not.toContain('ACP Design');
   });
 
   /*
@@ -171,17 +179,33 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
    * 一个本地 agent 没登录,归 S02 那一边。拆键时最容易漏的就是这一个:
    * 它离另外两个调用点有一百多行,而且 code 和 S02 完全一样。
    */
-  it('Antigravity 的终端登录也落在 S02 那一边,点名 Antigravity', () => {
-    const title = errorCardTitle({ agentId: 'antigravity', code: 'AGENT_AUTH_REQUIRED' });
+  it('Antigravity 认证失败保留 S02 文案,固定入口切换到 Cloud', () => {
+    const onSwitchToAmrAndRetry = vi.fn();
+    const title = errorCardTitle(
+      { agentId: 'antigravity', code: 'AGENT_AUTH_REQUIRED' },
+      onSwitchToAmrAndRetry,
+    );
 
     expect(title).not.toMatch(/\{agent\}/);
     expect(title).toBe('Antigravity 尚未登录');
+    // OPEND-2849 / 产品定稿 S02：终端登录分支也必须说明下一步，不能落通用失败句。
+    expect(screen.getByTestId('chat-run-error-description').textContent)
+      .toBe('请先完成 Antigravity 的登录，再重新尝试。');
+    const card = screen.getByTestId('chat-run-error-card');
+    expect(within(card).getAllByRole('button').map((button) => button.textContent?.trim()))
+      .toEqual(['联系我们', '导出日志', '切换到 ACP Design Cloud']);
+    expect(within(card).queryByRole('button', { name: '在终端中登录' })).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: '切换到 ACP Design Cloud' }));
+    expect(onSwitchToAmrAndRetry).toHaveBeenCalledOnce();
+    expect(onSwitchToAmrAndRetry).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'msg-failed', agentId: 'antigravity', runId: 'run-failed',
+    }));
   });
 
   it('AMR 的通用 401(UNAUTHORIZED)仍然是 S04 那句,不会掉到 S02', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'UNAUTHORIZED' });
 
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('ACP Design 尚未登录');
   });
 
   it('非 AMR 的通用 401(UNAUTHORIZED)是 S02 那句', () => {

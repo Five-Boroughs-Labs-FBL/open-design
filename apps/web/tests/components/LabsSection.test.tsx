@@ -114,7 +114,7 @@ describe('LabsSection', () => {
     expect(screen.getByText('Design Harness')).toBeTruthy();
     expect(
       screen.getByText(
-        "Your next generation will use OpenDesign's latest strategy, with noticeably more polished results (beta)",
+        "Your next generation will use ACP Design's latest strategy, with noticeably more polished results (beta)",
       ),
     ).toBeTruthy();
   });

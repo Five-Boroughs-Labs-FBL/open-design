@@ -31,7 +31,12 @@ import type {
 // hero + recent projects + plugins). Keeping the redesign in a sibling
 // component lets future rebases against upstream `EntryView` (props,
 // connector lifecycle, exported helpers) stay close to a no-op here.
-import { EntryShell, type ProjectTitleHint } from './EntryShell';
+import {
+  EntryShell,
+  type OptimisticProjectCreationHandoff,
+  type ProjectTitleHint,
+} from './EntryShell';
+import type { HomeAmrBalanceGateBlock } from './HomeAmrBalanceGateDialogs';
 import type { IntegrationTab } from './IntegrationsView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './NewProjectPanel';
 import {
@@ -83,6 +88,8 @@ interface Props {
   amrSessionState?: import('@open-design/contracts').AmrSessionState;
   /** Forwarded to EntryShell for personal free campaign audience resolution. */
   amrAccountPlan?: string | null;
+  /** Stable account boundary for CMS authorization instances. */
+  amrAccountId?: string | null;
   // Execution / model-switching context forwarded to the EntryShell so the
   // sticky top-bar can expose the active CLI/BYOK + model and persist
   // changes through the same channels as the project view.
@@ -120,6 +127,9 @@ interface Props {
   projectsLoading?: boolean;
   promptTemplatesLoading?: boolean;
   onCreateProject: (input: EntryCreateProjectInput) => Promise<boolean> | boolean | void;
+  /** Forwarded to EntryShell — see the prop docs there. */
+  onBeginProjectCreation: (input: EntryCreateProjectInput) => OptimisticProjectCreationHandoff;
+  onAmrBalanceGateBlockChange: (block: HomeAmrBalanceGateBlock | null) => void;
   onCreatePluginShareProject: (
     pluginId: string,
     action: PluginShareAction,
@@ -264,6 +274,7 @@ export function EntryView({
   amrLoggedIn,
   amrSessionState,
   amrAccountPlan,
+  amrAccountId,
   config,
   providerModelsCache,
   onProviderModelsCacheChange,
@@ -288,6 +299,8 @@ export function EntryView({
   projectsLoading = false,
   promptTemplatesLoading: _promptTemplatesLoading = false,
   onCreateProject,
+  onBeginProjectCreation,
+  onAmrBalanceGateBlockChange,
   onCreatePluginShareProject,
   onImportClaudeDesign,
   onImportFolder,
@@ -400,6 +413,7 @@ export function EntryView({
       {...(amrLoggedIn !== undefined ? { amrLoggedIn } : {})}
       {...(amrSessionState !== undefined ? { amrSessionState } : {})}
       {...(amrAccountPlan !== undefined ? { amrAccountPlan } : {})}
+      {...(amrAccountId !== undefined ? { amrAccountId } : {})}
       daemonLive={daemonLive}
       onModeChange={onModeChange}
       onAgentChange={onAgentChange}
@@ -415,6 +429,8 @@ export function EntryView({
       onSkillsChanged={onSkillsChanged}
           onRefreshAgents={onRefreshAgents}
       onCreateProject={onCreateProject}
+      onBeginProjectCreation={onBeginProjectCreation}
+      onAmrBalanceGateBlockChange={onAmrBalanceGateBlockChange}
       onCreatePluginShareProject={onCreatePluginShareProject}
       onImportClaudeDesign={onImportClaudeDesign}
       {...(onImportFolder ? { onImportFolder } : {})}

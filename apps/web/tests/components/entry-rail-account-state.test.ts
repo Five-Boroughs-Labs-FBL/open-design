@@ -81,7 +81,7 @@ describe('resolveEntryRailAccountFooterState', () => {
 });
 
 describe('shouldShowCloudSignInTip', () => {
-  it('hides the OpenDesign Cloud rail after ACP SSO is the identity path', () => {
+  it('hides the ACP Design Cloud rail after ACP SSO is the identity path', () => {
     expect(shouldShowCloudSignInTip({
       accountFooterState: 'sign-in',
       acpSsoResolved: true,
@@ -107,7 +107,7 @@ describe('shouldShowCloudSignInTip', () => {
 });
 
 describe('resolveAcpCatalogChrome', () => {
-  it('keeps OpenDesign chrome on a local daemon', () => {
+  it('keeps ACP Design chrome on a local daemon', () => {
     expect(resolveAcpCatalogChrome({
       resolved: true,
       acpSsoUrl: null,

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { startEvidenceDelivery } from './services/evidence-delivery.js';
 import type {
   DesktopExportArtifactInput,
   DesktopExportArtifactResult,
@@ -12,7 +13,7 @@ import type {
 import express from 'express';
 import multer from 'multer';
 import JSZip from 'jszip';
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -142,7 +143,8 @@ import {
   selectPromptImagePaths,
 } from './runtimes/chat-prompt-inputs.js';
 import {
-  writePromptAndEndStdin,
+  recordPromptDeliveredAtSpawn,
+  runtimeReadsPlainTextPromptFromStdin,
   applyClaudeStreamJsonRunBookkeeping,
   assertValidRuntimeDefFirstOutputTimeoutMs,
   assertValidRuntimeDefInactivityTimeoutMs,
@@ -458,6 +460,7 @@ import {
   startSnapshotGc,
   uninstallPlugin,
 } from './plugins/index.js';
+import { isLocalPluginInstallSource } from './plugins/install-source.js';
 import {
   activateWorkspaceTeamPluginIfStillShared,
   pluginIdFromWorkspaceTeamPluginBinding,
@@ -516,6 +519,7 @@ import {
   codexResolvedSandboxMode,
 } from './runtimes/defs/codex.js';
 import { attachCodexAppServerSession } from './agent-protocol/codex-app-server/session.js';
+import { createCodexThreadCleanupOwner, type CodexCleanupInvocation } from './agent-protocol/codex-app-server/cleanup-owner.js';
 import {
   ensureDetectedRuntimeVersions,
   getDetectedRuntimeVersions,
@@ -540,6 +544,7 @@ import {
   normalizeDeepSeekHarnessFailure,
 } from './runtimes/auth.js';
 import { readOpenCodeServiceFailure } from './runtimes/opencode-log.js';
+import { applyOpenCodeEventPlugin } from './runtimes/opencode-event-plugin.js';
 import { createAgentStderrVisibilityFilter } from './amr-stderr-filter.js';
 import { createQoderStreamHandler } from './runtimes/qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
@@ -547,6 +552,7 @@ import { importFigmaFromBytes } from './figma/figma-import.js';
 import { renderDesignSystemPreview } from './design-systems/preview.js';
 import { renderDesignSystemShowcase } from './design-systems/showcase.js';
 import { createChatRunService } from './runtimes/runs.js';
+import { reapLeftoverAgentProcesses, spawnAgentProcess } from './runtimes/agent-process.js';
 import {
   createAmrTerminalReportDeliveryService,
   createAmrTerminalReportFinalizer,
@@ -567,7 +573,7 @@ import {
   createOdNextInitialPromptBundleService,
   resolveOdNextPromptRecipeForRun,
 } from './strategies/od-next/initial-prompt-bundle-service.js';
-import { OdNextMachineProtocolStream } from './strategies/od-next/protocol.js';
+import { createOdNextRunProtocol } from './strategies/od-next/protocol.js';
 import {
   blockAutomaticContinuation,
   prepareAutomaticStrategyContinuation,
@@ -576,9 +582,15 @@ import {
   odNextTurnMayInferProductionCompletion,
 } from './strategies/od-next/automatic-simple-production.js';
 import { readOdNextRolloutPolicy } from './strategies/od-next/rollout.js';
+import { createStrategyRunWriteEvidenceRecorder, strategyRunWriteEvidence } from './strategies/od-next/run-write-evidence.js';
+import { recoverPlanningIntentResolution } from './strategies/od-next/intent-resolution-recovery.js';
+import { isStrategyIntentResolutionRun, requiresStrategyIntentResolution, validateStrategyIntentResolutionReply } from './strategies/od-next/intent-resolution.js';
+import { startIntentResolution } from './strategies/od-next/intent-resolution-store.js';
 import {
   getStrategyTaskExecutionByRunId,
   reconcileStrategyTaskRunTerminal,
+  isInitialStrategyTaskRun,
+  InvalidStrategyTaskRecordError,
 } from './strategies/task-store.js';
 import {
   InvalidFrozenSkillPackageError,
@@ -617,6 +629,8 @@ import {
 } from './run-retry-policy.js';
 import {
   amrUserIdForRunAnalytics,
+  createRunPerRequestUsageLedger,
+  foldEventIntoPerRequestUsageLedger,
   scanRunEventsForUsageAnalytics,
 } from './run-analytics-observability.js';
 import {
@@ -636,6 +650,10 @@ import {
   readRunTelemetrySinkConfig,
 } from './langfuse-trace.js';
 import { reconcileDurableRunTerminals } from './runtimes/run-terminal-reconciliation.js';
+import {
+  startMessageEventPayloadHeal,
+  type MessageEventPayloadHealHandle,
+} from './storage/message-event-payload-heal.js';
 import { createTaskObservationRolloutService } from './observability/task-observation-rollout.js';
 import { strategyTaskRunObservationId } from './observability/task-observation-aggregation.js';
 import { collectCodexChildEvidence } from './runtimes/codex-child-evidence.js';
@@ -1245,6 +1263,18 @@ import {
 } from './http/local-daemon-request.js';
 import { renderOAuthResultPage } from './http/oauth-result-page.js';
 import { bearerTokenFromRequest, createToolRequestAuth } from './http/tool-request-auth.js';
+
+/**
+ * `OD_PROJECT_CREATE_PREPARATION_TIMEOUT_MS` shortens the POST /api/projects
+ * preparation deadline for end-to-end tests. Only a positive finite number is
+ * honoured; anything else leaves the route on its production default.
+ */
+function projectCreatePreparationTimeoutMsFromEnv(): number | null {
+  const raw = process.env.OD_PROJECT_CREATE_PREPARATION_TIMEOUT_MS;
+  if (raw == null || raw.trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
 /** @typedef {import('@open-design/contracts').ApiErrorCode} ApiErrorCode */
 /** @typedef {import('@open-design/contracts').ApiError} ApiError */
@@ -1896,8 +1926,8 @@ export function createAgentRuntimeToolPrompt(
     '',
     `- Daemon URL: \`${daemonUrl}\` (also available as \`OD_DAEMON_URL\`).`,
     '- `OD_NODE_BIN` is the absolute path to the Node-compatible runtime that started the daemon; packaged desktop installs provide this even when the user has no system `node` on PATH.',
-    '- `OD_HYPERFRAMES_BIN` is the absolute path to Open Design\'s pinned HyperFrames CLI. Run lightweight commands through `OD_NODE_BIN`; use `"$OD_NODE_BIN" "$OD_BIN" media scaffold` for composition setup and never use a user-level `npx` cache.',
-    '- `OD_BIN` is the absolute path to the OpenDesign CLI script. On POSIX shells run wrappers with `"$OD_NODE_BIN" "$OD_BIN" tools ...`; do not call bare `od`, which may resolve to the system octal-dump command on Unix-like systems.',
+    '- `OD_HYPERFRAMES_BIN` is the absolute path to ACP Design\'s pinned HyperFrames CLI. Run lightweight commands through `OD_NODE_BIN`; use `"$OD_NODE_BIN" "$OD_BIN" media scaffold` for composition setup and never use a user-level `npx` cache.',
+    '- `OD_BIN` is the absolute path to the ACP Design CLI script. On POSIX shells run wrappers with `"$OD_NODE_BIN" "$OD_BIN" tools ...`; do not call bare `od`, which may resolve to the system octal-dump command on Unix-like systems.',
     '- On PowerShell use `& $env:OD_NODE_BIN $env:OD_BIN tools ...`; on cmd.exe use `"%OD_NODE_BIN%" "%OD_BIN%" tools ...`.',
     tokenLine,
     '- Prefer project wrapper commands through `OD_NODE_BIN` + `OD_BIN` over raw HTTP. The wrappers read these environment values automatically.',
@@ -3189,6 +3219,25 @@ export async function startServer({
     );
   }
 
+  // Agent CLIs a previous daemon spawned and never saw finish (it died without
+  // running any shutdown path) keep running until this point. Verify them by
+  // OS identity and terminate them first thing, in the background: for as
+  // long as a leftover runs it may be editing the project unsupervised.
+  void reapLeftoverAgentProcesses({ runsLogDir: path.join(RUNTIME_DATA_DIR, 'runs') })
+    .then((result) => {
+      const unverified = result.skipped.filter((entry) => entry.verdict === 'unverifiable');
+      if (result.reaped.length > 0 || unverified.length > 0 || result.stagedPromptsRemoved > 0) {
+        console.warn('[runs] leftover agent processes from a previous daemon', {
+          reaped: result.reaped,
+          unverified,
+          stagedPromptsRemoved: result.stagedPromptsRemoved,
+        });
+      }
+    })
+    .catch((error) => {
+      console.warn('[runs] leftover agent process reap failed', error);
+    });
+
   const app = express();
   installRouteRegistrationGuard(app);
   // Clipper page captures are self-contained HTML with inlined images plus a
@@ -3367,7 +3416,7 @@ export async function startServer({
 
       res.setHeader('WWW-Authenticate', API_TOKEN_BASIC_CHALLENGE);
       return res.status(401).type('text/plain').send(
-        'OpenDesign authentication required. Use username "open-design" and OD_API_TOKEN as the password.',
+        'ACP Design authentication required. Use username "open-design" and OD_API_TOKEN as the password.',
       );
     });
   }
@@ -4173,20 +4222,35 @@ export async function startServer({
     readVelaControlApiContext,
     configuredAmrEnv(),
   );
+  let workspaceHubAmrProfile = resolveAmrProfile({
+    ...process.env,
+    ...configuredAmrEnv(),
+  });
   const resetWorkspaceIdentityCaches = (): void => {
     workspaceDirectoryAuthority.resetIdentity();
     workspaceExactAuthorityCache.resetIdentity();
     workspaceExactContextCache.resetIdentity();
   };
   const refreshWorkspaceHubAccountIdentity = (): void => {
+    const currentAmrProfile = resolveAmrProfile({
+      ...process.env,
+      ...configuredAmrEnv(),
+    });
     const currentIdentity = velaWorkspaceDirectoryIdentity(
       readVelaControlApiContext,
       configuredAmrEnv(),
     );
     if (currentIdentity === workspaceHubAccountIdentity) return;
+    const environmentChanged = currentAmrProfile !== workspaceHubAmrProfile;
     workspaceHubAccountIdentity = currentIdentity;
+    workspaceHubAmrProfile = currentAmrProfile;
     resetWorkspaceIdentityCaches();
-    workspaceHubSubscriptions?.refreshEndpoints();
+    if (environmentChanged) {
+      workspaceHubSubscriptions?.resetForEnvironmentChange();
+      workspaceBillingRuntime.resetIdentity();
+    } else {
+      workspaceHubSubscriptions?.refreshEndpoints();
+    }
   };
   const fetchWorkspaceDirectoryForAccountSurface = () => {
     refreshWorkspaceHubAccountIdentity();
@@ -7892,6 +7956,9 @@ export async function startServer({
       readRunTelemetrySinkConfig(process.env, configuredAmrEnv()),
     ),
   );
+  const stopEvidenceDelivery = startEvidenceDelivery(RUNTIME_DATA_DIR);
+  const strategyWriteEvidence = createStrategyRunWriteEvidenceRecorder(db);
+  const codexThreadCleanupOwner = createCodexThreadCleanupOwner();
   const design = {
     runs: createChatRunService({
       createSseResponse,
@@ -7905,6 +7972,9 @@ export async function startServer({
       onEventEmitted: (run, record) => {
         if (!run.sideEffectLedger) run.sideEffectLedger = createRunSideEffectLedger();
         foldEventIntoRunSideEffectLedger(run.sideEffectLedger, record);
+        strategyWriteEvidence.observeToolStream(run);
+        if (!run.perRequestUsageLedger) run.perRequestUsageLedger = createRunPerRequestUsageLedger();
+        foldEventIntoPerRequestUsageLedger(run.perRequestUsageLedger, record);
         const data = record.data && typeof record.data === 'object' && !Array.isArray(record.data)
           ? record.data
           : null;
@@ -7925,12 +7995,13 @@ export async function startServer({
           };
         }
         if (status !== 'failed' && status !== 'canceled') return;
+        strategyWriteEvidence.finish(run);
         try {
           reconcileStrategyTaskRunTerminal(db, { runId: run.id, status });
           const latestTask = getStrategyTaskExecutionByRunId(db, run.id);
           if (latestTask) run.strategyTask = projectStrategyTask(latestTask, run.id);
         } catch (error) {
-          if (!(error instanceof InvalidFrozenSkillPackageError)) throw error;
+          if (!(error instanceof InvalidFrozenSkillPackageError) && !(error instanceof InvalidStrategyTaskRecordError)) throw error;
           // The Run is already failing closed for the corrupt task state. Do
           // not let terminal reconciliation throw and prevent persistence of
           // that failure, and never attempt any live Skill reconstruction.
@@ -7970,40 +8041,6 @@ export async function startServer({
     taskObservationRollout.diagnostic(),
   );
 
-  // Runs are process-local, but their terminal obligations are durable. On a
-  // fresh daemon boot, repair stale message rows and replay any PostHog or
-  // Langfuse terminal work whose checkpoint was not committed. Network work
-  // stays off the startup critical path.
-  void reconcileDurableRunTerminals({
-    analytics: analyticsService,
-    appVersion: currentAppVersion(),
-    appVersionInfo: currentAppVersionInfo(),
-    db,
-    reportLangfuse: reportRunCompletedFromDaemon,
-    finalizeTerminalLocally: createAmrTerminalReportFinalizer(amrTerminalReportOutbox),
-    taskObservationModeForRun: (runId) => taskObservationRollout.modeForRun(runId),
-    taskObservationRepresentationForRun: (runId) =>
-      taskObservationRollout.representationForRun(runId),
-    taskObservationNotExpectedReasonForRun: (runId) =>
-      taskObservationRollout.notExpectedReasonForRun(runId),
-    seedTaskObservationRunFact: (runId, fact) =>
-      taskObservationRollout.seedRepresentationFromRunFact(runId, fact),
-    beginTaskObservationForRun: (runId) => taskObservationRollout.beginFinalizeForRun(runId),
-    runsLogDir: path.join(RUNTIME_DATA_DIR, 'runs'),
-  }).then(async (reconciled) => {
-    if (reconciled.interrupted > 0 || reconciled.messagesReconciled > 0) {
-      console.warn('[runs] reconciled interrupted run terminals', reconciled);
-    }
-    const taskObservationsRecovered = await taskObservationRollout.reconcileCrashWindows();
-    if (taskObservationsRecovered > 0) {
-      console.warn('[telemetry] reconciled task observation crash windows', {
-        recovered: taskObservationsRecovered,
-      });
-    }
-  }).catch((error) => {
-    console.warn('[runs] terminal reconciliation failed', error);
-  });
-
   // Interactive Terminal sessions (node-pty). In-memory, process-local, and
   // killed on daemon shutdown — see shutdownDaemonRuns below.
   const terminalService = createTerminalService();
@@ -8039,7 +8076,11 @@ export async function startServer({
       if (reportedRuns.has(run.id)) return;
       if (run.assistantMessageId) {
         const messageTelemetry = getMessageTelemetryFinalizationState(db, run.assistantMessageId);
-        if (messageTelemetry.finalizedAt !== null) return;
+        // An empty canceled assistant can be marked finalized by the UI without
+        // ever claiming a Task delivery. For Task-owned Runs, let the durable gates in
+        // reportFinalizedMessage decide whether delivery is already owned.
+        if (messageTelemetry.finalizedAt !== null
+          && !getStrategyTaskExecutionByRunId(db, run.id)) return;
       }
       reportFinalizedMessage(
         {
@@ -8086,7 +8127,53 @@ export async function startServer({
       pinAssistantMessageOnRunCreate(db, run, options),
     analyticsLifecycle: runAnalyticsLifecycle,
   });
-  const reportFeedback = telemetry.reportFeedback;
+  // Runs are process-local, but their terminal obligations are durable. On a
+  // fresh daemon boot, repair stale message rows and replay any PostHog or
+  // Langfuse terminal work whose checkpoint was not committed. Network work
+  // stays off the startup critical path.
+  void reconcileDurableRunTerminals({
+    analytics: analyticsService,
+    appVersion: currentAppVersion(),
+    appVersionInfo: currentAppVersionInfo(),
+    db,
+    recoverBeforeInterrupt: (state, states, now) => recoverPlanningIntentResolution(db, state, states, now),
+    reportLangfuse: reportRunCompletedFromDaemon,
+    finalizeTerminalLocally: createAmrTerminalReportFinalizer(amrTerminalReportOutbox),
+    taskObservationModeForRun: (runId) => taskObservationRollout.modeForRun(runId),
+    taskObservationRepresentationForRun: (runId) =>
+      taskObservationRollout.representationForRun(runId),
+    taskObservationNotExpectedReasonForRun: (runId) =>
+      taskObservationRollout.notExpectedReasonForRun(runId),
+    seedTaskObservationRunFact: (runId, fact) =>
+      taskObservationRollout.seedRepresentationFromRunFact(runId, fact),
+    beginTaskObservationForRun: (runId) => taskObservationRollout.beginFinalizeForRun(runId),
+    runsLogDir: path.join(RUNTIME_DATA_DIR, 'runs'),
+  }).then(async (reconciled) => {
+    if (reconciled.interrupted > 0 || reconciled.messagesReconciled > 0) {
+      console.warn('[runs] reconciled interrupted run terminals', reconciled);
+    }
+    const taskObservationsRecovered = await taskObservationRollout.reconcileCrashWindows();
+    if (taskObservationsRecovered > 0) {
+      console.warn('[telemetry] reconciled task observation crash windows', {
+        recovered: taskObservationsRecovered,
+      });
+    }
+  }).catch((error) => {
+    console.warn('[runs] terminal reconciliation failed', error);
+  });
+
+  const reportFeedback = (req) => {
+    // Resolve Task ownership on the server, using the same representation as
+    // completed-run telemetry. The client does not choose a trace or sink.
+    const representation = taskObservationRollout.representationForRun(req.runId);
+    const task = (representation === 'task_accepted' || representation === 'task_pending')
+      ? getStrategyTaskExecutionByRunId(db, req.runId)
+      : null;
+    return telemetry.reportFeedback({
+      ...req,
+      ...(task ? { traceId: `strategy-task:${task.taskExecutionId}` } : {}),
+    });
+  };
 
   // DNS-aware wrapper. The sync `validateBaseUrl` only inspects the literal
   // hostname string, so a public DNS name pointing at an internal address
@@ -8650,9 +8737,15 @@ export async function startServer({
     dataDir: RUNTIME_DATA_DIR,
     sendApiError,
   });
+  const projectCreatePreparationTimeoutMs = projectCreatePreparationTimeoutMsFromEnv();
   registerProjectRoutes(app, {
     db,
     design,
+    // Test seam for the POST /api/projects preparation deadline; production
+    // keeps the route's 15s default when the variable is unset or invalid.
+    ...(projectCreatePreparationTimeoutMs != null
+      ? { projectCreatePreparationTimeoutMs }
+      : {}),
     http: httpDeps,
     paths: pathDeps,
     projectStore: projectStoreDeps,
@@ -9298,10 +9391,10 @@ export async function startServer({
       } else {
         source = typeof body.source === 'string' ? body.source : '';
         if (!source) return res.status(400).json({ error: 'source is required' });
-        const looksAbsolute = source.startsWith('/') || source.startsWith('./') || source.startsWith('~');
+        const looksLocal = isLocalPluginInstallSource(source);
         const looksGithub = source.startsWith('github:');
         const looksHttps = /^https:\/\//i.test(source);
-        if (!looksAbsolute && !looksGithub && !looksHttps) {
+        if (!looksLocal && !looksGithub && !looksHttps) {
           const { resolvePluginInMarketplaces } = await import('./plugins/marketplaces.js');
           let lookupName = source;
           const lockfile = await readPluginLockfile(PLUGIN_LOCKFILE_PATH);
@@ -9426,7 +9519,7 @@ export async function startServer({
       try { const project = getProject(db, req.params.id); if (!project) return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found'); const projectBinding = getWorkspaceProjectByProjectId(db, req.params.id); if (!projectBinding?.workspaceId || !projectBinding.createdByWorkspaceMemberId) return sendApiError(res, 409, 'WORKSPACE_PROJECT_UNBOUND', 'project must have an exact workspace owner before installing a plugin'); const installScope = { workspaceId: String(projectBinding.workspaceId), workspaceMemberId: String(projectBinding.createdByWorkspaceMemberId) }; const body = req.body && typeof req.body === 'object' ? req.body : {}; const relativePath = normalizeProjectPluginFolderPath(body.path); const projectRoot = resolveProjectDir(PROJECTS_DIR, req.params.id, project.metadata); const folder = await resolveProjectChildDirectory(projectRoot, relativePath); const warnings = []; const log = []; let plugin = null; let message = 'Install finished.'; for await (const ev of installPlugin(db, { source: folder, roots: PLUGIN_REGISTRY_ROOTS, allowReplacePlugin: (pluginId) => allowScopedPluginReplace(installScope, pluginId) })) { if (ev.message) log.push(ev.message); if (Array.isArray(ev.warnings)) warnings.splice(0, warnings.length, ...ev.warnings); if (ev.kind === 'success') { plugin = ev.plugin; ensureWorkspaceResource(db, 'plugin', installScope.workspaceId, ev.plugin.id, { visibility: 'personal', resourceState: 'active', createdByWorkspaceMemberId: installScope.workspaceMemberId, updatedByWorkspaceMemberId: installScope.workspaceMemberId }); message = `Installed ${ev.plugin.title}.`; break; } if (ev.kind === 'error') { message = ev.message; break; } } res.status(plugin ? 200 : 400).json({ ok: Boolean(plugin), plugin, warnings, message, log }); } catch (err) { const code = err && err.code; const status = code === 'ENOENT' || code === 'ENOTDIR' ? 404 : 400; sendApiError(res, status, status === 404 ? 'PLUGIN_FOLDER_NOT_FOUND' : 'BAD_REQUEST', String(err?.message || err)); }
     },
     handleProjectPluginCli: async (req, res, action) => {
-      try { const project = getProject(db, req.params.id); if (!project) return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found'); const body = req.body && typeof req.body === 'object' ? req.body : {}; const relativePath = normalizeProjectPluginFolderPath(body.path); const projectRoot = resolveProjectDir(PROJECTS_DIR, req.params.id, project.metadata); const folder = await resolveProjectChildDirectory(projectRoot, relativePath); const subcommand = action === 'publish-github' ? 'publish-repo' : 'open-design-pr'; const timeout = action === 'publish-github' ? 240_000 : 300_000; const result = await execCommandViaLoginShell(OD_NODE_BIN, [OD_BIN, 'plugin', subcommand, folder, '--json'], { timeout }); const payload = result.stdout ? JSON.parse(result.stdout) : null; if (!result.ok || !payload?.ok) return res.status(500).json({ ok: false, code: payload?.error?.label || (action === 'publish-github' ? 'publish-repo-failed' : 'open-design-pr-failed'), message: payload?.error?.stderr || payload?.error?.stdout || (action === 'publish-github' ? 'GitHub repo publish failed.' : 'OpenDesign PR creation failed.'), log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [result.stderr || result.stdout || `${subcommand} failed`] }); res.json({ ok: true, message: action === 'publish-github' ? (payload.repoUrl ? `Published plugin to ${payload.repoUrl}.` : 'Published plugin to GitHub.') : (payload.prUrl ? `Opened OpenDesign PR flow at ${payload.prUrl}.` : 'Opened OpenDesign PR flow.'), ...(payload.repoUrl ? { url: payload.repoUrl } : {}), ...(payload.prUrl ? { url: payload.prUrl } : {}), log: payload.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [] }); } catch (err) { res.status(400).json({ ok: false, message: String(err?.message || err), log: [] }); }
+      try { const project = getProject(db, req.params.id); if (!project) return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found'); const body = req.body && typeof req.body === 'object' ? req.body : {}; const relativePath = normalizeProjectPluginFolderPath(body.path); const projectRoot = resolveProjectDir(PROJECTS_DIR, req.params.id, project.metadata); const folder = await resolveProjectChildDirectory(projectRoot, relativePath); const subcommand = action === 'publish-github' ? 'publish-repo' : 'open-design-pr'; const timeout = action === 'publish-github' ? 240_000 : 300_000; const result = await execCommandViaLoginShell(OD_NODE_BIN, [OD_BIN, 'plugin', subcommand, folder, '--json'], { timeout }); const payload = result.stdout ? JSON.parse(result.stdout) : null; if (!result.ok || !payload?.ok) return res.status(500).json({ ok: false, code: payload?.error?.label || (action === 'publish-github' ? 'publish-repo-failed' : 'open-design-pr-failed'), message: payload?.error?.stderr || payload?.error?.stdout || (action === 'publish-github' ? 'GitHub repo publish failed.' : 'ACP Design PR creation failed.'), log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [result.stderr || result.stdout || `${subcommand} failed`] }); res.json({ ok: true, message: action === 'publish-github' ? (payload.repoUrl ? `Published plugin to ${payload.repoUrl}.` : 'Published plugin to GitHub.') : (payload.prUrl ? `Opened ACP Design PR flow at ${payload.prUrl}.` : 'Opened ACP Design PR flow.'), ...(payload.repoUrl ? { url: payload.repoUrl } : {}), ...(payload.prUrl ? { url: payload.prUrl } : {}), log: payload.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [] }); } catch (err) { res.status(400).json({ ok: false, message: String(err?.message || err), log: [] }); }
     },
     handleCandidateDraft: async (req, res) => {
       if (!isLocalSameOrigin(req, resolvedPort)) return res.status(403).json({ error: 'cross-origin request rejected' });
@@ -10891,15 +10984,15 @@ export async function startServer({
       );
     }
     const persistedStrategyFinalText = strategyRunMapping?.finalText.text ?? null;
-    const isOdNextRequestStage = strategyRunMapping?.inputStage === 'request';
+    const isOdNextInitialRun = Boolean(strategyTaskAtStart && isInitialStrategyTaskRun(strategyTaskAtStart, run.id));
+    const isIntentResolution = Boolean(strategyTaskAtStart && isStrategyIntentResolutionRun(strategyTaskAtStart, run.id));
     const hasExplicitCurrentPrompt = Object.prototype.hasOwnProperty.call(
       chatBody,
       'currentPrompt',
     );
     const strategyProtocol = strategyTaskAtStart
-      ? new OdNextMachineProtocolStream()
+      ? createOdNextRunProtocol(strategyRunMapping)
       : null;
-    let strategyVisibleEmitted = '';
     let strategyProtocolResult = null;
     let strategyToolUseCount = 0;
     let pendingStrategyContinuation = null;
@@ -11171,7 +11264,7 @@ export async function startServer({
           error instanceof Error ? error.message : String(error),
         );
       }
-    } else if (isOdNextRequestStage) {
+    } else if (isOdNextInitialRun) {
       return failRun(
         'OD_NEXT_INPUT_SNAPSHOT_INVALID',
         'OD Next request Run is missing its immutable task input snapshot.',
@@ -11599,6 +11692,8 @@ export async function startServer({
         designSystemCreated: runDesignSystemCreatedForRun(run),
         previewModuleCount: runPreviewModuleCountForRun(run),
         filesWritten: runFilesWrittenForRun(run),
+        filesWrittenSource: 'tool_stream' as const,
+        filesWrittenUnknown: true,
       });
       let outcome;
       if (!artifactBaseline || artifactBaseline.contended) {
@@ -11616,6 +11711,8 @@ export async function startServer({
             designSystemCreated: diff.designSystemCreated,
             previewModuleCount: diff.previewModuleCount,
             filesWritten: diff.filesWritten,
+            filesWrittenSource: 'filesystem' as const,
+            filesWrittenUnknown: diff.filesWrittenUnknown === true,
             projectRoot: artifactBaseline.cwd,
             diff,
           };
@@ -11634,6 +11731,7 @@ export async function startServer({
       }
       run.artifactCount = outcome.artifactCount;
       run.artifactOutcome = outcome;
+      strategyWriteEvidence.finish(run);
       return outcome;
     };
     const resolveRunArtifactOutcomeBeforeFinishAsync = async () => {
@@ -11835,7 +11933,7 @@ export async function startServer({
     ];
     const researchCommandContract = resolveResearchCommandContract(
       research,
-      isOdNextRequestStage
+      isOdNextInitialRun
         ? resolveOdNextRequestUserPrompt({
             message,
             currentPrompt,
@@ -11975,7 +12073,7 @@ export async function startServer({
     // directly. Public chat requests cannot reach this branch.
     const forceInternalResume =
       pendingNativeSessionContinue != null &&
-      runtimeResumesSessionById(def) &&
+      (runtimeResumesSessionById(def) || (def.id === 'amr' && !!pendingNativeSessionContinue.amrContinuation)) &&
       pendingNativeSessionContinue.sessionId.length > 0;
     if (
       def.id === 'grok-build' &&
@@ -12116,7 +12214,7 @@ export async function startServer({
       : resolvedAgentResumeCtx;
     if (
       strategyTaskAtStart
-      && strategyTaskAtStart.inputStage !== 'request'
+      && !isOdNextInitialRun
       && !agentResumeCtx.isResuming
     ) {
       const blocked = blockAutomaticContinuation(db, { runId: run.id });
@@ -12200,7 +12298,7 @@ export async function startServer({
             resumeContinuationSeed.anchorAssistantMessageId,
           )
         : null;
-    const userRequestPrompt = isOdNextRequestStage
+    const userRequestPrompt = isOdNextInitialRun
       ? resolveOdNextRequestUserPrompt({
           message,
           currentPrompt,
@@ -12373,15 +12471,15 @@ export async function startServer({
         : formIdForOverride !== null
           ? FORM_ANSWERED_GENERIC_OVERRIDE
           : '';
-    const agentFormOverride = isOdNextRequestStage && formIdForOverride
+    const agentFormOverride = isOdNextInitialRun && formIdForOverride
       ? formIdForOverride === 'discovery' || formIdForOverride === 'task-type'
         ? `The <user_first_prompt> contains submitted answers for the ${formIdForOverride} form. Apply them to the active OD Next plan. Do not re-emit that answered form or repeat fields it already answered.`
         : `The <user_first_prompt> contains submitted answers for the ${formIdForOverride} form. Treat them as the active user turn and do not replay the answered form.`
       : formOverride;
-    const agentEchoGuard = isOdNextRequestStage
+    const agentEchoGuard = isOdNextInitialRun
       ? OD_NEXT_BUNDLE_ECHO_GUARD_V2
       : ECHO_GUARD;
-    const includeStableForPayload = isOdNextRequestStage || includeStableInstructions;
+    const includeStableForPayload = isOdNextInitialRun || includeStableInstructions;
     const promptImagePaths = selectPromptImagePaths(
       def.id,
       transportSourceImages,
@@ -12393,10 +12491,10 @@ export async function startServer({
           odNextTaskInputSnapshot.attachmentPaths,
         )
       : promptImagePaths;
-    const taskConfigPendingFact = isOdNextRequestStage
+    const taskConfigPendingFact = isOdNextInitialRun
       ? odNextTaskInputSnapshot?.taskConfigText ?? ''
       : '';
-    const requestInputPendingFact = isOdNextRequestStage
+    const requestInputPendingFact = isOdNextInitialRun
       ? [
           strategyTaskAtStart?.frozenSkillPackage
             ? renderFrozenSkillRosterContext(strategyTaskAtStart.frozenSkillPackage)
@@ -12535,6 +12633,7 @@ export async function startServer({
             finalText: composed,
             persisted: strategyRunMapping.finalText,
             stage: strategyRunMapping.inputStage,
+            ...(strategyRunMapping.purpose ? { purpose: strategyRunMapping.purpose } : {}),
           })
         : promptTelemetry;
     } catch (error) {
@@ -12657,7 +12756,6 @@ export async function startServer({
       ) {
         const delta = strategyProtocol.push(data.delta);
         if (!delta) return;
-        strategyVisibleEmitted += delta;
         data = { ...data, delta };
       } else if (
         strategyProtocol
@@ -12666,7 +12764,6 @@ export async function startServer({
       ) {
         const chunk = strategyProtocol.push(data.chunk);
         if (!chunk) return;
-        strategyVisibleEmitted += chunk;
         data = { ...data, chunk };
       }
       recordRunTelemetry(`stream event ${event}`, () => {
@@ -13112,6 +13209,32 @@ export async function startServer({
       { allowRetry = true } = {},
     ) => {
       lifecycle.mark('finalize_start');
+      // A clean child exit does not complete a production task rejected by the
+      // strategy gate: the user asked for a deliverable and none was written.
+      // Reconcile before persisting the message or publishing the Run terminal
+      // event, while retaining the actual process exit code.
+      //
+      // A task refused before production is a different turn. The agent read
+      // the request, decided not to plan a build for it — a greeting, an
+      // off-topic question, a request it could not act on — and answered in
+      // prose. That reply is the turn's outcome and the Run finished the way
+      // the process did; the task record still carries the blocked verdict and
+      // its reason codes for everything that reads them.
+      if (
+        status === 'succeeded'
+        && run.strategyTask?.outcome === 'blocked'
+        && run.strategyTask.inputStage === 'production'
+        && run.strategyTask.activeRunId === run.id
+      ) {
+        status = 'failed';
+        allowRetry = false;
+        const reasonCodes = run.strategyTask.blockedContext?.reasonCodes ?? [];
+        send('error', createSseErrorPayload(
+          'OD_NEXT_TASK_BLOCKED',
+          `The task could not complete${reasonCodes.length ? `: ${reasonCodes.join(', ')}` : '.'}`,
+          { retryable: false, details: { reasonCodes } },
+        ));
+      }
       flushRunMessageEvents(run);
       // Persist the transport-level close mechanism before classifying this
       // attempt. Runtime fatal/stream signals are only known in the close
@@ -13172,7 +13295,10 @@ export async function startServer({
         ...runSideEffectsForRun(run),
         cancelRequested: !!run.cancelRequested,
       };
-      const liveSessionId = agentResumeCtx.isResuming
+      const amrContinuationRecovery = def.id === 'amr' ? acpSession?.getContinuationRecovery?.() : null;
+      const liveSessionId = def.resumesSessionViaAcpLoad === true
+        ? acpSession?.getDurableSessionId?.() ?? null
+        : agentResumeCtx.isResuming
         ? agentResumeCtx.resumeSessionId
         : agentCapturesSessionId
           ? capturedSessionId
@@ -13184,11 +13310,12 @@ export async function startServer({
           run.nativeSessionContinueAttemptCount ?? 0,
         totalRetryAttemptCount: run.retryAttemptCount ?? 0,
         sideEffects,
-        supportsNativeSessionContinue: runtimeResumesSessionById(def),
+        supportsNativeSessionContinue: runtimeResumesSessionById(def) || !!amrContinuationRecovery,
+        hasVerifiedAmrContinuation: !!amrContinuationRecovery && amrContinuationRecovery.sessionId === liveSessionId,
         hasNativeSession: !!run.conversationId && !!liveSessionId,
       });
       if (
-        allowRetry &&
+        allowRetry && !isIntentResolution &&
         postToolResumeDecision?.shouldRetry &&
         !design.runs.isTerminal(run.status) &&
         run.conversationId &&
@@ -13228,6 +13355,7 @@ export async function startServer({
           retry_delay_ms: postToolResumeDecision.retryDelayMs,
         });
         run.nativeSessionContinuePending = {
+          amrContinuation: amrContinuationRecovery?.cursor ?? null,
           sessionId: liveSessionId,
           stablePromptHash: currentStableHash,
           stablePromptSections: currentStableSections,
@@ -13247,7 +13375,7 @@ export async function startServer({
         attemptCount: run.retryAttemptCount ?? 0,
         sideEffects,
       });
-      if (allowRetry && decision.shouldRetry && !design.runs.isTerminal(run.status)) {
+      if (allowRetry && !isIntentResolution && decision.shouldRetry && !design.runs.isTerminal(run.status)) {
         run.retryOriginalFailure ??= failure ?? undefined;
         if ((run.retryAttemptCount ?? 0) === 0) {
           run.retryOriginFailure = failure ? { ...failure } : null;
@@ -13296,7 +13424,7 @@ export async function startServer({
         sideEffects.liveArtifactSeen
       );
       const resumableFailure =
-        result === 'failed' &&
+        !isIntentResolution && result === 'failed' &&
         runtimeResumesSessionById(def) &&
         !!run.conversationId &&
         !!liveSessionId &&
@@ -14506,7 +14634,13 @@ export async function startServer({
     let child;
     let acpSession = null;
     let writePromptToChildStdin = false;
+    let promptDeliveredAtSpawn = false;
     let spawnedAgentEnv = null;
+    let codexCleanupInvocation: CodexCleanupInvocation | null = null;
+    let completeCodexEvidenceCollection = () => {};
+    const codexEvidenceCollected = def.id === 'codex'
+      ? new Promise<void>((resolve) => { completeCodexEvidenceCollection = resolve; })
+      : undefined;
     // The stream handler is block-scoped to its parser branch, but the OpenCode
     // post-run child export runs in the shared close handler below — after the
     // stream that produced the candidates is gone.
@@ -14616,33 +14750,74 @@ export async function startServer({
           ? { OD_TASK_INPUT_DIR: odNextTaskInputSnapshot.projectionDir }
           : {}),
       }, agentLaunch);
+      if (def.id === 'opencode' || def.id === 'byok-opencode') {
+        try {
+          const versions = await ensureDetectedRuntimeVersions('opencode', configuredAgentEnv);
+          if (!versions?.agentCliVersion) {
+            console.info('[opencode] optional tool previews disabled: CLI version unavailable; later launches retry detection after the short cache expires');
+          }
+          await applyOpenCodeEventPlugin(env, RUNTIME_DATA_DIR, versions?.agentCliVersion, agentSpawnEnv.OPENCODE_CONFIG_CONTENT);
+        } catch (error) {
+          console.warn('[opencode] optional tool previews unavailable:', error instanceof Error ? error.message : String(error));
+        }
+      }
+      // Version detection and plugin staging above can yield while a cancel
+      // request arrives. Never spawn a child after that cancellation.
+      if (run.cancelRequested || design.runs.isTerminal(run.status)) {
+        cleanupPromptFile();
+        revokeToolToken('child_exit');
+        unregisterChatAgentEventSink();
+        cleanupOdNextRunInputProjection();
+        return;
+      }
       spawnedAgentEnv = env;
       const invocation = createCommandInvocation({
         command: agentLaunch.launchPath,
         args,
         env,
       });
+      if (def.streamFormat === CODEX_APP_SERVER_STREAM_FORMAT) {
+        codexCleanupInvocation = {
+          command: invocation.command, args: [...invocation.args], env: { ...env }, cwd: effectiveCwd,
+          ...(invocation.windowsVerbatimArguments !== undefined
+            ? { windowsVerbatimArguments: invocation.windowsVerbatimArguments } : {}),
+        };
+      }
       lifecycle.mark('launch_preflight_end');
       lifecycle.mark('process_spawn_start');
-      child = spawn(invocation.command, invocation.args, {
+      if (isIntentResolution) {
+        if (run.cancelRequested || design.runs.isTerminal(run.status)) {
+          cleanupPromptFile();
+          revokeToolToken('child_exit');
+          unregisterChatAgentEventSink();
+          cleanupOdNextRunInputProjection();
+          return;
+        }
+        startIntentResolution(db, strategyTaskAtStart.taskExecutionId, run.id);
+      }
+      // A plain-text stdin prompt is handed over as a complete file at spawn;
+      // framed stdin protocols (stream-json, JSON-RPC) keep the pipe. The
+      // agent stays on record until its process group is gone, so a daemon
+      // started after this one dies can reap it. See runtimes/agent-process.ts.
+      const spawnedAgent = spawnAgentProcess({
+        command: invocation.command,
+        args: invocation.args,
         env,
-        stdio: [stdinMode, 'pipe', 'pipe'],
         cwd: effectiveCwd,
-        shell: false,
-        detached: process.platform !== 'win32',
-        // Required when invocation wraps a Windows .cmd/.bat shim through
-        // cmd.exe; without this, Node re-escapes the inner command line and
-        // breaks paths containing spaces (issue #315).
         windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+        stdin: stdinMode === 'pipe' && runtimeReadsPlainTextPromptFromStdin(def)
+          ? { prompt: composed }
+          : stdinMode,
+        runDir: path.join(RUNTIME_DATA_DIR, 'runs', run.id),
+        runId: run.id,
       });
+      child = spawnedAgent.child;
+      promptDeliveredAtSpawn = spawnedAgent.promptDeliveredAtSpawn;
       lifecycle.mark('process_spawned');
       run.child = child;
       liveHtmlCanvasChild = child;
       run.childPid = typeof child.pid === 'number' ? child.pid : null;
-      run.processGroupId =
-        process.platform !== 'win32' && typeof child.pid === 'number'
-          ? child.pid
-          : null;
+      run.processGroupId = spawnedAgent.processGroupId;
       // Schedule release of the antigravity model lock once agy's
       // --log-file confirms the chosen model was propagated to the
       // backend (the upstream signal that settings.json was read).
@@ -14721,8 +14896,9 @@ export async function startServer({
         });
         // The app-server transport owns its own stdin writes (JSON-RPC
         // frames); only the plain stdin-prompt adapters hand the composed
-        // prompt over on this channel.
-        writePromptToChildStdin = def.promptViaStdin === true;
+        // prompt over on this channel — and a prompt already delivered as the
+        // child's file-backed stdin at spawn must never be written twice.
+        writePromptToChildStdin = def.promptViaStdin === true && !promptDeliveredAtSpawn;
       }
     } catch (err) {
       cleanupPromptFile();
@@ -15882,6 +16058,7 @@ export async function startServer({
         ...(def.resumesSessionViaAcpLoad === true && agentResumePromptPolicy.resumeSessionId
           ? { resumeSessionId: agentResumePromptPolicy.resumeSessionId }
           : {}),
+        nativeContinuation: forceInternalResume ? pendingNativeSessionContinue?.amrContinuation : null,
         onCliReady: () => noteCliReadyAt(),
         onSessionInit: () => noteSessionInitDoneAt(),
         onPromptComplete: () => clearFirstOutputWatchdog(),
@@ -15934,7 +16111,7 @@ export async function startServer({
               errorCode: data?.error?.code,
               stdoutTail: agentStdoutTail,
               stderrTail: agentStderrTail,
-            });
+            }, configuredAgentEnv);
             if (failure) {
               sendAmrAccountFailure(failure);
               return;
@@ -16087,7 +16264,7 @@ export async function startServer({
       // always did. The transport's own additions are token-level text and
       // reasoning deltas.
       trackingSubstantiveOutput = true;
-      acpSession = attachCodexAppServerSession({
+      const codexSession = attachCodexAppServerSession({
         child,
         prompt: composed,
         cwd: effectiveCwd,
@@ -16095,6 +16272,10 @@ export async function startServer({
         reasoning: safeReasoning,
         serviceTier: safeServiceTier,
         sandboxMode: codexResolvedSandboxMode(),
+        manageThreadVisibility: true,
+        // This handle came from our captured agent_sessions record (or a
+        // same-run daemon continuation), never from the public chat payload.
+        resumeSessionOwned: agentResumeCtx.isResuming,
         imagePaths: def.supportsImagePaths ? amrStagedImages : [],
         clientVersion: design.getAppVersion?.() ?? '0.0.0',
         // Capture-style resume, same contract as `exec resume <thread_id>`:
@@ -16117,6 +16298,18 @@ export async function startServer({
         onPromptSendEnd: () => lifecycle.mark('stdin_write_end'),
         onTurnComplete: () => clearFirstOutputWatchdog(),
       });
+      acpSession = codexSession;
+      if (codexCleanupInvocation) {
+        const cleanupRunId = run.id;
+        // Attach installs the session's physical-close proof first. This
+        // listener is independent of the later retry-generation close guard.
+        codexThreadCleanupOwner.bind(child, codexSession, codexCleanupInvocation, (result) => {
+          const details = { runId: cleanupRunId, ...result };
+          if (result.status === 'archived' && result.treeVerified !== false) {
+            console.info('[codex] closed-thread cleanup completed', details);
+          } else console.warn('[codex] closed-thread cleanup incomplete', details);
+        }, codexEvidenceCollected);
+      }
     } else if (def.streamFormat === 'json-event-stream') {
       // Pipe through sendAgentEvent so the OpenCode `type:'error'` frame
       // (now emitted as a real error event by json-event-stream.ts after
@@ -16345,6 +16538,7 @@ export async function startServer({
           }
         }
       }
+      completeCodexEvidenceCollection();
       // Native OpenCode filters child-session events out of the root JSON
       // stream, so the live stream can only produce a terminal-only L1
       // candidate — which fails the evidence graph on `child_started_missing`
@@ -16388,6 +16582,7 @@ export async function startServer({
       // re-seed the full transcript: one cold turn, never a broken conversation.
       if (
         !run.cancelRequested &&
+        !forceInternalResume &&
         (runtimeResumesSessionById(def) || def.resumesSessionViaAcpLoad === true) &&
         run.conversationId &&
         resolveAgentResumeFailurePolicy({
@@ -16398,7 +16593,7 @@ export async function startServer({
           resumeSessionId: agentResumePromptPolicy.resumeSessionId,
         }).autoReseedFullTranscript
       ) {
-        if (strategyTaskAtStart && strategyTaskAtStart.inputStage !== 'request') {
+        if (strategyTaskAtStart && !isOdNextInitialRun) {
           const blocked = blockAutomaticContinuation(db, { runId: run.id });
           if (blocked) run.strategyTask = projectStrategyTask(blocked, run.id);
           send('error', createSseErrorPayload(
@@ -16467,7 +16662,7 @@ export async function startServer({
           const amrFailure = classifyAmrAccountFailureSignal({
             stdoutTail: agentStdoutTail,
             stderrTail: agentStderrTail,
-          });
+          }, configuredAgentEnv);
           if (amrFailure) {
             sendAmrAccountFailure(amrFailure);
             return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
@@ -16950,8 +17145,9 @@ export async function startServer({
       }
       if (status === 'succeeded') {
         if (strategyProtocol && !strategyProtocolResult) {
-          strategyProtocolResult = strategyProtocol.finish();
-          const tail = strategyProtocolResult.visibleText.slice(strategyVisibleEmitted.length);
+          const finishedProtocol = strategyProtocol.finish();
+          strategyProtocolResult = finishedProtocol.parsed;
+          const tail = finishedProtocol.visibleTail;
           if (tail) {
             const tailEvent = def.streamFormat === 'plain' ? 'stdout' : 'agent';
             const tailData = tailEvent === 'stdout'
@@ -16974,7 +17170,6 @@ export async function startServer({
             });
             persistRunEventToAssistantMessage(db, run, tailEvent, tailData);
             design.runs.emit(run, tailEvent, tailData);
-            strategyVisibleEmitted += tail;
             // The frozen Harness prompt currently does not receive the nonce,
             // so its authoritative completion signal remains the verified
             // strategy verdict. Still fold a marker if a future frozen bundle
@@ -17013,8 +17208,11 @@ export async function startServer({
             )
           ),
         );
+        const strategyPlanningOnly = isIntentResolution || strategyTaskAtStart?.executionIntent === 'plan_only'
+          || strategyProtocolResult?.runtimeState?.executionIntent === 'plan_only';
         const strategyCompletionCandidate = Boolean(
           strategyTaskAtStart
+          && !strategyPlanningOnly
           && (
             strategyProtocolResult?.runtimeState?.outcome === 'completed'
             || mayInferDirectEditCompletion
@@ -17209,27 +17407,42 @@ export async function startServer({
         }
         if (strategyTaskAtStart && strategyProtocolResult) {
           let automaticContinuationChatBody = null;
-          const plan = strategyProtocolResult.planContract
-            ?? strategyProtocolResult.repairPlanContract;
           let executionPreflight;
           let complexRuntimeEvidence;
           try {
-            const lockedPlan = plan ?? strategyTaskAtStart.planContract;
-            const evidence = await resolveAutomaticContinuationEvidence({
-              plan: lockedPlan,
-              phase: strategyProtocolResult.runtimeState?.outcome === 'completed'
-                ? 'completion'
-                : 'eligibility',
-              task: strategyTaskAtStart,
-              run,
-              localSyntheticCanary: readOdNextRolloutPolicy().localSyntheticCanary
-                && process.env.NODE_ENV !== 'production',
-              executionPreflightResolver: odNextExecutionPreflightResolver,
-              complexProductionResolver: odNextComplexProductionResolver,
-              runtimeCapabilitySnapshot: chatBody.runtimeCapabilitySnapshot,
-            });
-            executionPreflight = evidence.executionPreflight;
-            complexRuntimeEvidence = evidence.complexRuntimeEvidence;
+            let resolution: ReturnType<typeof validateStrategyIntentResolutionReply> | null = null;
+            if (isIntentResolution) {
+              try {
+                resolution = validateStrategyIntentResolutionReply(strategyTaskAtStart, {
+                  runId: run.id, parsed: strategyProtocolResult, toolUseCount: strategyToolUseCount,
+                  completionEvidence: { physicalStatus: 'succeeded', deliverableValid, ...strategyRunWriteEvidence(run) },
+                });
+              } catch {
+                // The coordinator below persists and rejects the actual reply.
+                // Invalid supplemental output must never prepare production facts.
+              }
+            }
+            const effectiveParsed = resolution?.parsed ?? strategyProtocolResult;
+            const planningOnly = resolution ? resolution.executionIntent === 'plan_only' : strategyPlanningOnly;
+            const intentPending = requiresStrategyIntentResolution(strategyTaskAtStart, effectiveParsed);
+            if (!planningOnly && !intentPending) {
+              const lockedPlan = effectiveParsed.planContract ?? effectiveParsed.repairPlanContract ?? strategyTaskAtStart.planContract;
+              const evidence = await resolveAutomaticContinuationEvidence({
+                plan: lockedPlan,
+                phase: effectiveParsed.runtimeState?.outcome === 'completed'
+                  ? 'completion'
+                  : 'eligibility',
+                task: strategyTaskAtStart,
+                run,
+                localSyntheticCanary: readOdNextRolloutPolicy().localSyntheticCanary
+                  && process.env.NODE_ENV !== 'production',
+                executionPreflightResolver: odNextExecutionPreflightResolver,
+                complexProductionResolver: odNextComplexProductionResolver,
+                runtimeCapabilitySnapshot: chatBody.runtimeCapabilitySnapshot,
+              });
+              executionPreflight = evidence.executionPreflight;
+              complexRuntimeEvidence = evidence.complexRuntimeEvidence;
+            }
           } catch (error) {
             if (run.cancelRequested || design.runs.isTerminal(run.status)) return;
             send('error', createSseErrorPayload(
@@ -17260,12 +17473,15 @@ export async function startServer({
               ...(executionPreflight ? { executionPreflight } : {}),
               ...(complexRuntimeEvidence ? { complexRuntimeEvidence } : {}),
               ...(
-                strategyProtocolResult.runtimeState?.outcome === 'completed'
+                strategyTaskAtStart.intentResolution
+                || strategyProtocolResult.runtimeState?.outcome === 'completed'
+                || strategyPlanningOnly
                 || mayInferDirectEditCompletion
                   ? {
                       completionEvidence: {
                         physicalStatus: 'succeeded',
                         deliverableValid,
+                        ...strategyRunWriteEvidence(run),
                       },
                     }
                   : {}),
@@ -17411,6 +17627,9 @@ export async function startServer({
       }
       finishWithRetryDecision(status, code, signal);
       } finally {
+        // Superseded attempts and early/error exits also release their own
+        // receipt. The cleanup owner separately fences the shutdown deadline.
+        completeCodexEvidenceCollection();
         // Best-effort cleanup of the per-run agy log file on every close
         // path — successful, failed, cancelled, or non-zero exit — so
         // /tmp doesn't accumulate one file per Antigravity run. The log
@@ -17435,7 +17654,12 @@ export async function startServer({
         }
       }
     });
-    if (writePromptToChildStdin && child.stdin) {
+    if (promptDeliveredAtSpawn) {
+      // The complete plain-text prompt became the child's stdin at spawn
+      // (runtimes/agent-process.ts), so there is nothing left to write. A
+      // spawn that failed (no PID) never received it.
+      if (typeof child.pid === 'number') recordPromptDeliveredAtSpawn(run, lifecycle);
+    } else if (writePromptToChildStdin && child.stdin) {
       const promptInputFormat = def.promptInputFormat ?? 'text';
       lifecycle.mark('model_call_start');
       lifecycle.mark('stdin_write_start');
@@ -17443,6 +17667,10 @@ export async function startServer({
         if (err) return;
         lifecycle.mark('stdin_write_end');
       };
+      // Plain-text prompts never get here: they are delivered at spawn.
+      // stream-json is the one prompt still pumped through a live pipe; a
+      // frame cut short by a dying daemon does not parse, so the child can
+      // never act on a partial prompt.
       if (promptInputFormat === 'stream-json') {
         // Wrap the prompt as an Anthropic user message and write it as one
         // JSONL line. Do NOT close stdin: claude-code keeps reading further
@@ -17468,10 +17696,6 @@ export async function startServer({
           if (err && err.code !== 'EPIPE') throw err;
         }
         run.stdinOpen = true;
-      } else {
-        // Split write + close so the boolean backpressure signal survives —
-        // see writePromptAndEndStdin for why `end(chunk)` cannot report it.
-        run.stdinBackpressure = writePromptAndEndStdin(child.stdin, composed, markStdinWriteEnd);
       }
     }
   };
@@ -17593,7 +17817,7 @@ export async function startServer({
       systemPrompt: [
         renderOrbitTemplateSystemPrompt(template),
         systemPrompt,
-        'You are Orbit, an autonomous activity-summary agent inside OpenDesign.',
+        'You are Orbit, an autonomous activity-summary agent inside ACP Design.',
         'You must discover connectors and connector tools yourself through the OD CLI; the daemon has not chosen tools for you.',
         'You must create and register a Live Artifact as the final deliverable. Do not merely describe what you would do.',
         'Do not ask follow-up questions, do not emit <question-form>, and do not wait for user input. This run is unattended; pick reasonable defaults and complete the artifact.',
@@ -18242,7 +18466,14 @@ export async function startServer({
       for (const timer of terminalTelemetryFallbackTimers) clearTimeout(timer);
       terminalTelemetryFallbackTimers.clear();
     };
+    // One-time heal of run events stored before the payload budget existed
+    // (storage/message-event-payload-heal.ts). Started once the daemon is
+    // listening, never on a request path; stopped with the other background
+    // work below.
+    let messageEventPayloadHeal: MessageEventPayloadHealHandle | null = null;
     const cleanupDaemonBackgroundWork = () => {
+      void messageEventPayloadHeal?.stop();
+      stopEvidenceDelivery();
       clearTerminalTelemetryFallbackTimers();
       amrTerminalReportDelivery.stop();
       telemetry.disposeFatalHandlers();
@@ -18268,7 +18499,14 @@ export async function startServer({
       daemonShuttingDown = true;
       amrTerminalReportDelivery.stop();
       clearTerminalTelemetryFallbackTimers();
-      await design.runs.shutdownActive({ graceMs: resolveChatRunShutdownGraceMs() });
+      const shutdownGraceMs = resolveChatRunShutdownGraceMs();
+      await design.runs.shutdownActive({ graceMs: shutdownGraceMs });
+      // Cleanup runs independently of user terminal classification. Give
+      // confirmed closed writers at most three additional seconds at shutdown.
+      const cleanupDrain = await codexThreadCleanupOwner.drain(shutdownGraceMs);
+      if (cleanupDrain.pending > 0) {
+        console.warn('[codex] closed-thread cleanup shutdown deadline reached', cleanupDrain);
+      }
       await terminalService.shutdownActive();
       await browserSessionService.shutdownActive();
       await design.analytics.shutdown();
@@ -18318,6 +18556,7 @@ export async function startServer({
         }
         resolvedPort = boundPort;
         startAmrTerminalReportDeliveryAfterBind(amrTerminalReportDelivery, boundPort);
+        messageEventPayloadHeal ??= startMessageEventPayloadHeal({ db });
         // When binding to all interfaces report localhost for local callers;
         // when binding to a specific address (e.g. a Tailscale IP) report that
         // address so remote callers and the sidecar use the correct URL.

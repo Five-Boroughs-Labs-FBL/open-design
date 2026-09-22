@@ -27,14 +27,14 @@ test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
   });
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
   // Cloud stays primary while identity-independent Local Agent and BYOK setup
   // remain available directly from the signed-out landing.
   await expect(
-    page.getByRole('heading', { name: /Sign in to OpenDesign|登录 OpenDesign/i }),
+    page.getByRole('heading', { name: /Sign in to ACP Design|登录 ACP Design/i }),
   ).toBeVisible({ timeout: T.medium });
   await expect(
-    page.getByRole('button', { name: /Sign in to OpenDesign|登录 OpenDesign/i }),
+    page.getByRole('button', { name: /Sign in to ACP Design|登录 ACP Design/i }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Local (coding )?agent|本地 (Coding )?Agent/i }),
@@ -65,7 +65,7 @@ test('[P2] captures the onboarding Local Agent CLI list surface', async ({ page 
   await mockSignedInVelaAccount(page);
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ACP Design…').waitFor({ state: 'hidden', timeout: T.long });
 
   await page
     .getByRole('button', { name: /Continue \(signed in\)|继续（已登录）/i })
@@ -300,7 +300,8 @@ test('[P2] captures the home plugin use staged surface', async ({ page }) => {
   const usePlugin = page.getByTestId('plugin-detail-use');
   await expect(usePlugin).toBeVisible();
   await usePlugin.click();
-  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototype Starter');
+  // The lead chip cuts the title to eight code points (#7635).
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Prototyp…');
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
 
   await captureVisual(page, 'visual-home-plugin-use-staged');
@@ -314,7 +315,7 @@ test('[P2] captures the home plugin use with query surface', async ({ page }) =>
   const card = pluginMarketplaceCard(plugins, 'Deck Writer');
   await expect(card).toBeVisible();
   await card.getByRole('button', { name: 'Try it' }).click();
-  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Deck Writer');
+  await expect(page.getByTestId('home-hero-active-plugin')).toContainText('Deck Wri…');
   await expect(page.getByTestId('home-hero-input')).toBeVisible();
 
   await captureVisual(page, 'visual-home-plugin-use-with-query');
