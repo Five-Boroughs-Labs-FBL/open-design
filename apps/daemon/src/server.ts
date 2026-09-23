@@ -14572,7 +14572,7 @@ export async function startServer({
     // AMC-supplied credential wins over the daemon host environment for the
     // same reason configuredEnv does: it is the explicit instruction for this
     // run, and an ambient key here would bill the wrong account.
-    const agentSpawnEnv = applyAmcCredential(agentSpawnEnvWithGrok, amcCredential, def.id);
+    const agentSpawnEnv = applyAmcCredential(agentSpawnEnvWithGrok, amcCredential, def.id, RUNTIME_DATA_DIR);
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentSpawnEnv);
       if (!loginStatus.loggedIn) {

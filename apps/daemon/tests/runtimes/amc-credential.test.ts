@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,12 +8,14 @@ import {
   applyAmcCredential,
   attachAmcRunCredentials,
   materializeAmcCredential,
+  materializeAmcCodexHome,
   parseAmcCredentialBlock,
   readAmcCredentialFile,
   supportedAmcCredentialFamilies,
 } from '../../src/runtimes/amc-credential.ts';
 
 const CURSOR = { family: 'cursor', env: { CURSOR_API_KEY: 'key-123' } };
+const CODEX = { family: 'codex', env: { CODEX_AUTH_JSON: '{"tokens":{"access_token":"a"}}' } };
 
 describe('parseAmcCredentialBlock', () => {
   it('returns null when absent', () => {
@@ -23,6 +25,14 @@ describe('parseAmcCredentialBlock', () => {
 
   it('accepts an allowlisted cursor credential', () => {
     expect(parseAmcCredentialBlock(CURSOR)).toEqual(CURSOR);
+  });
+
+  it('accepts only a bounded Codex login document', () => {
+    expect(parseAmcCredentialBlock(CODEX)).toEqual(CODEX);
+    expect(() => parseAmcCredentialBlock({ family: 'codex', env: { CODEX_HOME: '/other' } }))
+      .toThrow(/not allowed/);
+    expect(() => parseAmcCredentialBlock({ family: 'codex', env: { CODEX_AUTH_JSON: 'not json' } }))
+      .toThrow(/JSON object/);
   });
 
   it('lowercases and trims the family', () => {
@@ -87,6 +97,11 @@ describe('amcCredentialMatchesAgent', () => {
   it('is false for no credential', () => {
     expect(amcCredentialMatchesAgent(null, 'cursor-agent')).toBe(false);
   });
+
+  it('binds Codex only to Codex', () => {
+    expect(amcCredentialMatchesAgent(CODEX, 'codex')).toBe(true);
+    expect(amcCredentialMatchesAgent(CODEX, 'cursor-agent')).toBe(false);
+  });
 });
 
 describe('applyAmcCredential', () => {
@@ -109,6 +124,21 @@ describe('applyAmcCredential', () => {
 
   it('is a no-op with no credential', () => {
     expect(applyAmcCredential({ PATH: '/bin' }, null, 'cursor-agent')).toEqual({ PATH: '/bin' });
+  });
+
+  it('uses a private Codex home, strips host keys, and preserves refreshed auth', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'od-amc-codex-'));
+    const env = applyAmcCredential({ OPENAI_API_KEY: 'host-key', CODEX_ACCESS_TOKEN: 'host-token' }, CODEX, 'codex', dir);
+    expect(env.CODEX_HOME).toBeTruthy();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
+    expect(env.CODEX_AUTH_JSON).toBeUndefined();
+    const file = join(env.CODEX_HOME!, 'auth.json');
+    expect(readFileSync(file, 'utf8')).toBe(CODEX.env.CODEX_AUTH_JSON);
+    writeFileSync(file, '{"tokens":{"access_token":"refreshed"}}');
+    expect(materializeAmcCodexHome(dir, CODEX.env.CODEX_AUTH_JSON)).toBe(env.CODEX_HOME);
+    expect(readFileSync(file, 'utf8')).toContain('refreshed');
+    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 });
 
@@ -166,5 +196,6 @@ describe('supportedAmcCredentialFamilies', () => {
   it('reports what this build accepts', () => {
     expect(supportedAmcCredentialFamilies()).toContain('cursor');
     expect(supportedAmcCredentialFamilies()).toContain('muse');
+    expect(supportedAmcCredentialFamilies()).toContain('codex');
   });
 });
