@@ -104,7 +104,7 @@ function payloadCarriesAnotherRowsRunStream(
 }
 
 export function registerProjectConversationRoutes(app: Express, ctx: RegisterProjectConversationRoutesDeps): void {
-  const { db } = ctx;
+  const { db, design } = ctx;
   const { sendApiError } = ctx.http;
   const { getProject, updateProject } = ctx.projectStore;
   const {

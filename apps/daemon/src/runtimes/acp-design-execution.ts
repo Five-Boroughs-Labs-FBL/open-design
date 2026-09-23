@@ -2,7 +2,7 @@ import { resolveCatalogAcpBeBaseUrl } from './catalog-grok-auth.js';
 import { parseAmcCredentialBlock, type AmcCredential } from './amc-credential.js';
 
 export interface CurrentAcpDesignExecution {
-  agentId: 'grok-build' | 'cursor-agent' | 'muse' | 'byok-opencode';
+  agentId: 'grok-build' | 'cursor-agent' | 'muse' | 'codex' | 'byok-opencode';
   model: string;
   reasoning: string | null;
   amcGrok?: { authJson: string };
@@ -29,16 +29,15 @@ export async function fetchCurrentAcpDesignExecution(
   url.searchParams.set('userId', userId);
   if (includeCredentials) url.searchParams.set('credentials', '1');
   const response = await fetch(url, {
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, 'cache-control': 'no-store' },
     signal: AbortSignal.timeout(8_000),
-    cache: 'no-store',
   });
   if (!response.ok) throw new Error(`ACP Design selection is unavailable (${response.status})`);
   const value = await response.json() as Record<string, unknown>;
   const agentId = value?.agentId;
   const model = value?.model;
   if (agentId !== 'grok-build' && agentId !== 'cursor-agent'
-    && agentId !== 'muse' && agentId !== 'byok-opencode') {
+    && agentId !== 'muse' && agentId !== 'codex' && agentId !== 'byok-opencode') {
     throw new Error('ACP Design returned an unsupported provider');
   }
   if (typeof model !== 'string' || !model.trim()
@@ -70,7 +69,8 @@ export async function fetchCurrentAcpDesignExecution(
     };
   } else {
     const credential = parseAmcCredentialBlock(value.amcCredential);
-    if (!credential || credential.family !== (agentId === 'muse' ? 'muse' : 'cursor')) {
+    const expectedFamily = agentId === 'muse' ? 'muse' : agentId === 'codex' ? 'codex' : 'cursor';
+    if (!credential || credential.family !== expectedFamily) {
       throw new Error('ACP Design provider credential does not match its model');
     }
     execution.amcCredential = credential;

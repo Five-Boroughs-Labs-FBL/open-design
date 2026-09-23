@@ -12,13 +12,12 @@ import path from 'node:path';
  *
  * Why this exists next to `amc-grok.ts` rather than replacing it: Grok needs a
  * materialized GROK_HOME directory with an `auth.json` on disk, which is a
- * genuinely grok-shaped problem. Every other family AMC supports authenticates
- * with plain environment variables, so they do not need a module each — they
- * need one allowlist entry each.
+ * genuinely grok-shaped problem. Codex also needs a private auth.json, which
+ * this module materializes from its allowlisted envelope. Cursor and Muse use
+ * plain environment variables.
  *
- * ADDING A FAMILY is deliberately one line in `ENV_ALLOWLIST` plus one line in
- * `FAMILY_AGENTS`. Do not add a bespoke module unless the family needs files on
- * disk the way grok does.
+ * Add a family to both the allowlist and agent map, then handle any file-backed
+ * authentication explicitly before spawning it.
  *
  * Security: this preserves `amc-grok.ts`'s "rejects extra env" property. The
  * caller cannot name the variables — only values for a fixed, per-family set of
@@ -50,6 +49,7 @@ export type AmcCredential = {
 const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze({
   cursor: Object.freeze(['CURSOR_API_KEY']),
   muse: Object.freeze(['META_API_KEY']),
+  codex: Object.freeze(['CODEX_AUTH_JSON']),
 });
 
 /**
@@ -60,9 +60,11 @@ const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze
 const FAMILY_AGENTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   cursor: Object.freeze(['cursor-agent']),
   muse: Object.freeze(['muse']),
+  codex: Object.freeze(['codex']),
 });
 
 const MAX_VALUE_BYTES = 8_192;
+const MAX_CODEX_AUTH_BYTES = 200_000;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -114,8 +116,15 @@ export function parseAmcCredentialBlock(raw: unknown): AmcCredential | null {
     }
     const trimmed = value.trim();
     if (!trimmed) continue;
-    if (Buffer.byteLength(trimmed, 'utf8') > MAX_VALUE_BYTES) {
+    if (Buffer.byteLength(trimmed, 'utf8') > (key === 'CODEX_AUTH_JSON' ? MAX_CODEX_AUTH_BYTES : MAX_VALUE_BYTES)) {
       throw new Error(`amcCredential.env.${key} is too large`);
+    }
+    if (key === 'CODEX_AUTH_JSON') {
+      try {
+        if (!asRecord(JSON.parse(trimmed))) throw new Error('invalid');
+      } catch {
+        throw new Error('amcCredential.env.CODEX_AUTH_JSON must be a JSON object');
+      }
     }
     env[key] = trimmed;
   }
@@ -154,9 +163,40 @@ export function applyAmcCredential(
   env: NodeJS.ProcessEnv,
   credential: AmcCredential | null | undefined,
   agentId: string,
+  dataDir?: string,
 ): NodeJS.ProcessEnv {
   if (!amcCredentialMatchesAgent(credential, agentId)) return env;
+  if (credential?.family === 'codex') {
+    if (!dataDir) throw new Error('Codex credential requires a daemon dataDir');
+    const authJson = credential.env.CODEX_AUTH_JSON;
+    if (!authJson) throw new Error('Codex credential requires CODEX_AUTH_JSON');
+    const home = materializeAmcCodexHome(dataDir, authJson);
+    const next: NodeJS.ProcessEnv = { ...env, CODEX_HOME: home };
+    // The forwarded subscription must not silently fall through to an
+    // unrelated API key configured on the Open Design service.
+    delete next.CODEX_API_KEY;
+    delete next.OPENAI_API_KEY;
+    delete next.CODEX_ACCESS_TOKEN;
+    return next;
+  }
   return { ...env, ...(credential as AmcCredential).env };
+}
+
+/** Preserve the CLI's refreshed login across every turn of this project. */
+export function materializeAmcCodexHome(dataDir: string, authJson: string): string {
+  if (!path.isAbsolute(dataDir) || !authJson || !asRecord(JSON.parse(authJson))) {
+    throw new Error('invalid Codex credential home');
+  }
+  const id = createHash('sha256').update(authJson).digest('hex').slice(0, 32);
+  const home = path.join(dataDir, 'amc-codex-homes', id);
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const file = path.join(home, 'auth.json');
+  try {
+    fs.writeFileSync(file, authJson, { flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  return home;
 }
 
 /**
