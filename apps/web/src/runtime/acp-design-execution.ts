@@ -17,6 +17,7 @@ export function applyAcpDesignExecution(
     ...config,
     mode: 'daemon',
     agentId: execution.agentId,
+    ...(execution.agentId === 'byok-opencode' ? { model: execution.model } : {}),
     agentModels: {
       ...config.agentModels,
       [execution.agentId]: {
@@ -41,7 +42,7 @@ export async function readAcpDesignExecution(
       cache: 'no-store',
     },
   );
-  if (!response.ok) throw new Error('Could not recover the selected ACP Design model. Reload the studio and try again.');
+  if (!response.ok) throw new Error('Could not read the current ACP Design setting. Try again after ACP is available.');
   const execution = await response.json() as AcpDesignExecution | null;
   if (!execution || typeof execution.agentId !== 'string' || !execution.agentId.trim()
     || typeof execution.model !== 'string' || !execution.model.trim()
