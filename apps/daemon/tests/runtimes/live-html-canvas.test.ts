@@ -169,7 +169,7 @@ describe('createLiveHtmlCanvasWriter', () => {
           projectId: 'project-1',
           name: LIVE_HTML_CANVAS_NAME,
           previousCleanContent: cleanContent,
-          force: restore?.force,
+          ...(restore?.force !== undefined ? { force: restore.force } : {}),
           writeProjectFile: writeProjectFile as any,
         }),
       });
