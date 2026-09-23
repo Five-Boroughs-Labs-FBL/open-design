@@ -143,6 +143,49 @@ describe('createLiveHtmlCanvasWriter', () => {
     }
   });
 
+  it('never restores a turn-start HTML summary over a later complete page', async () => {
+    const { restoreLiveHtmlCanvasIfMixed } = await import('../../src/runtimes/plain-stream.js');
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-live-html-summary-restore-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      const summary = '<!DOCTYPE html>` → `</html>';
+      const complete = '<!doctype html><html><body>Dashboard restored</body></html>';
+      await writeFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), summary);
+
+      const writer = createLiveHtmlCanvasWriter({
+        delayMs: 0,
+        previousCleanContent: summary,
+        persist: (artifact, status) => persistLiveHtmlCanvas({
+          projectsRoot,
+          projectId: 'project-1',
+          artifact,
+          status,
+          previousCleanContent: summary,
+          writeProjectFile: writeProjectFile as any,
+        }),
+        restoreIfMixed: (cleanContent, restore) => restoreLiveHtmlCanvasIfMixed({
+          projectsRoot,
+          projectId: 'project-1',
+          name: LIVE_HTML_CANVAS_NAME,
+          previousCleanContent: cleanContent,
+          force: restore?.force,
+          writeProjectFile: writeProjectFile as any,
+        }),
+      });
+
+      writer.note(complete);
+      await writer.flush('streaming');
+      writer.note('<!doctype html><html><head><style>```html<!doctype html>');
+      await writer.flush('complete');
+
+      expect(await readFile(path.join(projectDir, LIVE_HTML_CANVAS_NAME), 'utf8'))
+        .toBe(complete);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('still rejects when a terminal persist fails after an earlier success', async () => {
     let attempts = 0;
     const writer = createLiveHtmlCanvasWriter({

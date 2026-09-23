@@ -277,6 +277,11 @@ describe('plain stream artifact extraction', () => {
     expect(live?.content).not.toContain('One');
   });
 
+  it('ignores a doctype-to-html summary in agent prose', () => {
+    expect(extractLiveHtmlCanvasArtifact('Restored the file: <!DOCTYPE html>` → `</html>'))
+      .toBeNull();
+  });
+
   it('extracts an open HTML artifact for the live canvas', () => {
     const open = extractOpenPlainStreamArtifact(
       '<artifact identifier="hud" type="text/html"><!doctype html><html><body><h1>HUD',
