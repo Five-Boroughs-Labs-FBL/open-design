@@ -8650,10 +8650,10 @@ export function ProjectView({
           chatAttachmentsFromPreviewCommentImages(attachment.imageAttachments),
         ),
       );
-      const byokOpenCodeProvider = byokOpenCodeProviderFromConfig(config);
+      const byokOpenCodeProvider = designExecution ? undefined : byokOpenCodeProviderFromConfig(config);
       const requiresByokPreflight =
-        (config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
-        (config.mode === 'daemon' && sendAgentId === 'byok-opencode');
+        !designExecution && ((config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
+        (config.mode === 'daemon' && sendAgentId === 'byok-opencode'));
       if (requiresByokPreflight && !byokOpenCodeProvider) {
         const blockReason = byokPreflightBlockReason(config) ?? 'config_invalid';
         const recoveryActionInstanceId = `blocked:${taskAnalytics.taskExecutionId}`;
@@ -10393,7 +10393,7 @@ export function ProjectView({
         }
         const choice = effectiveSelectedAgentChoice;
         const daemonByokOpenCode = sendAgentId === 'byok-opencode';
-        if (daemonByokOpenCode && !agentsById.get('byok-opencode')?.available) {
+        if (daemonByokOpenCode && !designExecution && !agentsById.get('byok-opencode')?.available) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
         }
