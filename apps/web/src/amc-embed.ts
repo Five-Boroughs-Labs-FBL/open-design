@@ -9,6 +9,8 @@ export const AMC_EMBED_MESSAGE_COMPLETE = "amc-design-complete";
 export const ACP_EMBED_MESSAGE_READY = "acp-design-ready";
 export const ACP_EMBED_MESSAGE_COMPLETE = "acp-design-complete";
 export const OD_EMBED_SESSION_KEY = "od-embed-session";
+/** Non-secret latch set when the daemon exchanges `t` for the httpOnly session. Not a credential. */
+export const OD_EMBED_HINT_COOKIE = "od_embed_hint";
 
 export function isAmcEmbedSearch(search = ""): boolean {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
@@ -29,8 +31,22 @@ export function isAmcEmbedActive(win: Window = window): boolean {
   );
 }
 
+function hasEmbedHintCookie(win: Window): boolean {
+  try {
+    return win.document.cookie.split(";").some((part) => {
+      const trimmed = part.trim();
+      const eq = trimmed.indexOf("=");
+      const key = eq < 0 ? trimmed : trimmed.slice(0, eq);
+      const value = eq < 0 ? "" : trimmed.slice(eq + 1);
+      return key === OD_EMBED_HINT_COOKIE && value === "1";
+    });
+  } catch {
+    return false;
+  }
+}
+
 export function rememberEmbedGrantSession(win: Window = window): boolean {
-  if (hasEmbedGrantQuery(win.location.search)) {
+  if (hasEmbedGrantQuery(win.location.search) || hasEmbedHintCookie(win)) {
     try {
       win.sessionStorage.setItem(OD_EMBED_SESSION_KEY, "1");
     } catch {
@@ -42,6 +58,21 @@ export function rememberEmbedGrantSession(win: Window = window): boolean {
     return win.sessionStorage.getItem(OD_EMBED_SESSION_KEY) === "1";
   } catch {
     return false;
+  }
+}
+
+/** Remove `t` from the address bar so a copied workspace link is not a credential. */
+export function stripEmbedGrantFromAddressBar(win: Window = window): void {
+  try {
+    const href = win.location.href;
+    if (!href) return;
+    const url = new URL(href);
+    if (!url.searchParams.has("t")) return;
+    url.searchParams.delete("t");
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    win.history.replaceState(win.history.state, "", next);
+  } catch {
+    /* non-browser */
   }
 }
 
@@ -63,6 +94,7 @@ export function beginAcpCatalogSignOut(win: Window = window): void {
 
 export function applyAmcEmbedFromLocation(win: Window = window): boolean {
   rememberEmbedGrantSession(win);
+  stripEmbedGrantFromAddressBar(win);
   if (!isAmcEmbedSearch(win.location.search)) return false;
   win.document.documentElement.dataset.amcEmbed = "1";
   win.document.documentElement.dataset.acpEmbed = "1";

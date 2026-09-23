@@ -10,6 +10,8 @@ import {
   hasEmbedGrantQuery,
   isAmcEmbedSearch,
   rememberEmbedGrantSession,
+  stripEmbedGrantFromAddressBar,
+  OD_EMBED_HINT_COOKIE,
   OD_EMBED_SESSION_KEY,
 } from '../src/amc-embed';
 
@@ -58,6 +60,43 @@ describe('ACP embed query aliases', () => {
     expect(store.has(OD_EMBED_SESSION_KEY)).toBe(false);
     expect(replace).toHaveBeenCalledWith('/api/embed-session/logout');
     clearEmbedGrantSession(win);
+  });
+
+  it('remembers the non-secret hint cookie after t is stripped', () => {
+    const store = new Map<string, string>();
+    const win = {
+      location: { search: '' },
+      document: { cookie: `${OD_EMBED_HINT_COOKIE}=1` },
+      sessionStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+      },
+    } as unknown as Window;
+    expect(rememberEmbedGrantSession(win)).toBe(true);
+    expect(store.get(OD_EMBED_SESSION_KEY)).toBe('1');
+  });
+
+  it('removes t from the address bar without dropping embed chrome params', () => {
+    let href = 'https://design.agentcontrolpanel.dev/projects/p/conversations/c?acpEmbed=1&amcEmbed=1&t=secret';
+    const win = {
+      location: {
+        get href() {
+          return href;
+        },
+      },
+      history: {
+        state: { idx: 1 },
+        replaceState: (_state: unknown, _title: string, next: string) => {
+          href = `https://design.agentcontrolpanel.dev${next}`;
+        },
+      },
+    } as unknown as Window;
+    stripEmbedGrantFromAddressBar(win);
+    expect(href).toBe(
+      'https://design.agentcontrolpanel.dev/projects/p/conversations/c?acpEmbed=1&amcEmbed=1',
+    );
   });
 
   it('stamps both embed dataset flags from the grant query', () => {

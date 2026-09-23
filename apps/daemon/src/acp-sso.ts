@@ -122,6 +122,8 @@ export function spaDocumentReturnUrl(req: {
 export function shouldRedirectSpaDocumentToAcpSso(input: {
   method?: string;
   queryGrant: boolean;
+  /** Set on the redirect that just exchanged `t` for the session cookie. */
+  handoff?: boolean;
   env?: NodeJS.ProcessEnv;
 }): boolean {
   if (!isAcpSsoConfigured(input.env)) return false;
@@ -129,5 +131,6 @@ export function shouldRedirectSpaDocumentToAcpSso(input: {
   const method = (input.method ?? 'GET').toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (input.queryGrant) return false;
+  if (input.handoff) return false;
   return true;
 }

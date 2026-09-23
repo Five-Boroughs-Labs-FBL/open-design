@@ -20,6 +20,8 @@ import {
   REPL_VIEWPORT_THINKING_LEAK_HTML,
 } from './html-document.fixtures.js';
 
+const HTML_SUMMARY_SNIPPET = '<!DOCTYPE html>` → `</html>';
+
 describe('isMixedHtmlDocument', () => {
   it('rejects the leaked later-turn shape: DOCTYPE + thinking in style + ```html + second DOCTYPE', () => {
     expect(LIVE_PRIMARY_LEAK_HTML.startsWith('<!DOCTYPE html>')).toBe(true);
@@ -64,6 +66,13 @@ describe('isMixedHtmlDocument', () => {
     const draft = '<!doctype html><html><head><style>body{color:#111}';
     expect(isMixedHtmlDocument(draft)).toBe(false);
     expect(isSingleHtmlDocument(draft)).toBe(true);
+  });
+
+  it('does not mistake a prose summary of HTML tags for a live document', () => {
+    expect(isMixedHtmlDocument(HTML_SUMMARY_SNIPPET)).toBe(true);
+    expect(isSingleHtmlDocument(HTML_SUMMARY_SNIPPET)).toBe(false);
+    expect(isMixedHtmlDocument('<!doctype html>Hello world</html>')).toBe(false);
+    expect(isMixedHtmlDocument('<!doctype html>`code` is content</html>')).toBe(false);
   });
 
   it('rejects thinking jammed into an unclosed viewport attribute', () => {
@@ -114,6 +123,25 @@ describe('unwrapSingleHtmlArtifactEnvelope', () => {
 });
 
 describe('writeProjectFile mixed HTML', () => {
+  it('keeps a finished page when an agent writes a doctype-to-html prose snippet', async () => {
+    const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-html-snippet-write-'));
+    try {
+      const projectDir = path.join(projectsRoot, 'project-1');
+      await mkdir(projectDir, { recursive: true });
+      await writeFile(path.join(projectDir, 'index.html'), CLEAN_LOGIN_HTML);
+      await writeProjectFile(
+        projectsRoot,
+        'project-1',
+        'index.html',
+        Buffer.from(HTML_SUMMARY_SNIPPET, 'utf8'),
+        { overwrite: true },
+      );
+      expect(await readFile(path.join(projectDir, 'index.html'), 'utf8')).toBe(CLEAN_LOGIN_HTML);
+    } finally {
+      await rm(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
   it('keeps the previous single document instead of writing the leak', async () => {
     const projectsRoot = await mkdtemp(path.join(tmpdir(), 'od-html-mixed-write-'));
     try {
