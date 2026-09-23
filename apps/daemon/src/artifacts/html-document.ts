@@ -19,6 +19,8 @@ const NESTED_DOCUMENT_AFTER_FENCE_RE =
 const STYLE_OPEN_RE = /<style\b[^>]*>/i;
 const STYLE_CLOSE_RE = /<\/style\s*>/i;
 const STYLE_MARKUP_RE = /<!doctype\s+html\b|<html\b|<\/html\s*>|```/i;
+const LEADING_DOCTYPE_RE = /^\s*<!doctype\s+html\b[^>]*>/i;
+const TAG_RANGE_SUMMARY_RE = /^`?\s*(?:→|->|…|\.\.\.)\s*`?\s*<\/html\s*>`?(?:\s|$)/i;
 
 export function countHtmlDoctypes(content: string): number {
   const matches = content.match(DOCTYPE_RE);
@@ -35,6 +37,16 @@ export function startsLikeHtmlDocument(content: string): boolean {
  */
 export function isMixedHtmlDocument(content: string): boolean {
   if (!content) return false;
+  // A model can mention the boundary tags in prose, for example
+  // `<!DOCTYPE html>` → `</html>`. It starts like HTML, but the markdown
+  // delimiter/arrow after the doctype makes it a description, not a page.
+  // Keep ordinary HTML5 text-only bodies valid; don't require an <html> tag.
+  const normalized = content.replace(/^\uFEFF/, '');
+  const doctype = normalized.match(LEADING_DOCTYPE_RE);
+  if (doctype) {
+    const afterDoctype = normalized.slice(doctype[0].length).trimStart();
+    if (TAG_RANGE_SUMMARY_RE.test(afterDoctype)) return true;
+  }
   if (countHtmlDoctypes(content) > 1) return true;
   if (NESTED_DOCUMENT_AFTER_FENCE_RE.test(content)) return true;
   if (MARKDOWN_HTML_FENCE_RE.test(content) && countHtmlDoctypes(content) >= 1) {
