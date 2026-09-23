@@ -52,6 +52,7 @@ import {
   type AmcGrokForwarding,
 } from '../runtimes/amc-grok.js';
 import { resolveCatalogGrokForwarding } from '../runtimes/catalog-grok-auth.js';
+import { fetchCurrentAcpDesignExecution } from '../runtimes/acp-design-execution.js';
 import {
   isCatalogMinimaxByok,
   mergeCatalogMinimaxByok,
@@ -2126,15 +2127,6 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     if (!toolBundle.ok) {
       return sendApiError(res, 400, 'BAD_REQUEST', toolBundle.message);
     }
-    await applyCatalogMinimaxByok(req, requestBody, RUNTIME_DATA_DIR);
-    if (!hasCompleteByokOpenCodeConfig(requestBody)) {
-      return sendApiError(
-        res,
-        400,
-        'VALIDATION_FAILED',
-        BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE,
-      );
-    }
     // Reject a client-supplied conversationId that is missing a projectId or
     // not owned by that projectId before plugin snapshot resolve (which links
     // the snapshot to the conversation and would FK-fail / 500) and before
@@ -2172,6 +2164,47 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
         }
         throw err;
       }
+    }
+    // ACP owns the execution choice for browser-created Design turns. A seed
+    // sent with the shared server token already carries its own snapshot.
+    const acpMetadata = runProject?.metadata as Record<string, unknown> | undefined;
+    const acpFeatureRunId = acpMetadata?.amcFeatureRunId;
+    const acpUserId = acpMetadata?.acpUserId;
+    const isAcpSeed = Boolean(apiTokenFromEnv()
+      && apiTokenAuthorizationMatches(req.headers.authorization, apiTokenFromEnv()));
+    const isAcpBrowserTurn = typeof acpFeatureRunId === 'string' && acpFeatureRunId.length > 0
+      && !isAcpSeed;
+    if (isAcpBrowserTurn) {
+      if (typeof acpUserId !== 'string' || !acpUserId) {
+        return sendApiError(res, 409, 'ACP_DESIGN_UNAVAILABLE', 'ACP Design owner is unavailable');
+      }
+      try {
+        const execution = await fetchCurrentAcpDesignExecution(
+          acpFeatureRunId, runProject!.id, acpUserId, true,
+        );
+        requestBody.agentId = execution.agentId;
+        requestBody.model = execution.model;
+        requestBody.reasoning = execution.reasoning;
+        requestBody.serviceTier = null;
+        delete requestBody.byokProvider;
+        parsedAmcGrok = null;
+        parsedAmcCredential = execution.amcCredential ?? null;
+        if (execution.amcGrok) {
+          const grok = parseAmcGrokBlock(execution.amcGrok);
+          if (!grok) throw new Error('ACP Design Grok credential is unavailable');
+          parsedAmcGrok = materializeAmcGrokHome(RUNTIME_DATA_DIR, grok);
+        }
+        if (execution.byokProvider) {
+          requestBody.byokProvider = execution.byokProvider;
+        }
+      } catch (error) {
+        return sendApiError(res, 503, 'ACP_DESIGN_UNAVAILABLE',
+          error instanceof Error ? error.message : 'ACP Design selection is unavailable');
+      }
+    }
+    if (!isAcpBrowserTurn) await applyCatalogMinimaxByok(req, requestBody, RUNTIME_DATA_DIR);
+    if (!hasCompleteByokOpenCodeConfig(requestBody)) {
+      return sendApiError(res, 400, 'VALIDATION_FAILED', BYOK_OPENCODE_PROVIDER_REQUIRED_MESSAGE);
     }
     const existingLogicalRequest = typeof requestBody.clientRequestId === 'string'
       ? design.runs.findByClientRequestId(requestBody.clientRequestId)

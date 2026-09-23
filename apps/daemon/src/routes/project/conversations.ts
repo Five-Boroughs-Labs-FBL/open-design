@@ -7,6 +7,7 @@ import type { RouteDeps } from '../../server-context.js';
 import type { BoundWorkspaceResourceMutationGate } from '../../collab/workspace-resource-mutation.js';
 import type { AuthorizeProjectRequest } from '../../collab/project-request-authority.js';
 import { TERMINAL_RUN_STATUSES } from '../../runtimes/runs.js';
+import { fetchCurrentAcpDesignExecution } from '../../runtimes/acp-design-execution.js';
 import { strategyTaskTurnsForRunIds } from '../../strategies/task-store.js';
 
 import { registerProjectCommentRoutes } from './comments.js';
@@ -103,7 +104,7 @@ function payloadCarriesAnotherRowsRunStream(
 }
 
 export function registerProjectConversationRoutes(app: Express, ctx: RegisterProjectConversationRoutesDeps): void {
-  const { db, design } = ctx;
+  const { db } = ctx;
   const { sendApiError } = ctx.http;
   const { getProject, updateProject } = ctx.projectStore;
   const {
@@ -132,41 +133,29 @@ export function registerProjectConversationRoutes(app: Express, ctx: RegisterPro
 
   // ---- Conversations --------------------------------------------------------
 
-  // Resolve the original ACP seed rather than the latest failed browser turn.
-  // This also repairs legacy conversations whose browser default leaked Grok
-  // into a Muse/Cursor follow-up. No credentials leave this endpoint.
+  // The current ACP Settings > Design choice owns each new turn.
   app.get('/api/projects/:id/conversations/:conversationId/acp-design-execution', async (req, res) => {
     if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
     const project = getProject(db, req.params.id);
     const conversation = getRoutableConversation(req.params.id, req.params.conversationId);
     if (!project || !conversation) return res.status(404).json({ error: 'conversation not found' });
-    if (!project.metadata?.amcFeatureRunId) {
+    const featureRunId = project.metadata?.amcFeatureRunId;
+    const acpUserId = project.metadata?.acpUserId;
+    if (typeof featureRunId !== 'string' || !featureRunId
+      || typeof acpUserId !== 'string' || !acpUserId) {
       return res.status(404).json({ error: 'not an ACP Design conversation' });
     }
-    const seed = db.prepare(
-      `SELECT agent_id, run_id FROM messages
-       WHERE conversation_id = ? AND role = 'assistant' AND agent_id IS NOT NULL
-       ORDER BY position ASC LIMIT 1`,
-    ).get(conversation.id) as { agent_id: string; run_id: string | null } | undefined;
-    if (!seed) return res.status(409).json({ error: 'ACP Design handoff is not ready' });
-    const run = seed.run_id ? design.runs.get(seed.run_id) : null;
-    // Old transcripts did not stamp the model display name. The provider's
-    // own conversation session retains it even when the run was evicted.
-    const session = db.prepare(
-      'SELECT model FROM agent_sessions WHERE conversation_id = ? AND agent_id = ?',
-    ).get(conversation.id, seed.agent_id) as { model: string | null } | undefined;
-    const ownsRun = run?.projectId === project.id && run?.conversationId === conversation.id
-      && run?.agentId === seed.agent_id;
-    if (run && !ownsRun) {
-      return res.status(409).json({ error: 'ACP Design handoff does not belong to this conversation' });
+    try {
+      const execution = await fetchCurrentAcpDesignExecution(
+        featureRunId, project.id, acpUserId, false,
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(execution);
+    } catch (error) {
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : 'ACP Design selection is unavailable',
+      });
     }
-    const model = (ownsRun ? run?.model : null) || session?.model;
-    if (!model) return res.status(409).json({ error: 'ACP Design model selection is unavailable' });
-    return res.json({
-      agentId: seed.agent_id,
-      model,
-      reasoning: ownsRun && typeof run?.reasoning === 'string' ? run.reasoning : null,
-    });
   });
 
   app.get('/api/projects/:id/conversations', async (req, res) => {
