@@ -413,6 +413,7 @@ import {
   subscribeHomeAttachmentUploads,
 } from '../state/home-attachment-handoff';
 import { effectiveAgentModelChoice, effectiveAgentModelId } from './agentModelSelection';
+import { applyAcpDesignExecution, readAcpDesignExecution, type AcpDesignExecution } from '../runtime/acp-design-execution';
 import {
   retryAssistantAgentId,
   retryAssistantModel,
@@ -2183,6 +2184,8 @@ export function ProjectView({
   onCreationHandoffSettled,
 }: Props) {
   const { locale, t } = useI18n();
+  const studioConfig = config;
+  const designSelectionReadsRef = useRef(new Set<string>());
   const amrAuthRetryMountIdRef = useRef<string | null>(null);
   if (amrAuthRetryMountIdRef.current === null) {
     amrAuthRetryMountIdRef.current = randomUUID();
@@ -8556,6 +8559,7 @@ export function ProjectView({
       meta?: ProjectChatSendMeta,
       baseMessages?: ChatMessage[],
     ) => {
+      let config = studioConfig;
       if (projectMutationReadOnly) return false;
       if (!activeConversationId) return false;
       if (messagesConversationIdRef.current !== activeConversationId) return false;
@@ -8569,7 +8573,27 @@ export function ProjectView({
         ? resolveRetryTarget(messages, meta.retryOfAssistantId)
         : null;
       if (meta?.retryOfAssistantId && !retryTarget) return false;
-      const sendAgentId = retryAssistantAgentId(
+      let designExecution: AcpDesignExecution | null = null;
+      if ((project.metadata as Record<string, unknown> | undefined)?.amcFeatureRunId) {
+        const scope = `${projectAuthorizationKey}:${activeConversationId}`;
+        if (designSelectionReadsRef.current.has(scope)) return false;
+        designSelectionReadsRef.current.add(scope);
+        try {
+          designExecution = await readAcpDesignExecution(project.id, activeConversationId, projectRunWorkspaceContext);
+          if (activeAuthorizationLifetimeRef.current !== projectAuthorizationKey
+            || messagesConversationIdRef.current !== activeConversationId) return false;
+        } catch (error) {
+          if (activeAuthorizationLifetimeRef.current === projectAuthorizationKey
+            && messagesConversationIdRef.current === activeConversationId) {
+            setError(error instanceof Error ? error.message : String(error));
+          }
+          return false;
+        } finally {
+          designSelectionReadsRef.current.delete(scope);
+        }
+      }
+      if (designExecution) config = applyAcpDesignExecution(config, designExecution);
+      const sendAgentId = designExecution?.agentId ?? retryAssistantAgentId(
         retryTarget?.failedAssistant,
         config.agentId,
       );
@@ -8626,10 +8650,10 @@ export function ProjectView({
           chatAttachmentsFromPreviewCommentImages(attachment.imageAttachments),
         ),
       );
-      const byokOpenCodeProvider = byokOpenCodeProviderFromConfig(config);
+      const byokOpenCodeProvider = designExecution ? undefined : byokOpenCodeProviderFromConfig(config);
       const requiresByokPreflight =
-        (config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
-        (config.mode === 'daemon' && sendAgentId === 'byok-opencode');
+        !designExecution && ((config.mode === 'api' && config.apiProtocol !== 'bedrock') ||
+        (config.mode === 'daemon' && sendAgentId === 'byok-opencode'));
       if (requiresByokPreflight && !byokOpenCodeProvider) {
         const blockReason = byokPreflightBlockReason(config) ?? 'config_invalid';
         const recoveryActionInstanceId = `blocked:${taskAnalytics.taskExecutionId}`;
@@ -8797,7 +8821,7 @@ export function ProjectView({
               sendAgentId,
               selectedAgent?.name,
               retryAssistantModel(
-                retryTarget?.failedAssistant,
+                designExecution ? null : retryTarget?.failedAssistant,
                 effectiveSelectedAgentChoice?.model,
               ) ?? effectiveSelectedAgentChoice?.model,
             )
@@ -10369,7 +10393,7 @@ export function ProjectView({
         }
         const choice = effectiveSelectedAgentChoice;
         const daemonByokOpenCode = sendAgentId === 'byok-opencode';
-        if (daemonByokOpenCode && !agentsById.get('byok-opencode')?.available) {
+        if (daemonByokOpenCode && !designExecution && !agentsById.get('byok-opencode')?.available) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
         }
@@ -10467,7 +10491,7 @@ export function ProjectView({
           mediaExecution: mediaExecutionPolicyForProjectMetadata(project.metadata),
           model: daemonByokOpenCode
             ? config.model
-            : retryAssistantModel(retryTarget?.failedAssistant, choice?.model),
+            : retryAssistantModel(designExecution ? null : retryTarget?.failedAssistant, choice?.model),
           reasoning: daemonByokOpenCode ? null : choice?.reasoning ?? null,
           serviceTier: daemonByokOpenCode ? null : choice?.serviceTier ?? null,
           ...(daemonByokOpenCode && byokOpenCodeProvider

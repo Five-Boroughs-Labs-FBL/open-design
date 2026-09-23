@@ -7,6 +7,7 @@ import type { RouteDeps } from '../../server-context.js';
 import type { BoundWorkspaceResourceMutationGate } from '../../collab/workspace-resource-mutation.js';
 import type { AuthorizeProjectRequest } from '../../collab/project-request-authority.js';
 import { TERMINAL_RUN_STATUSES } from '../../runtimes/runs.js';
+import { fetchCurrentAcpDesignExecution } from '../../runtimes/acp-design-execution.js';
 import { strategyTaskTurnsForRunIds } from '../../strategies/task-store.js';
 
 import { registerProjectCommentRoutes } from './comments.js';
@@ -131,6 +132,31 @@ export function registerProjectConversationRoutes(app: Express, ctx: RegisterPro
   };
 
   // ---- Conversations --------------------------------------------------------
+
+  // The current ACP Settings > Design choice owns each new turn.
+  app.get('/api/projects/:id/conversations/:conversationId/acp-design-execution', async (req, res) => {
+    if (!await authorizeProjectRequest(req, res, req.params.id, { mode: 'read' })) return;
+    const project = getProject(db, req.params.id);
+    const conversation = getRoutableConversation(req.params.id, req.params.conversationId);
+    if (!project || !conversation) return res.status(404).json({ error: 'conversation not found' });
+    const featureRunId = project.metadata?.amcFeatureRunId;
+    const acpUserId = project.metadata?.acpUserId;
+    if (typeof featureRunId !== 'string' || !featureRunId
+      || typeof acpUserId !== 'string' || !acpUserId) {
+      return res.status(404).json({ error: 'not an ACP Design conversation' });
+    }
+    try {
+      const execution = await fetchCurrentAcpDesignExecution(
+        featureRunId, project.id, acpUserId, false,
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(execution);
+    } catch (error) {
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : 'ACP Design selection is unavailable',
+      });
+    }
+  });
 
   app.get('/api/projects/:id/conversations', async (req, res) => {
     if (!getProject(db, req.params.id)) {
