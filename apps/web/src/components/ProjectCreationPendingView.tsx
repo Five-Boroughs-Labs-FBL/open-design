@@ -7,6 +7,7 @@ import { useWorkspaceTabsDockRef } from './workspaceTabsDock';
 import { useI18n } from '../i18n';
 import { formatAttachmentSize, splitFileName } from '../runtime/chat/attachment';
 import { looksLikeImageName } from '../runtime/chat/staged-attachment';
+import { ACP_FAVICON_HREF, acpStudioChatAgentLabel } from '../acp-brand';
 import { agentDisplayName, agentIconId } from '../utils/agentLabels';
 import {
   projectSplitStyle,
@@ -88,7 +89,8 @@ export function ProjectCreationPendingChat({
   agentId,
 }: ChatProps) {
   const { t } = useI18n();
-  const agentName = agentDisplayName(agentId) ?? t('assistant.role');
+  const studioAgentLabel = acpStudioChatAgentLabel();
+  const agentName = studioAgentLabel ?? agentDisplayName(agentId) ?? t('assistant.role');
   const iconId = agentIconId(agentId);
 
   const cards = useMemo<PendingAttachmentCard[]>(() => {
@@ -177,7 +179,18 @@ export function ProjectCreationPendingChat({
           ) : null}
           <div className="msg assistant">
             <div className="role">
-              <AgentIcon id={iconId} size={20} className="role-agent-icon" />
+              {studioAgentLabel ? (
+                <img
+                  src={ACP_FAVICON_HREF}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="role-agent-icon"
+                  draggable={false}
+                />
+              ) : (
+                <AgentIcon id={iconId} size={20} className="role-agent-icon" />
+              )}
               <span className="role-name">{agentName}</span>
             </div>
             <div className="assistant-flow">

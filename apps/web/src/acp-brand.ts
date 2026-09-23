@@ -5,6 +5,9 @@
  */
 import { isAmcEmbedActive, rememberEmbedGrantSession } from './amc-embed';
 
+/** Chat role in ACP Studio. The runner (Grok, Cursor, Muse, …) stays hidden. */
+export const ACP_AGENT_LABEL = 'ACP agent';
+
 export const ACP_OPEN_DESIGN_NAME = 'ACP Design';
 export const ACP_PRODUCT_SHORT = 'ACP';
 export const ACP_PRODUCT_WORDMARK = 'AGENT CONTROL PANEL';
@@ -20,6 +23,20 @@ export const ACP_FAVICON_HREF = '/acp-favicon.svg';
  * `shouldRequireAcpCatalogLogin` (live catalog session), not by this flag.
  */
 export const ACP_SKIP_AMR_AUTH_GATE = true;
+
+/**
+ * Label for the design-chat role when this window is ACP Studio.
+ * Null outside Studio, so a local Open Design session still names its runner.
+ */
+export function acpStudioChatAgentLabel(win?: Window): string | null {
+  const target = win ?? (typeof window === 'undefined' ? undefined : window);
+  if (!target) return null;
+  try {
+    return hasAcpStudioIdentity(target) ? ACP_AGENT_LABEL : null;
+  } catch {
+    return null;
+  }
+}
 
 /** True when this window is ACP Studio (hosted, preview, embed, or SSO URL). */
 export function hasAcpStudioIdentity(
