@@ -1231,8 +1231,14 @@ import {
 } from './acp-sso.js';
 import {
   applyVerifiedEmbedGrant,
+  clearEmbedGrantHandoffCookie,
+  embedGrantCookieShouldBeSecure,
   embedGrantForbidsRequest,
+  embedGrantHandoffPresent,
   embedGrantQueryPresent,
+  evaluateEmbedGrantQueryExchange,
+  locationWithoutEmbedGrantQuery,
+  setEmbedGrantExchangeCookies,
 } from './embed-grants.js';
 import { createOpenDesignPublicMetadataService } from './services/open-design-public-metadata.js';
 import { createWhatsNewService } from './services/whats-new.js';
@@ -3296,7 +3302,8 @@ export async function startServer({
   // Loopback origins skip the check (the desktop UI / local CLI never carry
   // credentials); every other request must present a matching bearer token
   // (CLI / proxy), matching HTTP Basic credentials (browser UI), or a
-  // project-scoped Studio embed grant (query `t` / cookie `od_embed`). A
+  // project-scoped Studio embed grant (httpOnly `od_embed` cookie). A `t`
+  // query value is only a same-site handoff into that cookie, never a bearer. A
   // currently valid run-scoped token may pass only an exact screenshot-export
   // endpoint; its route rechecks the operation and project. Health /
   // readiness / version remain open. Server-minted project preview asset
@@ -3380,14 +3387,35 @@ export async function startServer({
       if (isLoopbackPeerAddress(req.socket?.remoteAddress)) return next();
       if (resolveStaticSpaFallbackPath(req, staticDir) === null) return next();
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
-      const queryGrant = embedGrantQueryPresent(req);
+      // Drop `t` before any shell bytes. A copied workspace URL must not open
+      // an authenticated session; only a same-site ACP navigation may exchange
+      // it for the httpOnly cookie.
+      if (embedGrantQueryPresent(req)) {
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('Cache-Control', 'no-store');
+        const exchange = evaluateEmbedGrantQueryExchange(req, apiToken);
+        if (
+          exchange.ok
+          && !embedGrantForbidsRequest(exchange.payload, req, embedGrantProjectLookup.current)
+        ) {
+          setEmbedGrantExchangeCookies(res, exchange.token, exchange.payload.exp, {
+            secure: embedGrantCookieShouldBeSecure(req),
+          });
+        }
+        return res.redirect(302, locationWithoutEmbedGrantQuery(req));
+      }
       const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
       const ssoUrl = acpSsoUrlFromEnv();
+      const handoff = embedGrantHandoffPresent(req);
+      if (handoff) {
+        clearEmbedGrantHandoffCookie(res, { secure: embedGrantCookieShouldBeSecure(req) });
+      }
       if (
         ssoUrl
         && shouldRedirectSpaDocumentToAcpSso({
           method: req.method,
-          queryGrant,
+          queryGrant: false,
+          handoff,
         })
       ) {
         // Opt-in only (`OD_ACP_FORCE_DOCUMENT_SSO=1`). Default is to serve the

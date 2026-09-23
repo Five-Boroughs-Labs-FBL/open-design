@@ -41,6 +41,39 @@ function makeConnectionsAppearNonLoopback(target: Server): void {
   });
 }
 
+function rawDocumentGet(
+  url: string,
+  headers: OutgoingHttpHeaders,
+): Promise<{ body: string; location: string; setCookie: string[]; status: number }> {
+  const target = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: 'GET',
+        headers,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = res.headers['set-cookie'];
+          resolve({
+            body: Buffer.concat(chunks).toString('utf8'),
+            location: typeof res.headers.location === 'string' ? res.headers.location : '',
+            setCookie: Array.isArray(raw) ? raw : raw ? [raw] : [],
+            status: res.statusCode ?? 0,
+          });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 function requestWithBrowserHeaders(
   url: string,
   headers: OutgoingHttpHeaders,
@@ -86,6 +119,7 @@ afterEach(async () => {
   else process.env.OD_DISABLE_API_AUTH = PREVIOUS_DISABLE_API_AUTH;
   if (PREVIOUS_ACP_SSO_URL === undefined) delete process.env.OD_ACP_SSO_URL;
   else process.env.OD_ACP_SSO_URL = PREVIOUS_ACP_SSO_URL;
+  delete process.env.OD_ACP_FORCE_DOCUMENT_SSO;
 });
 
 describe('bound-API-token guard', () => {
@@ -412,10 +446,10 @@ describe('embed grant middleware for non-loopback Studio', () => {
       headers: { accept: 'text/html' },
       redirect: 'manual',
     });
-    expect(spa.status).toBe(302);
-    const location = spa.headers.get('location') ?? '';
-    expect(location.startsWith('https://dev.agentcontrolpanel.dev/open-design/sso?')).toBe(true);
-    expect(location).toContain('return=');
+    // Document SSO bounce is opt-in (`OD_ACP_FORCE_DOCUMENT_SSO`). The default
+    // serves the shell so "Continue with ACP" can render; APIs stay gated.
+    expect(spa.status).toBe(200);
+    expect(await spa.text()).toContain('studio embed shell');
 
     const runtime = await jsonRequest(`${baseUrl}/api/public-runtime`);
     expect(runtime.status).toBe(200);
@@ -436,6 +470,7 @@ describe('embed grant middleware for non-loopback Studio', () => {
     await Promise.resolve(shutdown?.());
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
     process.env.OD_ACP_SSO_URL = 'https://dev.agentcontrolpanel.dev/open-design/sso';
+    process.env.OD_ACP_FORCE_DOCUMENT_SSO = '1';
     const started = (await startServer({
       port: 0,
       host: '127.0.0.1',
@@ -473,12 +508,36 @@ describe('embed grant middleware for non-loopback Studio', () => {
     expect(cookieOnly.status).toBe(302);
     expect(cookieOnly.headers.get('location') ?? '').toContain('/open-design/sso?');
 
-    const returned = await fetch(`${baseUrl}/?t=${encodeURIComponent(token!)}`, {
-      headers: { accept: 'text/html' },
+    const pasted = await rawDocumentGet(`${baseUrl}/?t=${encodeURIComponent(token!)}`, {
+      accept: 'text/html',
+      'sec-fetch-dest': 'document',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'none',
+    });
+    expect(pasted.status).toBe(302);
+    expect(pasted.location).not.toContain('t=');
+    expect(pasted.setCookie.join('\n')).not.toContain(token!);
+
+    const returned = await rawDocumentGet(`${baseUrl}/?t=${encodeURIComponent(token!)}`, {
+      accept: 'text/html',
+      'sec-fetch-dest': 'document',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'same-site',
+    });
+    expect(returned.status).toBe(302);
+    expect(returned.setCookie.some((cookie) => cookie.includes(`${EMBED_GRANT_COOKIE}=${token}`))).toBe(true);
+    expect(returned.setCookie.some((cookie) => cookie.includes('od_embed_handoff=1'))).toBe(true);
+    const handoff = returned.setCookie.find((cookie) => cookie.startsWith('od_embed_handoff='));
+    const landed = await fetch(`${baseUrl}/`, {
+      headers: {
+        accept: 'text/html',
+        cookie: `${EMBED_GRANT_COOKIE}=${token}; ${handoff?.split(';')[0] ?? 'od_embed_handoff=1'}`,
+      },
       redirect: 'manual',
     });
-    expect(returned.status).toBe(200);
-    expect(await returned.text()).toContain('studio embed shell');
+    expect(landed.status).toBe(200);
+    expect(await landed.text()).toContain('studio embed shell');
+    delete process.env.OD_ACP_FORCE_DOCUMENT_SSO;
   });
 
   it('lets a matching API token list every project', async () => {
@@ -507,14 +566,45 @@ describe('embed grant middleware for non-loopback Studio', () => {
     expect(typeof token).toBe('string');
     expect(token!.length).toBeGreaterThan(0);
 
-    const spa = await jsonRequest(
-      `${baseUrl}/projects/${encodeURIComponent(pid)}/conversations/conv_embed?amcEmbed=1&t=${encodeURIComponent(token!)}`,
-      { headers: { accept: 'text/html' } },
+    const pastedPath = `/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1&amcEmbed=1&t=${encodeURIComponent(token!)}`;
+    const incognito = await rawDocumentGet(`${baseUrl}${pastedPath}`, {
+      accept: 'text/html',
+      'sec-fetch-dest': 'document',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'none',
+    });
+    expect(incognito.status).toBe(302);
+    expect(incognito.location).toBe(
+      `/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1&amcEmbed=1`,
     );
-    expect(spa.status).toBe(200);
-    expect(spa.text).toContain('studio embed shell');
-    expect(spa.setCookie).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=`));
-    expect(spa.setCookie).toEqual(expect.stringContaining(token!));
+    expect(incognito.setCookie.join('\n')).not.toContain(token!);
+
+    const apiBearer = await jsonRequest(
+      `${baseUrl}/api/projects/${encodeURIComponent(pid)}?t=${encodeURIComponent(token!)}`,
+    );
+    expect(apiBearer.status).toBe(401);
+    expect(errorCode(apiBearer.body)).toBe('API_TOKEN_REQUIRED');
+
+    const foreignFrame = await rawDocumentGet(`${baseUrl}${pastedPath}`, {
+      accept: 'text/html',
+      'sec-fetch-dest': 'iframe',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'cross-site',
+    });
+    expect(foreignFrame.status).toBe(302);
+    expect(foreignFrame.setCookie.join('\n')).not.toContain(token!);
+
+    const spa = await rawDocumentGet(`${baseUrl}${pastedPath}`, {
+      accept: 'text/html',
+      'sec-fetch-dest': 'iframe',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-site': 'same-site',
+    });
+    expect(spa.status).toBe(302);
+    expect(spa.setCookie.some((cookie) => cookie.includes(`${EMBED_GRANT_COOKIE}=${token}`))).toBe(true);
+    expect(spa.location).toBe(
+      `/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1&amcEmbed=1`,
+    );
 
     const cookie = { cookie: `${EMBED_GRANT_COOKIE}=${token}` };
 

@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CATALOG_EMBED_GRANT_PID,
   EMBED_GRANT_COOKIE,
+  EMBED_GRANT_HANDOFF_COOKIE,
+  EMBED_GRANT_HINT_COOKIE,
   EMBED_GRANT_QUERY,
   EMBED_GRANT_TTL_MS,
   applyVerifiedEmbedGrant,
@@ -13,15 +15,19 @@ import {
   embedGrantAllowsProjectRecord,
   embedGrantCookieShouldBeSecure,
   embedGrantForbidsRequest,
+  embedGrantQueryExchangeAllowed,
+  evaluateEmbedGrantQueryExchange,
   filterProjectsForEmbedGrant,
   isCatalogAdminEmbedGrant,
   isCatalogEmbedGrant,
   isEmbedGrantDeferredRunLookupPath,
+  locationWithoutEmbedGrantQuery,
   mintEmbedGrant,
   projectAcpUserId,
   publicEmbedSessionFromGrant,
   readEmbedGrantFromRequest,
   setEmbedGrantCookie,
+  setEmbedGrantExchangeCookies,
   stampCatalogOwnerMetadata,
   verifyEmbedGrant,
   type EmbedGrantPayload,
@@ -243,17 +249,17 @@ describe('embed grant cookie and query', () => {
     })).toBe('cookie-token');
   });
 
-  it('reads the grant from the t query parameter', () => {
+  it('does not treat the t query parameter as a session credential', () => {
     expect(readEmbedGrantFromRequest({
       query: { [EMBED_GRANT_QUERY]: 'query-token' },
-    })).toBe('query-token');
+    })).toBeNull();
   });
 
-  it('lets the t query win when both cookie and query are present', () => {
+  it('keeps the cookie session when a t query is also present', () => {
     expect(readEmbedGrantFromRequest({
       headers: { cookie: `${EMBED_GRANT_COOKIE}=cookie-token` },
       query: { [EMBED_GRANT_QUERY]: 'query-token' },
-    })).toBe('query-token');
+    })).toBe('cookie-token');
   });
 
   it('returns null when neither cookie nor query is present', () => {
@@ -311,11 +317,11 @@ describe('embed grant cookie and query', () => {
     expect(readEmbedGrantFromRequest({ headers: { cookie: `${parsed.name}=${parsed.value}` } })).toBe('token-value');
   });
 
-  it('prefers the current partitioned session over a legacy cookie without changing query precedence', () => {
+  it('prefers the current partitioned session over a legacy cookie and ignores t', () => {
     const headers = { cookie: 'od_embed=legacy; __Host-od_embed_partitioned=current' };
     expect(readEmbedGrantFromRequest({ headers })).toBe('current');
-    expect(readEmbedGrantFromRequest({ headers, query: { t: 'new-session' } })).toBe('new-session');
-    expect(readEmbedGrantFromRequest({ headers, query: { t: '' } })).toBeNull();
+    expect(readEmbedGrantFromRequest({ headers, query: { t: 'new-session' } })).toBe('current');
+    expect(readEmbedGrantFromRequest({ headers, query: { t: '' } })).toBe('current');
     expect(readEmbedGrantFromRequest({ headers: { cookie: 'od_embed=legacy; __Host-od_embed_partitioned=' } })).toBeNull();
   });
 
@@ -330,8 +336,13 @@ describe('embed grant cookie and query', () => {
     const values = headers.get('set-cookie');
     expect(Array.isArray(values)).toBe(true);
     const parsed = (values as readonly string[]).map(parseSetCookie);
-    expect(parsed.map((cookie) => cookie.name)).toEqual([EMBED_GRANT_COOKIE, '__Host-od_embed_partitioned']);
-    for (const cookie of parsed) {
+    expect(parsed.map((cookie) => cookie.name)).toEqual([
+      EMBED_GRANT_COOKIE,
+      '__Host-od_embed_partitioned',
+      EMBED_GRANT_HINT_COOKIE,
+      EMBED_GRANT_HANDOFF_COOKIE,
+    ]);
+    for (const cookie of parsed.slice(0, 2)) {
       expect(cookie.value).toBe('');
       expect(cookie.kv['max-age']).toBe('0');
       expect(cookie.flags.has('httponly')).toBe(true);
@@ -339,6 +350,119 @@ describe('embed grant cookie and query', () => {
     }
     expect(parsed[1]?.flags.has('partitioned')).toBe(true);
     expect(parsed[1]?.kv.samesite).toBe('None');
+    expect(parsed[2]?.value).toBe('');
+    expect(parsed[2]?.kv['max-age']).toBe('0');
+    expect(parsed[2]?.flags.has('httponly')).toBe(false);
+    expect(parsed[3]?.flags.has('httponly')).toBe(true);
+  });
+});
+
+describe('embed grant query exchange', () => {
+  const sameSiteNav = {
+    method: 'GET',
+    get(name: string) {
+      const headers: Record<string, string> = {
+        'sec-fetch-site': 'same-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe',
+      };
+      return headers[name.toLowerCase()];
+    },
+  };
+
+  it('allows only same-site document or iframe navigations', () => {
+    expect(embedGrantQueryExchangeAllowed(sameSiteNav)).toBe(true);
+    expect(embedGrantQueryExchangeAllowed({
+      ...sameSiteNav,
+      get: (name: string) => (name.toLowerCase() === 'sec-fetch-dest' ? 'document' : sameSiteNav.get(name)),
+    })).toBe(true);
+    expect(embedGrantQueryExchangeAllowed({
+      method: 'GET',
+      get: (name: string) => ({
+        'sec-fetch-site': 'none',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document',
+      }[name.toLowerCase()]),
+    })).toBe(false);
+    expect(embedGrantQueryExchangeAllowed({
+      method: 'GET',
+      get: (name: string) => ({
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe',
+      }[name.toLowerCase()]),
+    })).toBe(false);
+    expect(embedGrantQueryExchangeAllowed({
+      method: 'GET',
+      get: (name: string) => ({
+        'sec-fetch-site': 'same-site',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+      }[name.toLowerCase()]),
+    })).toBe(false);
+    expect(embedGrantQueryExchangeAllowed({ method: 'POST', get: sameSiteNav.get })).toBe(false);
+  });
+
+  it('strips t from the document location without an open redirect', () => {
+    expect(locationWithoutEmbedGrantQuery({
+      originalUrl: '/projects/proj_1/conversations/conv_1?acpEmbed=1&amcEmbed=1&t=secret',
+    })).toBe('/projects/proj_1/conversations/conv_1?acpEmbed=1&amcEmbed=1');
+    expect(locationWithoutEmbedGrantQuery({ originalUrl: '//evil.example/?t=secret' })).toBe('/');
+  });
+
+  it('exchanges a verified same-site t and refuses a pasted URL', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    const minted = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: PROJECT_ID,
+      userId: USER_ID,
+    });
+    expect(evaluateEmbedGrantQueryExchange({
+      ...sameSiteNav,
+      query: { t: minted.token },
+    }, API_TOKEN).ok).toBe(true);
+    expect(evaluateEmbedGrantQueryExchange({
+      method: 'GET',
+      query: { t: minted.token },
+      get: (name: string) => ({
+        'sec-fetch-site': 'none',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document',
+      }[name.toLowerCase()]),
+    }, API_TOKEN)).toEqual({ ok: false });
+  });
+
+  it('sets the session, hint, and one-shot handoff cookies together', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    const minted = mintEmbedGrant(API_TOKEN, {
+      now: FIXED_NOW,
+      projectId: PROJECT_ID,
+      ttlMs: 60 * 60 * 1000,
+      userId: USER_ID,
+    });
+    const headers = new Map<string, string | readonly string[]>();
+    setEmbedGrantExchangeCookies({
+      setHeader(name, value) {
+        headers.set(name.toLowerCase(), value);
+      },
+    }, minted.token, minted.expiresAt, { secure: false });
+    const raw = headers.get('set-cookie');
+    expect(Array.isArray(raw)).toBe(true);
+    const parsed = (raw as readonly string[]).map(parseSetCookie);
+    expect(parsed.map((cookie) => cookie.name)).toEqual([
+      EMBED_GRANT_COOKIE,
+      EMBED_GRANT_HINT_COOKIE,
+      EMBED_GRANT_HANDOFF_COOKIE,
+    ]);
+    expect(parsed[0]?.value).toBe(minted.token);
+    expect(parsed[0]?.flags.has('httponly')).toBe(true);
+    expect(parsed[1]?.value).toBe('1');
+    expect(parsed[1]?.flags.has('httponly')).toBe(false);
+    expect(parsed[2]?.value).toBe('1');
+    expect(parsed[2]?.flags.has('httponly')).toBe(true);
+    expect(parsed[2]?.kv['max-age']).toBe('120');
   });
 });
 
@@ -598,7 +722,8 @@ describe('embed grant request helpers', () => {
     });
     const headers = new Map<string, string>();
     const req = {
-      query: { [EMBED_GRANT_QUERY]: minted.token },
+      headers: { cookie: `${EMBED_GRANT_COOKIE}=${minted.token}` },
+      query: { [EMBED_GRANT_QUERY]: 'not-a-session' },
     };
     const payload = applyVerifiedEmbedGrant(req, {
       setHeader(name: string, value: string) {
@@ -608,6 +733,10 @@ describe('embed grant request helpers', () => {
     expect(payload).toMatchObject({ pid: PROJECT_ID, uid: USER_ID, v: 1 });
     expect(req).toHaveProperty('embedGrant', payload);
     expect(headers.get('set-cookie')).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=${minted.token}`));
+
+    const queryOnly = { query: { [EMBED_GRANT_QUERY]: minted.token } };
+    expect(applyVerifiedEmbedGrant(queryOnly, { setHeader() {} }, API_TOKEN)).toBeNull();
+    expect(queryOnly).not.toHaveProperty('embedGrant');
   });
 
   it('authenticates the partitioned session and fails closed instead of reviving a legacy grant', () => {

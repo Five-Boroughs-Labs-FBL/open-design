@@ -2,7 +2,16 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const EMBED_GRANT_COOKIE = 'od_embed';
 export const PARTITIONED_EMBED_GRANT_COOKIE = '__Host-od_embed_partitioned';
+/** Non-secret latch so the SPA can remember an embed session after `t` is stripped. Not a credential. */
+export const EMBED_GRANT_HINT_COOKIE = 'od_embed_hint';
+/**
+ * One-shot latch set when `t` is exchanged for the session cookie. It lets the
+ * immediate redirect land on the shell. It is not a credential.
+ */
+export const EMBED_GRANT_HANDOFF_COOKIE = 'od_embed_handoff';
+const EMBED_GRANT_HANDOFF_MAX_AGE_SEC = 120;
 export const EMBED_GRANT_TTL_MS = 12 * 60 * 60 * 1000;
+/** Same-site handoff parameter. Not accepted as a bearer for workspace APIs. */
 export const EMBED_GRANT_QUERY = 't';
 export const CATALOG_EMBED_GRANT_PID = '*';
 export const EMBED_GRANT_MAX_PIDS = 200;
@@ -342,9 +351,11 @@ export function embedGrantQueryPresent(req: EmbedGrantRequestLike): boolean {
   return fromQuery !== null && fromQuery.length > 0;
 }
 
+/**
+ * Session credential is the httpOnly cookie only. A `t` query value must not
+ * authenticate API calls or a copied workspace URL.
+ */
 export function readEmbedGrantFromRequest(req: EmbedGrantRequestLike): string | null {
-  const fromQuery = readQueryParam(req.query, EMBED_GRANT_QUERY);
-  if (fromQuery !== null) return fromQuery.length > 0 ? fromQuery : null;
   const partitioned = readNamedCookie(cookieHeaderValue(req.headers), PARTITIONED_EMBED_GRANT_COOKIE)
     ?? req.cookies?.[PARTITIONED_EMBED_GRANT_COOKIE];
   if (typeof partitioned === 'string') return partitioned.length > 0 ? partitioned : null;
@@ -352,6 +363,70 @@ export function readEmbedGrantFromRequest(req: EmbedGrantRequestLike): string | 
   if (fromHeader !== null) return fromHeader.length > 0 ? fromHeader : null;
   const fromCookies = req.cookies?.[EMBED_GRANT_COOKIE];
   return typeof fromCookies === 'string' && fromCookies.length > 0 ? fromCookies : null;
+}
+
+function navigationHeader(req: EmbedGrantRequestLike & {
+  get?: (name: string) => string | undefined;
+}, name: string): string {
+  if (typeof req.get === 'function') {
+    const value = req.get(name);
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return firstString(req.headers?.[name] ?? req.headers?.[name.toLowerCase()]) ?? '';
+}
+
+/**
+ * `t` may be traded for the httpOnly session only on a browser navigation that
+ * Fetch Metadata says came from the same site (ACP SSO return or the ACP
+ * iframe). Pasted / Incognito loads send `Sec-Fetch-Site: none`. Shared links
+ * and foreign iframes send `cross-site`. Script cannot set these headers.
+ */
+export function embedGrantQueryExchangeAllowed(req: EmbedGrantRequestLike & {
+  method?: string;
+  get?: (name: string) => string | undefined;
+}): boolean {
+  const method = (req.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  const site = navigationHeader(req, 'sec-fetch-site').trim().toLowerCase();
+  const mode = navigationHeader(req, 'sec-fetch-mode').trim().toLowerCase();
+  const dest = navigationHeader(req, 'sec-fetch-dest').trim().toLowerCase();
+  if (site !== 'same-site') return false;
+  if (mode !== 'navigate') return false;
+  return dest === 'document' || dest === 'iframe';
+}
+
+/** Relative location with `t` removed. Refuses scheme-relative open redirects. */
+export function locationWithoutEmbedGrantQuery(req: {
+  originalUrl?: string;
+  url?: string;
+}): string {
+  const raw = (typeof req.originalUrl === 'string' && req.originalUrl.length > 0)
+    ? req.originalUrl
+    : (typeof req.url === 'string' && req.url.length > 0 ? req.url : '/');
+  const hashIndex = raw.indexOf('#');
+  const withoutHash = hashIndex < 0 ? raw : raw.slice(0, hashIndex);
+  const hash = hashIndex < 0 ? '' : raw.slice(hashIndex);
+  const queryIndex = withoutHash.indexOf('?');
+  const pathname = queryIndex < 0 ? withoutHash : withoutHash.slice(0, queryIndex);
+  const params = new URLSearchParams(queryIndex < 0 ? '' : withoutHash.slice(queryIndex + 1));
+  params.delete(EMBED_GRANT_QUERY);
+  const search = params.toString();
+  const safePath = pathname.startsWith('/') && !pathname.startsWith('//') && !pathname.includes('\\') && !pathname.includes('://')
+    ? pathname
+    : '/';
+  return `${safePath}${search.length > 0 ? `?${search}` : ''}${hash}`;
+}
+
+export function evaluateEmbedGrantQueryExchange(
+  req: EmbedGrantAuthedRequest,
+  apiToken: string,
+): { ok: false } | { ok: true; token: string; payload: EmbedGrantPayload } {
+  if (!embedGrantQueryExchangeAllowed(req)) return { ok: false };
+  const token = readQueryParam(req.query, EMBED_GRANT_QUERY);
+  if (token == null || token.length === 0) return { ok: false };
+  const payload = verifyEmbedGrant(apiToken, token);
+  if (!payload) return { ok: false };
+  return { ok: true, token, payload };
 }
 
 /** HTTPS sessions work inside cross-site embeds without sharing their cookie across top-level sites. */
@@ -373,6 +448,23 @@ function embedGrantCookieHeader(
   return parts.join('; ');
 }
 
+function plainCookieHeader(
+  name: string,
+  value: string,
+  maxAge: number,
+  options?: { secure?: boolean; httpOnly?: boolean },
+): string {
+  const parts = [
+    `${name}=${value}`,
+    'Path=/',
+    'SameSite=Lax',
+    `Max-Age=${maxAge}`,
+  ];
+  if (options?.httpOnly === true) parts.push('HttpOnly');
+  if (options?.secure === true) parts.push('Secure');
+  return parts.join('; ');
+}
+
 export function setEmbedGrantCookie(
   res: EmbedGrantResponseLike,
   token: string,
@@ -388,15 +480,63 @@ export function setEmbedGrantCookie(
   res.append?.('Set-Cookie', header);
 }
 
+/** Trade a verified same-site `t` for the session cookie, then drop `t` from the URL. */
+export function setEmbedGrantExchangeCookies(
+  res: EmbedGrantResponseLike,
+  token: string,
+  exp: Date | number,
+  options?: { secure?: boolean },
+): void {
+  const maxAge = Math.max(0, Math.floor((expiryUnixMs(exp) - Date.now()) / 1000));
+  const secure = options?.secure === true;
+  const headers = [
+    embedGrantCookieHeader(token, maxAge, { secure }),
+    plainCookieHeader(EMBED_GRANT_HINT_COOKIE, '1', maxAge, { secure }),
+    plainCookieHeader(EMBED_GRANT_HANDOFF_COOKIE, '1', EMBED_GRANT_HANDOFF_MAX_AGE_SEC, {
+      secure,
+      httpOnly: true,
+    }),
+  ];
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Set-Cookie', headers);
+    return;
+  }
+  for (const header of headers) res.append?.('Set-Cookie', header);
+}
+
+export function embedGrantHandoffPresent(req: EmbedGrantRequestLike): boolean {
+  const fromHeader = readNamedCookie(cookieHeaderValue(req.headers), EMBED_GRANT_HANDOFF_COOKIE);
+  if (fromHeader === '1') return true;
+  return req.cookies?.[EMBED_GRANT_HANDOFF_COOKIE] === '1';
+}
+
+export function clearEmbedGrantHandoffCookie(
+  res: EmbedGrantResponseLike,
+  options?: { secure?: boolean },
+): void {
+  const header = plainCookieHeader(EMBED_GRANT_HANDOFF_COOKIE, '', 0, {
+    secure: options?.secure === true,
+    httpOnly: true,
+  });
+  if (typeof res.append === 'function') {
+    res.append('Set-Cookie', header);
+    return;
+  }
+  res.setHeader?.('Set-Cookie', header);
+}
+
 export function clearEmbedGrantCookie(
   res: EmbedGrantResponseLike,
   options?: { secure?: boolean },
 ): void {
   // Expire legacy cookies too, so signing out cannot revive a pre-upgrade session.
+  const secure = options?.secure === true;
   const headers = [
     embedGrantCookieHeader('', 0, { ...options, partitioned: false }),
   ];
-  if (options?.secure === true) headers.push(embedGrantCookieHeader('', 0, options));
+  if (secure) headers.push(embedGrantCookieHeader('', 0, options));
+  headers.push(plainCookieHeader(EMBED_GRANT_HINT_COOKIE, '', 0, { secure }));
+  headers.push(plainCookieHeader(EMBED_GRANT_HANDOFF_COOKIE, '', 0, { secure, httpOnly: true }));
   if (typeof res.setHeader === 'function') {
     res.setHeader('Set-Cookie', headers.length === 1 ? headers[0]! : headers);
     return;

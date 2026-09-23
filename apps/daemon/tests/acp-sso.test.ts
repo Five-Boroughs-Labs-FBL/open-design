@@ -92,6 +92,7 @@ describe('ACP SSO document handshake', () => {
     expect(isAcpDocumentSsoForced()).toBe(true);
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false })).toBe(true);
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: true })).toBe(false);
+    expect(shouldRedirectSpaDocumentToAcpSso({ method: 'GET', queryGrant: false, handoff: true })).toBe(false);
     expect(shouldRedirectSpaDocumentToAcpSso({ method: 'POST', queryGrant: false })).toBe(false);
   });
 });
