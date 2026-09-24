@@ -27,6 +27,7 @@ vi.mock('@open-design/platform', async (importOriginal) => {
 });
 
 import { createChatRunService } from '../../src/runtimes/runs.js';
+import { createAgentProcessAdmission } from '../../src/runtimes/agent-process-admission.js';
 
 afterEach(() => {
   platformMocks.listProcessSnapshots.mockReset();
@@ -716,6 +717,25 @@ describe('chat run service shutdown', () => {
       status: 'canceled',
       signal: 'SIGTERM',
     });
+  });
+
+  it('aborts admission for a run canceled during pre-spawn setup', async () => {
+    const runs = createRuns();
+    const admission = createAgentProcessAdmission({ maxActive: 1, maxQueued: 1 });
+    const releaseActive = await admission.acquire();
+    const run = runs.create({ projectId: 'project-1', conversationId: 'conv-waiting' });
+    const controller = new AbortController();
+    (run as any).agentProcessAdmissionAbortController = controller;
+    const waitingForAdmission = admission.acquire({ signal: controller.signal });
+
+    await runs.cancel(run, 'user_stop');
+
+    expect(controller.signal.aborted).toBe(true);
+    await expect(waitingForAdmission).rejects.toThrow('queued agent process was canceled');
+    expect(admission.snapshot()).toMatchObject({ active: 1, queued: 0 });
+    releaseActive();
+    const releaseNext = await admission.acquire();
+    releaseNext();
   });
 
   describe('cancel kill fallback', () => {
