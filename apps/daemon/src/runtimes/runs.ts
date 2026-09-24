@@ -1658,6 +1658,10 @@ export function createChatRunService({
     lifecycleEvidence = null,
   ) => {
     if (TERMINAL_RUN_STATUSES.has(run.status)) return;
+    if (!run.child && run.agentProcessAdmissionRelease) {
+      run.agentProcessAdmissionRelease();
+      run.agentProcessAdmissionRelease = null;
+    }
     const terminalAt = Date.now();
     if (beforeFinish) beforeFinish(run, status, code, signal, terminalAt);
     run.status = status;
@@ -2495,6 +2499,7 @@ export function createChatRunService({
     run.cancelRequested = true;
     run.cancelOrigin = origin;
     run.updatedAt = Date.now();
+    run.agentProcessAdmissionAbortController?.abort();
     clearPendingRetryRestart(run);
     if (!run.child) {
       closeRunStdin(run);
@@ -2550,6 +2555,7 @@ export function createChatRunService({
       run.cancelRequested = true;
       run.cancelOrigin = 'daemon_shutdown';
       run.updatedAt = Date.now();
+      run.agentProcessAdmissionAbortController?.abort();
       clearPendingRetryRestart(run);
       const termination = terminateProcessTree(
         run,
