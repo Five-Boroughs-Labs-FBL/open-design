@@ -43,6 +43,12 @@ If you expose OpenDesign through a reverse proxy, also set:
 OPEN_DESIGN_ALLOWED_ORIGINS=https://yourdomain.com
 ```
 
+Agent process admission defaults to at most four active child processes and a
+FIFO queue of at most sixteen waiting runs. Set `OD_AGENT_PROCESS_MAX_ACTIVE`
+and `OD_AGENT_PROCESS_MAX_QUEUED` in `deploy/.env` to tune those bounds. When
+the waiting queue is full, a new run fails with a retryable queue-full error;
+queued runs can be canceled without consuming an active-process permit.
+
 ## Step 3: Start OpenDesign
 
 ```bash

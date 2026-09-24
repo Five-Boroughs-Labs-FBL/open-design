@@ -554,6 +554,13 @@ import { renderDesignSystemShowcase } from './design-systems/showcase.js';
 import { createChatRunService } from './runtimes/runs.js';
 import { reapLeftoverAgentProcesses, spawnAgentProcess } from './runtimes/agent-process.js';
 import {
+  AgentProcessAdmissionAbortedError,
+  AgentProcessQueueFullError,
+  createAgentProcessAdmissionFromEnv,
+  releaseAgentProcessAdmissionOnChildExit,
+  spawnWithAgentProcessAdmission,
+} from './runtimes/agent-process-admission.js';
+import {
   createAmrTerminalReportDeliveryService,
   createAmrTerminalReportFinalizer,
   createAmrTerminalReportOutboxStore,
@@ -7985,6 +7992,7 @@ export async function startServer({
     ),
   );
   const stopEvidenceDelivery = startEvidenceDelivery(RUNTIME_DATA_DIR);
+  const agentProcessAdmission = createAgentProcessAdmissionFromEnv();
   const strategyWriteEvidence = createStrategyRunWriteEvidenceRecorder(db);
   const codexThreadCleanupOwner = createCodexThreadCleanupOwner();
   const design = {
@@ -14629,6 +14637,54 @@ export async function startServer({
       return;
     }
 
+    const admissionAbortController = new AbortController();
+    run.agentProcessAdmissionAbortController = admissionAbortController;
+    let releaseAgentProcessAdmission: (() => void) | null = null;
+    try {
+      releaseAgentProcessAdmission = await agentProcessAdmission.acquire({
+        signal: admissionAbortController.signal,
+      });
+    } catch (error) {
+      if (run.agentProcessAdmissionAbortController === admissionAbortController) {
+        run.agentProcessAdmissionAbortController = null;
+      }
+      if (error instanceof AgentProcessAdmissionAbortedError
+        && (run.cancelRequested || design.runs.isTerminal(run.status))) {
+        cleanupPromptFile();
+        revokeToolToken('child_exit');
+        unregisterChatAgentEventSink();
+        cleanupOdNextRunInputProjection();
+        return;
+      }
+      if (error instanceof AgentProcessQueueFullError) {
+        cleanupPromptFile();
+        revokeToolToken('child_exit');
+        unregisterChatAgentEventSink();
+        cleanupOdNextRunInputProjection();
+        send('error', createSseErrorPayload(
+          'AGENT_EXECUTION_FAILED',
+          error.message,
+          { retryable: true, details: { kind: 'agent_process_queue_full' } },
+        ));
+        finishStrategyAwarePhysicalRun('failed', 1, null);
+        return;
+      }
+      throw error;
+    }
+    if (run.agentProcessAdmissionAbortController === admissionAbortController) {
+      run.agentProcessAdmissionAbortController = null;
+    }
+    run.agentProcessAdmissionRelease = releaseAgentProcessAdmission;
+    if (run.cancelRequested || design.runs.isTerminal(run.status)) {
+      releaseAgentProcessAdmission();
+      run.agentProcessAdmissionRelease = null;
+      cleanupPromptFile();
+      revokeToolToken('child_exit');
+      unregisterChatAgentEventSink();
+      cleanupOdNextRunInputProjection();
+      return;
+    }
+
     run.status = 'running';
     run.updatedAt = Date.now();
     send('start', {
@@ -14827,19 +14883,24 @@ export async function startServer({
       // framed stdin protocols (stream-json, JSON-RPC) keep the pipe. The
       // agent stays on record until its process group is gone, so a daemon
       // started after this one dies can reap it. See runtimes/agent-process.ts.
-      const spawnedAgent = spawnAgentProcess({
-        command: invocation.command,
-        args: invocation.args,
-        env,
-        cwd: effectiveCwd,
-        windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-        stdin: stdinMode === 'pipe' && runtimeReadsPlainTextPromptFromStdin(def)
-          ? { prompt: composed }
-          : stdinMode,
-        runDir: path.join(RUNTIME_DATA_DIR, 'runs', run.id),
-        runId: run.id,
-      });
+      const spawnedAgent = spawnWithAgentProcessAdmission(
+        releaseAgentProcessAdmission,
+        () => spawnAgentProcess({
+          command: invocation.command,
+          args: invocation.args,
+          env,
+          cwd: effectiveCwd,
+          windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+          stdin: stdinMode === 'pipe' && runtimeReadsPlainTextPromptFromStdin(def)
+            ? { prompt: composed }
+            : stdinMode,
+          runDir: path.join(RUNTIME_DATA_DIR, 'runs', run.id),
+          runId: run.id,
+        }),
+      );
       child = spawnedAgent.child;
+      run.agentProcessAdmissionRelease = null;
+      releaseAgentProcessAdmissionOnChildExit(child, releaseAgentProcessAdmission);
       promptDeliveredAtSpawn = spawnedAgent.promptDeliveredAtSpawn;
       lifecycle.mark('process_spawned');
       run.child = child;
@@ -14929,6 +14990,7 @@ export async function startServer({
         writePromptToChildStdin = def.promptViaStdin === true && !promptDeliveredAtSpawn;
       }
     } catch (err) {
+      if (!child) releaseAgentProcessAdmission();
       cleanupPromptFile();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();

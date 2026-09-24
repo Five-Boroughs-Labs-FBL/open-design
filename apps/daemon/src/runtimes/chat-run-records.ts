@@ -176,6 +176,8 @@ export interface ChatRun {
   createdAt: number;
   updatedAt: number;
   cancelRequested?: boolean;
+  agentProcessAdmissionAbortController?: AbortController | null;
+  agentProcessAdmissionRelease?: (() => void) | null;
   cancelOrigin?: ChatRunStatusResponse['cancelOrigin'];
   terminalTrigger?: ChatRunStatusResponse['terminalTrigger'];
   terminalLifecycle?: RunTerminalLifecycleV1;
