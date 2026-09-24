@@ -168,6 +168,33 @@ function projectIdFromPath(pathname: string): string | null {
   return decodePathSegment(segment);
 }
 
+/**
+ * A grant `pid` is an Open Design project id. Callers that stuffed the studio
+ * URL (or its path) into `pid` still name that project — `/projects/:id/...`
+ * covers `:id`, not the whole string.
+ */
+function projectIdFromGrantPid(pid: string): string | null {
+  let path = pid.trim();
+  if (!path.includes('/')) return null;
+  if (path.includes('://')) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      return null;
+    }
+  }
+  if (!path.startsWith('/')) path = `/${path}`;
+  return projectIdFromPath(normalizePathname(path));
+}
+
+/** Signed project ids this grant names. Catalog `*` is not itself a project id. */
+function embedGrantCoversProjectId(grant: EmbedGrantPayload, projectId: string): boolean {
+  if (projectId.length === 0) return false;
+  if (projectId === grant.pid) return true;
+  if (grant.pids?.includes(projectId)) return true;
+  return projectIdFromGrantPid(grant.pid) === projectId;
+}
+
 function cookieHeaderValue(headers: EmbedGrantRequestLike['headers']): string {
   const value = headers?.cookie ?? headers?.Cookie;
   if (typeof value === 'string') return value;
@@ -578,14 +605,14 @@ export function embedGrantAllowsPath(
   const pathProjectId = projectIdFromPath(pathname);
   if (pathProjectId !== null) {
     if (catalog) return true;
-    return pathProjectId === grant.pid;
+    return embedGrantCoversProjectId(grant, pathProjectId);
   }
 
   // POST /api/runs and POST /api/chat are the two "create a generation run"
   // entry points. Catalog grants may hit them; project grants need the
   // matching projectId (query here, body in embedGrantForbidsRequest).
   if (isEmbedGrantRunCreatePath(pathname)) {
-    return catalog || queryProjectId === grant.pid;
+    return catalog || (queryProjectId != null && embedGrantCoversProjectId(grant, queryProjectId));
   }
 
   if (!isReadMethod(methodUpper)) {
@@ -688,9 +715,9 @@ function embedGrantAllowsPostRuns(
     const queryProjectId = firstString(query?.projectId);
     return queryProjectId == null || queryProjectId === bodyProjectId;
   }
-  if (bodyProjectId !== grant.pid) return false;
+  if (!embedGrantCoversProjectId(grant, bodyProjectId)) return false;
   const queryProjectId = firstString(query?.projectId);
-  return queryProjectId == null || queryProjectId === grant.pid;
+  return queryProjectId == null || embedGrantCoversProjectId(grant, queryProjectId);
 }
 
 export function embedGrantAllowsProjectRecord(
@@ -699,9 +726,8 @@ export function embedGrantAllowsProjectRecord(
 ): boolean {
   if (grant == null) return true;
   if (project == null || typeof project.id !== 'string' || project.id.length === 0) return false;
-  if (grant.pid === project.id) return true;
+  if (embedGrantCoversProjectId(grant, project.id)) return true;
   if (!isCatalogEmbedGrant(grant)) return false;
-  if (grant.pids?.includes(project.id)) return true;
   return projectAcpUserId(project) === grant.uid;
 }
 
@@ -712,10 +738,10 @@ export function embedGrantAllowsProjectId(
 ): boolean {
   if (grant == null) return true;
   if (typeof projectId !== 'string' || projectId.length === 0) return false;
-  if (grant.pid === projectId) return true;
+  if (embedGrantCoversProjectId(grant, projectId)) return true;
   if (!isCatalogEmbedGrant(grant)) return false;
   if (project && project.id === projectId) return embedGrantAllowsProjectRecord(grant, project);
-  return Boolean(grant.pids?.includes(projectId));
+  return false;
 }
 
 export function filterProjectsForEmbedGrant<T extends EmbedGrantProjectRecord>(
@@ -726,7 +752,7 @@ export function filterProjectsForEmbedGrant<T extends EmbedGrantProjectRecord>(
   if (isCatalogEmbedGrant(grant)) {
     return projects.filter((project) => embedGrantAllowsProjectRecord(grant, project));
   }
-  return projects.filter((project) => project.id === grant.pid);
+  return projects.filter((project) => embedGrantCoversProjectId(grant, project.id));
 }
 
 export function stampCatalogOwnerMetadata<T extends Record<string, unknown>>(
@@ -741,20 +767,82 @@ export function stampCatalogOwnerMetadata<T extends Record<string, unknown>>(
   return base;
 }
 
+function collectNamedCookies(header: string, name: string): string[] | null {
+  let found = false;
+  const values: string[] = [];
+  for (const part of header.split(';')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eq = trimmed.indexOf('=');
+    const key = (eq < 0 ? trimmed : trimmed.slice(0, eq)).trim();
+    if (key !== name) continue;
+    found = true;
+    values.push(eq < 0 ? '' : trimmed.slice(eq + 1).trim());
+  }
+  return found ? values : null;
+}
+
+function cookieValues(req: EmbedGrantRequestLike, name: string): string[] | null {
+  const fromHeader = collectNamedCookies(cookieHeaderValue(req.headers), name);
+  if (fromHeader) return fromHeader;
+  const fromJar = req.cookies?.[name];
+  if (typeof fromJar === 'string') return [fromJar];
+  if (Array.isArray(fromJar)) {
+    const values = fromJar.filter((item): item is string => typeof item === 'string');
+    return values.length > 0 ? values : [''];
+  }
+  return null;
+}
+
+function verifiedEmbedSessions(
+  apiToken: string,
+  tokens: readonly string[] | null,
+): Array<{ token: string; payload: EmbedGrantPayload }> {
+  if (!tokens) return [];
+  const sessions: Array<{ token: string; payload: EmbedGrantPayload }> = [];
+  for (const token of tokens) {
+    if (!token) continue;
+    const payload = verifyEmbedGrant(apiToken, token);
+    if (payload) sessions.push({ token, payload });
+  }
+  return sessions;
+}
+
+/**
+ * Session credential is still the httpOnly cookie, never `t`.
+ *
+ * HTTPS embeds also carry `__Host-od_embed_partitioned` from an earlier
+ * same-site exchange. That cookie wins when it authorizes this request. A
+ * verified but too-narrow partitioned grant must not hide the `od_embed`
+ * cookie Agent Control Panel set for the project the iframe is opening.
+ * A present partitioned cookie that does not verify still fails closed, so a
+ * dead partition cannot revive `od_embed`.
+ */
 export function applyVerifiedEmbedGrant(
   req: EmbedGrantAuthedRequest,
   res: EmbedGrantResponseLike,
   apiToken: string,
+  lookup?: EmbedGrantProjectLookup | null,
 ): EmbedGrantPayload | null {
-  const token = readEmbedGrantFromRequest(req);
-  if (!token) return null;
-  const payload = verifyEmbedGrant(apiToken, token);
-  if (!payload) return null;
-  req.embedGrant = payload;
-  setEmbedGrantCookie(res, token, payload.exp, {
+  const partitionedTokens = cookieValues(req, PARTITIONED_EMBED_GRANT_COOKIE);
+  const legacyTokens = cookieValues(req, EMBED_GRANT_COOKIE);
+  let sessions: Array<{ token: string; payload: EmbedGrantPayload }>;
+  if (partitionedTokens) {
+    const partitioned = verifiedEmbedSessions(apiToken, partitionedTokens);
+    if (partitioned.length === 0) return null;
+    sessions = [...partitioned, ...verifiedEmbedSessions(apiToken, legacyTokens)];
+  } else {
+    sessions = verifiedEmbedSessions(apiToken, legacyTokens);
+  }
+  if (sessions.length === 0) return null;
+  const chosen = sessions.find((session) => (
+    !embedGrantForbidsRequest(session.payload, req, lookup)
+  )) ?? sessions[0]!;
+  req.embedGrant = chosen.payload;
+  setEmbedGrantCookie(res, chosen.token, chosen.payload.exp, {
     secure: embedGrantCookieShouldBeSecure(req),
   });
-  return payload;
+  return chosen.payload;
 }
 
 export function embedGrantForbidsRequest(

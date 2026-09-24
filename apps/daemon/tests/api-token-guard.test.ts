@@ -19,7 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isApiAuthDisabled, isApiTokenMiddlewareEnabled } from '../src/api-token-auth.js';
-import { EMBED_GRANT_COOKIE } from '../src/embed-grants.js';
+import { EMBED_GRANT_COOKIE, PARTITIONED_EMBED_GRANT_COOKIE } from '../src/embed-grants.js';
 import { startServer } from '../src/server.js';
 
 const PREVIOUS_TOKEN = process.env.OD_API_TOKEN;
@@ -698,6 +698,76 @@ describe('embed grant middleware for non-loopback Studio', () => {
     });
     expect(other.status).toBe(403);
     expect(errorCode(other.body)).toBe('EMBED_GRANT_SCOPE');
+  });
+
+  it('serves the studio when od_embed covers the project and a partitioned grant does not', async () => {
+    const pid = await createTestProject(baseUrl, authorization, 'Current design');
+    const otherPid = await createTestProject(baseUrl, authorization, 'Other design');
+    const catalog = await jsonRequest(`${baseUrl}/api/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'residual-catalog-user', projectIds: [] }),
+    });
+    const projectGrant = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(pid)}/embed-grants`, {
+      method: 'POST',
+      headers: {
+        authorization,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ userId: 'amc-user-1' }),
+    });
+    expect(catalog.status).toBe(200);
+    expect(projectGrant.status).toBe(200);
+    const catalogToken = (catalog.body as { token?: string }).token;
+    const projectToken = (projectGrant.body as { token?: string }).token;
+    const cookie = {
+      cookie: `${PARTITIONED_EMBED_GRANT_COOKIE}=${catalogToken}; ${EMBED_GRANT_COOKIE}=${projectToken}`,
+    };
+
+    const spa = await rawDocumentGet(
+      `${baseUrl}/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1`,
+      { accept: 'text/html', ...cookie },
+    );
+    expect(spa.status).toBe(200);
+    expect(spa.body).toContain('studio embed shell');
+    expect(spa.body).not.toContain('EMBED_GRANT_SCOPE');
+
+    const ownProject = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(pid)}`, {
+      headers: cookie,
+    });
+    expect(ownProject.status).toBe(200);
+
+    const other = await jsonRequest(`${baseUrl}/api/projects/${encodeURIComponent(otherPid)}`, {
+      headers: cookie,
+    });
+    expect(other.status).toBe(403);
+    expect(errorCode(other.body)).toBe('EMBED_GRANT_SCOPE');
+
+    const catalogOnly = await rawDocumentGet(
+      `${baseUrl}/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1`,
+      { accept: 'text/html', cookie: `${PARTITIONED_EMBED_GRANT_COOKIE}=${catalogToken}` },
+    );
+    expect(catalogOnly.status).toBe(403);
+    expect(catalogOnly.body).toContain('EMBED_GRANT_SCOPE');
+
+    const incognito = await rawDocumentGet(
+      `${baseUrl}/projects/${encodeURIComponent(pid)}/conversations/conv_embed?acpEmbed=1&t=${encodeURIComponent(projectToken!)}`,
+      {
+        accept: 'text/html',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+      },
+    );
+    expect(incognito.status).toBe(302);
+    expect(incognito.setCookie.join('\n')).not.toContain(projectToken!);
+    const apiFromQuery = await jsonRequest(
+      `${baseUrl}/api/projects/${encodeURIComponent(pid)}?t=${encodeURIComponent(projectToken!)}`,
+    );
+    expect(apiFromQuery.status).toBe(401);
   });
 });
 
