@@ -3358,7 +3358,12 @@ export async function startServer({
       ) {
         return next();
       }
-      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      const embedGrant = applyVerifiedEmbedGrant(
+        req,
+        res,
+        apiToken,
+        embedGrantProjectLookup.current,
+      );
       if (embedGrant) {
         if (embedGrantForbidsRequest(embedGrant, req, embedGrantProjectLookup.current)) {
           return sendApiError(
@@ -3411,7 +3416,12 @@ export async function startServer({
         }
         return res.redirect(302, locationWithoutEmbedGrantQuery(req));
       }
-      const embedGrant = applyVerifiedEmbedGrant(req, res, apiToken);
+      const embedGrant = applyVerifiedEmbedGrant(
+        req,
+        res,
+        apiToken,
+        embedGrantProjectLookup.current,
+      );
       const ssoUrl = acpSsoUrlFromEnv();
       const handoff = embedGrantHandoffPresent(req);
       if (handoff) {

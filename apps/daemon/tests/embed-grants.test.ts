@@ -739,6 +739,61 @@ describe('embed grant request helpers', () => {
     expect(queryOnly).not.toHaveProperty('embedGrant');
   });
 
+  it('lets a path-shaped pid authorize that project, not a different one', () => {
+    const shaped = grant('https://design.agentcontrolpanel.dev/projects/proj_studio_1/conversations/conv_1?acpEmbed=1');
+    expect(embedGrantAllowsPath(shaped, 'GET', `/projects/${PROJECT_ID}/conversations/conv_1?acpEmbed=1`)).toBe(true);
+    expect(embedGrantAllowsPath(shaped, 'GET', `/projects/${PROJECT_ID}/files/index.html`)).toBe(true);
+    expect(embedGrantAllowsPath(shaped, 'GET', `/api/projects/${PROJECT_ID}`)).toBe(true);
+    expect(embedGrantAllowsPath(shaped, 'POST', '/api/chat', { projectId: PROJECT_ID })).toBe(true);
+    expect(embedGrantAllowsPath(shaped, 'GET', '/projects/proj_other')).toBe(false);
+    expect(embedGrantAllowsProjectId(shaped, PROJECT_ID)).toBe(true);
+    expect(embedGrantAllowsProjectId(shaped, 'proj_other')).toBe(false);
+    expect(filterProjectsForEmbedGrant(shaped, [
+      { id: PROJECT_ID },
+      { id: 'proj_other' },
+    ]).map((project) => project.id)).toEqual([PROJECT_ID]);
+  });
+
+  it('uses od_embed when a verified partitioned grant does not cover the studio path', () => {
+    const project = mintEmbedGrant(API_TOKEN, { projectId: PROJECT_ID, userId: USER_ID });
+    const catalog = mintEmbedGrant(API_TOKEN, {
+      projectId: CATALOG_EMBED_GRANT_PID,
+      userId: 'someone-else',
+    });
+    const headers = new Map<string, string>();
+    const req = {
+      method: 'GET',
+      originalUrl: `/projects/${PROJECT_ID}/conversations/conv_embed?acpEmbed=1`,
+      headers: {
+        cookie: `${EMBED_GRANT_COOKIE}=${project.token}; __Host-od_embed_partitioned=${catalog.token}`,
+      },
+    };
+    const payload = applyVerifiedEmbedGrant(req, {
+      setHeader(name: string, value: string) {
+        headers.set(name.toLowerCase(), value);
+      },
+    }, API_TOKEN, () => ({ id: PROJECT_ID, metadata: {} }));
+    expect(payload).toMatchObject({ pid: PROJECT_ID, uid: USER_ID });
+    expect(headers.get('set-cookie')).toEqual(expect.stringContaining(`${EMBED_GRANT_COOKIE}=${project.token}`));
+    expect(embedGrantForbidsRequest(payload!, req, () => ({ id: PROJECT_ID, metadata: {} }))).toBe(false);
+  });
+
+  it('keeps the partitioned grant when it already allows the studio path', () => {
+    const project = mintEmbedGrant(API_TOKEN, { projectId: PROJECT_ID, userId: USER_ID });
+    const other = mintEmbedGrant(API_TOKEN, { projectId: 'proj_other', userId: USER_ID });
+    const req = {
+      method: 'GET',
+      originalUrl: `/projects/${PROJECT_ID}/conversations/conv_embed?acpEmbed=1`,
+      secure: true,
+      headers: {
+        cookie: `${EMBED_GRANT_COOKIE}=${other.token}; __Host-od_embed_partitioned=${project.token}`,
+      },
+    };
+    expect(applyVerifiedEmbedGrant(req, { setHeader() {} }, API_TOKEN)).toMatchObject({
+      pid: PROJECT_ID,
+    });
+  });
+
   it('authenticates the partitioned session and fails closed instead of reviving a legacy grant', () => {
     const minted = mintEmbedGrant(API_TOKEN, { projectId: PROJECT_ID, userId: USER_ID });
     const reply = { setHeader: vi.fn() };
