@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { configuredAllowedOrigins } from './origin-validation.js';
 
 export const EMBED_GRANT_COOKIE = 'od_embed';
 export const PARTITIONED_EMBED_GRANT_COOKIE = '__Host-od_embed_partitioned';
@@ -402,11 +403,44 @@ function navigationHeader(req: EmbedGrantRequestLike & {
   return firstString(req.headers?.[name] ?? req.headers?.[name.toLowerCase()]) ?? '';
 }
 
+function refererOrigin(req: EmbedGrantRequestLike & {
+  get?: (name: string) => string | undefined;
+}): string | null {
+  const raw = navigationHeader(req, 'referer').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/** Parent of a cross-site iframe, when that parent is an operator-listed ACP host. */
+function crossSiteEmbedParentAllowed(req: EmbedGrantRequestLike & {
+  get?: (name: string) => string | undefined;
+}): boolean {
+  const origin = refererOrigin(req);
+  if (!origin) return false;
+  let allowed: string[];
+  try {
+    allowed = configuredAllowedOrigins();
+  } catch {
+    return false;
+  }
+  return allowed.includes(origin);
+}
+
 /**
- * `t` may be traded for the httpOnly session only on a browser navigation that
- * Fetch Metadata says came from the same site (ACP SSO return or the ACP
- * iframe). Pasted / Incognito loads send `Sec-Fetch-Site: none`. Shared links
- * and foreign iframes send `cross-site`. Script cannot set these headers.
+ * `t` may be traded for the httpOnly session only on a browser navigation.
+ * Same-site document and iframe loads (ACP SSO return, or the custom-domain
+ * Mission) may exchange it. A cross-site iframe may exchange it only when the
+ * parent origin is in `OD_ALLOWED_ORIGINS` — the Railway web alias is not
+ * schemeful same-site with Studio. The exchange sets the partitioned cookie
+ * and the redirect removes `t`. Pasted / Incognito loads send
+ * `Sec-Fetch-Site: none`. A cross-site top-level open, or an iframe whose
+ * parent is not listed, stays refused. Script cannot set these headers.
  */
 export function embedGrantQueryExchangeAllowed(req: EmbedGrantRequestLike & {
   method?: string;
@@ -417,9 +451,10 @@ export function embedGrantQueryExchangeAllowed(req: EmbedGrantRequestLike & {
   const site = navigationHeader(req, 'sec-fetch-site').trim().toLowerCase();
   const mode = navigationHeader(req, 'sec-fetch-mode').trim().toLowerCase();
   const dest = navigationHeader(req, 'sec-fetch-dest').trim().toLowerCase();
-  if (site !== 'same-site') return false;
   if (mode !== 'navigate') return false;
-  return dest === 'document' || dest === 'iframe';
+  if (site === 'same-site') return dest === 'document' || dest === 'iframe';
+  if (site === 'cross-site' && dest === 'iframe') return crossSiteEmbedParentAllowed(req);
+  return false;
 }
 
 /** Relative location with `t` removed. Refuses scheme-relative open redirects. */

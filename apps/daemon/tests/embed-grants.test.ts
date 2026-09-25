@@ -392,6 +392,40 @@ describe('embed grant query exchange', () => {
         'sec-fetch-dest': 'iframe',
       }[name.toLowerCase()]),
     })).toBe(false);
+    const previousAllowed = process.env.OD_ALLOWED_ORIGINS;
+    process.env.OD_ALLOWED_ORIGINS = 'https://dev-amc.up.railway.app,https://dev.agentcontrolpanel.dev';
+    try {
+      expect(embedGrantQueryExchangeAllowed({
+        method: 'GET',
+        get: (name: string) => ({
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-dest': 'iframe',
+          referer: 'https://dev-amc.up.railway.app/project/kiddo-landing',
+        }[name.toLowerCase()]),
+      })).toBe(true);
+      expect(embedGrantQueryExchangeAllowed({
+        method: 'GET',
+        get: (name: string) => ({
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-dest': 'document',
+          referer: 'https://dev-amc.up.railway.app/',
+        }[name.toLowerCase()]),
+      })).toBe(false);
+      expect(embedGrantQueryExchangeAllowed({
+        method: 'GET',
+        get: (name: string) => ({
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-dest': 'iframe',
+          referer: 'https://evil.example/phish',
+        }[name.toLowerCase()]),
+      })).toBe(false);
+    } finally {
+      if (previousAllowed === undefined) delete process.env.OD_ALLOWED_ORIGINS;
+      else process.env.OD_ALLOWED_ORIGINS = previousAllowed;
+    }
     expect(embedGrantQueryExchangeAllowed({
       method: 'GET',
       get: (name: string) => ({
