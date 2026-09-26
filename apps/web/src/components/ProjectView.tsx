@@ -13898,7 +13898,9 @@ export function ProjectView({
           acpMobileEmbed ? `split-acp-mobile--${acpMobilePane}` : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
-        style={projectSplitStyle(workspaceFocused, splitLeftPanelWidth, workspacePanelTrack)}
+        style={acpMobileEmbed
+          ? undefined
+          : projectSplitStyle(workspaceFocused, splitLeftPanelWidth, workspacePanelTrack)}
       >
         {acpMobileEmbed ? (
           <div className="acp-mobile-studio-tabs" role="tablist" aria-label="Design workspace">
