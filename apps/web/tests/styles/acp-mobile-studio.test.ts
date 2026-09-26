@@ -16,6 +16,7 @@ describe('ACP mobile Design Studio', () => {
     expect(projectView).toContain("setAcpMobilePane('preview')");
     expect(projectView).toContain("setAcpMobilePane('chat')");
     expect(projectView).toContain("window.matchMedia('(max-width: 640px)')");
+    expect(projectView).toMatch(/style=\{acpMobileEmbed[\s\S]*?\? undefined[\s\S]*?: projectSplitStyle/);
   });
 
   it('uses a single workspace column on phone-sized ACP embeds', () => {
