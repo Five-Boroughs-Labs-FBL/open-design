@@ -135,6 +135,9 @@ html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
     --project-workspace-panel-track: 0px;
   }
 
+  /* These explicit pane rules must win over the older <=700px split-focus
+     fallback above. Preview/Chat is now the authority at phone widths; the
+     legacy workspaceFocused bit may still be true from desktop/tablet state. */
   html:is([data-amc-embed], [data-acp-embed])
     .split.split-acp-mobile--preview > .split-chat-slot,
   html:is([data-amc-embed], [data-acp-embed])
@@ -145,6 +148,14 @@ html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
     .split.split-acp-mobile--chat > .workspace {
     visibility: hidden;
     pointer-events: none;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--preview > .workspace,
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--chat > .split-chat-slot {
+    visibility: visible;
+    pointer-events: auto;
   }
 
   html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile .acp-mobile-studio-tabs {
