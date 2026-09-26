@@ -96,4 +96,17 @@ html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
   html:is([data-amc-embed], [data-acp-embed]) .split-chat-tabs-dock {
     min-width: 0;
   }
+
+  /* In the ACP embed the normal desktop collapse icon becomes the mobile
+     Canvas/Chat switch. Give it an explicit touch-sized target. */
+  html:is([data-amc-embed], [data-acp-embed]) .split-chat-collapse {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .workspace-focus-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
