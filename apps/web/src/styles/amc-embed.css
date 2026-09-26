@@ -44,3 +44,69 @@ html:is([data-amc-embed], [data-acp-embed]) .df-main {
 html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
   display: none !important;
 }
+
+
+/* ACP embeds the Studio inside a phone-width Mission surface. The regular
+   project split has desktop minimums (chat ~460px + workspace >=400px), so at
+   compact widths make the existing focus toggle behave as Canvas / Chat
+   instead of squeezing two unusable columns side-by-side. This is embed-only:
+   standalone Open Design keeps its existing desktop workspace contract. */
+@media (max-width: 700px) {
+  html:is([data-amc-embed], [data-acp-embed]) .split {
+    --project-chat-panel-width: 100%;
+    --project-chat-handle-width: 0px;
+    --project-workspace-panel-track: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    position: relative;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split > .split-chat-slot {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split > .split-resize-handle {
+    display: none;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split > .workspace {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* ProjectView already owns this state and keeps both surfaces mounted.
+     Focused means Canvas; unfocused means Chat. No second mobile state machine
+     is introduced, and the existing collapse control is the mode switch. */
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-focus > .split-chat-slot {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-focus > .workspace {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split-chat-tabs-dock {
+    min-width: 0;
+  }
+
+  /* In the ACP embed the normal desktop collapse icon becomes the mobile
+     Canvas/Chat switch. Give it an explicit touch-sized target. */
+  html:is([data-amc-embed], [data-acp-embed]) .split-chat-collapse {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .workspace-focus-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
