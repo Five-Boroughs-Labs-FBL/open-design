@@ -24,5 +24,10 @@ describe('ACP mobile Design Studio', () => {
     expect(css).toMatch(/split-acp-mobile--preview[\s\S]*?--project-chat-panel-width:\s*0px/);
     expect(css).toMatch(/split-acp-mobile--chat[\s\S]*?--project-chat-panel-width:\s*100vw/);
     expect(css).toMatch(/split-acp-mobile--chat[\s\S]*?\.workspace[\s\S]*?visibility:\s*hidden/);
+    // #156's <=700px fallback hides .workspace by default. The explicit
+    // Preview/Chat state introduced later must override that fallback or the
+    // default Preview pane is blank.
+    expect(css).toMatch(/split-acp-mobile--preview\s*>\s*\.workspace[\s\S]*?visibility:\s*visible/);
+    expect(css).toMatch(/split-acp-mobile--chat\s*>\s*\.split-chat-slot[\s\S]*?visibility:\s*visible/);
   });
 });
