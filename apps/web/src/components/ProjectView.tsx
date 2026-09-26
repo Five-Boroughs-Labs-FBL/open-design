@@ -414,6 +414,7 @@ import {
 } from '../state/home-attachment-handoff';
 import { effectiveAgentModelChoice, effectiveAgentModelId } from './agentModelSelection';
 import { applyAcpDesignExecution, readAcpDesignExecution, type AcpDesignExecution } from '../runtime/acp-design-execution';
+import { isAmcEmbedActive } from '../amc-embed';
 import {
   retryAssistantAgentId,
   retryAssistantModel,
@@ -2776,6 +2777,23 @@ export function ProjectView({
   const [liveArtifacts, setLiveArtifacts] = useState<LiveArtifactSummary[]>([]);
   const [liveArtifactEvents, setLiveArtifactEvents] = useState<LiveArtifactEventItem[]>([]);
   const [workspaceFocused, setWorkspaceFocused] = useState(false);
+  const [acpMobileEmbed, setAcpMobileEmbed] = useState(() =>
+    typeof window !== 'undefined'
+      && isAmcEmbedActive(window)
+      && window.matchMedia('(max-width: 640px)').matches
+  );
+  const [acpMobilePane, setAcpMobilePane] = useState<'preview' | 'chat'>('preview');
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isAmcEmbedActive(window)) {
+      setAcpMobileEmbed(false);
+      return undefined;
+    }
+    const media = window.matchMedia('(max-width: 640px)');
+    const sync = () => setAcpMobileEmbed(media.matches);
+    sync();
+    media.addEventListener?.('change', sync);
+    return () => media.removeEventListener?.('change', sync);
+  }, []);
   // Read by `renderPreferredChatPanelWidth` instead of closing over
   // `workspaceFocused` directly, so that callback's identity (and therefore
   // the ResizeObserver effect keyed on it, below) doesn't need to depend on
@@ -13876,10 +13894,34 @@ export function ProjectView({
         ref={splitRef}
         className={[
           projectSplitClassName(workspaceFocused),
+          acpMobileEmbed ? 'split-acp-mobile' : '',
+          acpMobileEmbed ? `split-acp-mobile--${acpMobilePane}` : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
         style={projectSplitStyle(workspaceFocused, splitLeftPanelWidth, workspacePanelTrack)}
       >
+        {acpMobileEmbed ? (
+          <div className="acp-mobile-studio-tabs" role="tablist" aria-label="Design workspace">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={acpMobilePane === 'preview'}
+              className={acpMobilePane === 'preview' ? 'is-active' : ''}
+              onClick={() => setAcpMobilePane('preview')}
+            >
+              Preview
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={acpMobilePane === 'chat'}
+              className={acpMobilePane === 'chat' ? 'is-active' : ''}
+              onClick={() => setAcpMobilePane('chat')}
+            >
+              Chat
+            </button>
+          </div>
+        ) : null}
         <div
           className={[
             'split-chat-slot',
