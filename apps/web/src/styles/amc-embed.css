@@ -110,3 +110,82 @@ html:is([data-amc-embed], [data-acp-embed]) .df-tabs {
     min-height: 44px;
   }
 }
+
+
+/* ACP phone embed: Studio is a single-task workspace. Keep the full native
+   project mounted, but show either the canvas or conversation at a time so
+   neither desktop column is crushed into a ~390px iframe. */
+.acp-mobile-studio-tabs {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile {
+    --project-chat-handle-width: 0px;
+    position: relative;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile--preview {
+    --project-chat-panel-width: 0px;
+    --project-workspace-panel-track: minmax(0, 1fr);
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile--chat {
+    --project-chat-panel-width: 100vw;
+    --project-workspace-panel-track: 0px;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--preview > .split-chat-slot,
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--preview > .split-resize-handle,
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--chat > .split-resize-handle,
+  html:is([data-amc-embed], [data-acp-embed])
+    .split.split-acp-mobile--chat > .workspace {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile .acp-mobile-studio-tabs {
+    position: absolute;
+    z-index: 90;
+    top: 8px;
+    left: 50%;
+    display: inline-flex;
+    transform: translateX(-50%);
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+    box-shadow: var(--shadow-sm);
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .acp-mobile-studio-tabs button {
+    min-width: 76px;
+    min-height: 34px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .acp-mobile-studio-tabs button.is-active {
+    background: var(--bg-muted);
+    color: var(--text-strong);
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile .split-chat-tabs-dock {
+    padding-top: 48px;
+  }
+
+  html:is([data-amc-embed], [data-acp-embed]) .split.split-acp-mobile .workspace {
+    padding-top: 48px;
+    box-sizing: border-box;
+  }
+}
