@@ -113,6 +113,11 @@ RUN apt-get update && \
 
 ENV HOME=/home/open-design
 
+# ACP forwards Claude credentials, but the hosted daemon needs the CLI too.
+ARG CLAUDE_CODE_VERSION=2.1.287
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && \
+    claude --version
+
 # Same Grok + Muse CLIs AMC planner/builder/Design use (static linux-x86_64).
 ARG GROK_VERSION=1.0.4
 ARG MUSE_VERSION=1.3.0-R3233.1

@@ -15,6 +15,30 @@ import {
 
 const CURSOR = { family: 'cursor', env: { CURSOR_API_KEY: 'key-123' } };
 
+describe('AMC Claude credentials', () => {
+  it.each(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'])('isolates %s and persists follow-up auth', (key) => {
+    const credential = parseAmcCredentialBlock({ family: 'claude', env: { [key]: 'tenant-secret' } })!;
+    const root = mkdtempSync(join(tmpdir(), 'od-claude-'));
+    const saved = readAmcCredentialFile(materializeAmcCredential(root, credential));
+    expect(saved).toEqual(credential);
+    const env = applyAmcCredential({
+      PATH: '/bin', ANTHROPIC_API_KEY: 'host-key', CLAUDE_CODE_OAUTH_TOKEN: 'host-token',
+      ANTHROPIC_AUTH_TOKEN: 'proxy-key', ANTHROPIC_BASE_URL: 'https://wrong.invalid',
+      CLAUDE_CODE_USE_BEDROCK: '1',
+    }, saved, 'claude');
+    expect(env).toEqual({ PATH: '/bin', [key]: 'tenant-secret' });
+    expect(amcCredentialMatchesAgent(saved, 'grok-build')).toBe(false);
+  });
+  it('rejects ambiguous auth and endpoint injection', () => {
+    expect(() => parseAmcCredentialBlock({ family: 'claude', env: {
+      ANTHROPIC_API_KEY: 'key', CLAUDE_CODE_OAUTH_TOKEN: 'token',
+    } })).toThrow(/exactly one/);
+    expect(() => parseAmcCredentialBlock({ family: 'claude', env: {
+      ANTHROPIC_API_KEY: 'key', ANTHROPIC_BASE_URL: 'https://wrong.invalid',
+    } })).toThrow(/not allowed/);
+  });
+});
+
 describe('parseAmcCredentialBlock', () => {
   it('returns null when absent', () => {
     expect(parseAmcCredentialBlock(null)).toBeNull();
@@ -31,7 +55,7 @@ describe('parseAmcCredentialBlock', () => {
   });
 
   it('rejects a family this build does not support', () => {
-    expect(() => parseAmcCredentialBlock({ family: 'claude', env: { ANTHROPIC_API_KEY: 'k' } }))
+    expect(() => parseAmcCredentialBlock({ family: 'unknown', env: { ANTHROPIC_API_KEY: 'k' } }))
       .toThrow(/not supported/);
   });
 

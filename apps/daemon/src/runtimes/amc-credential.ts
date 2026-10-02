@@ -42,12 +42,11 @@ export type AmcCredential = {
  *   muse    META_API_KEY     — Muse Code; AMC extracts this from the packed
  *                              subscription auth.json (or a pasted API key)
  *
- * Families are registered here as they are wired end-to-end, not speculatively:
- * an unused allowlist entry is unused attack surface. Claude and MiniMax both
- * ride ANTHROPIC_* and should be added together with the AMC side that sends
- * them.
+ * Claude accepts either its subscription token or an API key, never an endpoint
+ * override. Families are registered only alongside the AMC sender integration.
  */
 const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  claude: Object.freeze(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']),
   cursor: Object.freeze(['CURSOR_API_KEY']),
   muse: Object.freeze(['META_API_KEY']),
 });
@@ -58,6 +57,7 @@ const ENV_ALLOWLIST: Readonly<Record<string, readonly string[]>> = Object.freeze
  * injected into a claude spawn just because the caller asked for it.
  */
 const FAMILY_AGENTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  claude: Object.freeze(['claude']),
   cursor: Object.freeze(['cursor-agent']),
   muse: Object.freeze(['muse']),
 });
@@ -127,6 +127,10 @@ export function parseAmcCredentialBlock(raw: unknown): AmcCredential | null {
     throw new Error(`amcCredential for family "${family}" carried no credential values`);
   }
 
+  if (family === 'claude' && Object.keys(env).length !== 1) {
+    throw new Error('amcCredential for Claude requires exactly one authentication method');
+  }
+
   return { family, env };
 }
 
@@ -156,6 +160,16 @@ export function applyAmcCredential(
   agentId: string,
 ): NodeJS.ProcessEnv {
   if (!amcCredentialMatchesAgent(credential, agentId)) return env;
+  if (credential?.family === 'claude') {
+    const clean = { ...env };
+    // A host API key or proxy must not shadow the explicitly forwarded payer.
+    for (const key of [
+      'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL',
+      'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK',
+      'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
+    ]) delete clean[key];
+    return { ...clean, ...credential.env };
+  }
   return { ...env, ...(credential as AmcCredential).env };
 }
 
