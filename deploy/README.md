@@ -199,6 +199,14 @@ all Codex runs in that deployment:
 OD_CODEX_SANDBOX=danger-full-access docker compose up -d --no-build
 ```
 
+On Railway, the same failure may appear in a design chat as a successful Codex
+turn that created no files. The underlying command error is
+`bwrap: Creating new namespace failed: Permission denied`. Set
+`OD_CODEX_SANDBOX=danger-full-access` on the **Open Design service** in the
+affected environment and redeploy that service; changing the agent choice in
+the calling app does not change Codex's sandbox inside Open Design. Retry the
+design turn after the new deployment is healthy.
+
 Only the exact value `danger-full-access` is supported; unknown values are
 ignored. Use this only for trusted, single-user deployments. It lets Codex run
 without the workspace-write sandbox, which is useful when the container host
