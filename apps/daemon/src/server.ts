@@ -3400,8 +3400,9 @@ export async function startServer({
       if (resolveStaticSpaFallbackPath(req, staticDir) === null) return next();
       if (apiTokenAuthorizationMatches(req.get('authorization'), apiToken)) return next();
       // Drop `t` before any shell bytes. A copied workspace URL must not open
-      // an authenticated session; only a same-site ACP navigation may exchange
-      // it for the httpOnly cookie.
+      // an authenticated session. Same-site ACP navigations, and a cross-site
+      // iframe whose parent origin is in OD_ALLOWED_ORIGINS, may exchange it
+      // for the httpOnly cookie. The redirect removes `t`.
       if (embedGrantQueryPresent(req)) {
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.setHeader('Cache-Control', 'no-store');
