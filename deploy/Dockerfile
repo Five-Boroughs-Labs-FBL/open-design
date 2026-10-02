@@ -119,9 +119,9 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && \
     claude --version
 
 # Same Grok + Muse CLIs AMC planner/builder/Design use (static linux-x86_64).
-ARG CODEX_VERSION=0.156.0
+ARG CODEX_VERSION=0.160.0
 RUN npm install -g "@openai/codex@${CODEX_VERSION}" && codex --version
-ARG GROK_VERSION=1.0.4
+ARG GROK_VERSION=1.0.46
 ARG MUSE_VERSION=1.3.0-R3233.1
 ARG MUSE_SHA256=dfc52dc7d37e23d7618ed37a7ec3dd8d0f4c83c647b0f1cc2c2791274acabe78
 ENV MUSE_NO_AUTO_UPDATE=1
