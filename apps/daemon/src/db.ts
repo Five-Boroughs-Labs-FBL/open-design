@@ -16,6 +16,7 @@ import type {
   ProjectTabsState,
 } from '@open-design/contracts';
 import {
+  sanitizeSendFailureDetail,
   eventsEndedWithUnfinishedWork,
   isTodoWriteToolName,
   latestTodoWriteInputFromEvents,
@@ -439,6 +440,15 @@ function migrate(db: SqliteDb): void {
     db.exec(`ALTER TABLE conversations ADD COLUMN intent_signals_json TEXT`);
   }
   const messageCols = db.prepare(`PRAGMA table_info(messages)`).all() as DbRow[];
+  if (!messageCols.some((c: DbRow) => c.name === 'client_request_id')) {
+    db.exec(`ALTER TABLE messages ADD COLUMN client_request_id TEXT`);
+  }
+  if (!messageCols.some((c: DbRow) => c.name === 'send_failed')) {
+    db.exec(`ALTER TABLE messages ADD COLUMN send_failed INTEGER`);
+  }
+  if (!messageCols.some((c: DbRow) => c.name === 'send_failure_detail')) {
+    db.exec(`ALTER TABLE messages ADD COLUMN send_failure_detail TEXT`);
+  }
   if (!messageCols.some((c: DbRow) => c.name === 'agent_id')) {
     db.exec(`ALTER TABLE messages ADD COLUMN agent_id TEXT`);
   }
@@ -2944,6 +2954,8 @@ export function listMessages(db: SqliteDb, conversationId: string) {
               applied_plugin_snapshot_json AS appliedPluginSnapshotJson,
               forked_into_json AS forkedIntoJson,
               cancel_origin AS cancelOrigin,
+              send_failed AS sendFailed, send_failure_detail AS sendFailureDetail,
+              client_request_id AS clientRequestId,
               created_at AS createdAt, started_at AS startedAt, ended_at AS endedAt,
               position
          FROM messages
@@ -3022,6 +3034,8 @@ export function getMessage(db: SqliteDb, id: string, conversationId?: string) {
               applied_plugin_snapshot_json AS appliedPluginSnapshotJson,
               forked_into_json AS forkedIntoJson,
               cancel_origin AS cancelOrigin,
+              send_failed AS sendFailed, send_failure_detail AS sendFailureDetail,
+              client_request_id AS clientRequestId,
               created_at AS createdAt, started_at AS startedAt, ended_at AS endedAt,
               position
          FROM messages
@@ -3187,7 +3201,8 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
               pre_turn_file_names_json = ?,
               session_mode = ?, run_context_json = ?, task_analytics_json = ?,
               applied_plugin_snapshot_json = ?, forked_into_json = ?,
-              cancel_origin = ?,
+              cancel_origin = ?, send_failed = ?, send_failure_detail = ?,
+              client_request_id = COALESCE(?, client_request_id),
               telemetry_finalized_at = CASE
                 WHEN ? THEN COALESCE(telemetry_finalized_at, ?)
                 ELSE telemetry_finalized_at
@@ -3216,6 +3231,9 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
       m.appliedPluginSnapshot ? JSON.stringify(m.appliedPluginSnapshot) : null,
       normalizeForkedIntoForStorage(m.forkedInto),
       normalizeCancelOriginForStorage(m.cancelOrigin),
+      m.role === 'user' && m.sendFailed === true ? 1 : null,
+      m.role === 'user' && m.sendFailed === true ? sanitizeSendFailureDetail(m.sendFailureDetail) ?? null : null,
+      typeof m.clientRequestId === 'string' ? m.clientRequestId : null,
       m.telemetryFinalized === true ? 1 : 0,
       now,
       m.startedAt ?? null,
@@ -3247,8 +3265,8 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
           trace_object_files_json, feedback_json, pre_turn_file_names_json,
           session_mode, run_context_json, task_analytics_json,
           applied_plugin_snapshot_json, forked_into_json, cancel_origin,
-          telemetry_finalized_at, started_at, ended_at, position, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          send_failed, send_failure_detail, client_request_id, telemetry_finalized_at, started_at, ended_at, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       m.id,
       conversationId,
@@ -3273,6 +3291,9 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
       m.appliedPluginSnapshot ? JSON.stringify(m.appliedPluginSnapshot) : null,
       normalizeForkedIntoForStorage(m.forkedInto),
       normalizeCancelOriginForStorage(m.cancelOrigin),
+      m.role === 'user' && m.sendFailed === true ? 1 : null,
+      m.role === 'user' && m.sendFailed === true ? sanitizeSendFailureDetail(m.sendFailureDetail) ?? null : null,
+      typeof m.clientRequestId === 'string' ? m.clientRequestId : null,
       m.telemetryFinalized === true ? now : null,
       m.startedAt ?? null,
       m.endedAt ?? null,
@@ -3305,6 +3326,8 @@ export function upsertMessage(db: SqliteDb, conversationId: string, m: DbRow) {
               applied_plugin_snapshot_json AS appliedPluginSnapshotJson,
               forked_into_json AS forkedIntoJson,
               cancel_origin AS cancelOrigin,
+              send_failed AS sendFailed, send_failure_detail AS sendFailureDetail,
+              client_request_id AS clientRequestId,
               created_at AS createdAt, started_at AS startedAt, ended_at AS endedAt,
               position
          FROM messages WHERE id = ?`,
@@ -4995,6 +5018,9 @@ function normalizeMessage(
     appliedPluginSnapshot: parseJsonOrUndef(row.appliedPluginSnapshotJson),
     forkedInto: normalizeForkedInto(parseJsonOrUndef(row.forkedIntoJson)),
     cancelOrigin: normalizeCancelOrigin(row.cancelOrigin),
+    clientRequestId: typeof row.clientRequestId === 'string' ? row.clientRequestId : undefined,
+    sendFailed: row.role === 'user' && row.sendFailed === 1 ? true : undefined,
+    sendFailureDetail: row.role === 'user' && row.sendFailed === 1 ? sanitizeSendFailureDetail(row.sendFailureDetail) : undefined,
     createdAt: row.createdAt ?? undefined,
     startedAt: row.startedAt ?? undefined,
     endedAt: row.endedAt ?? undefined,

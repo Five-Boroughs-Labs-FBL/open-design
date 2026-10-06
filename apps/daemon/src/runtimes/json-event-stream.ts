@@ -1425,8 +1425,16 @@ export function handleMuseEvent(
       || (payload && typeof payload.error === 'string' && payload.error.trim())
       || (nested && typeof nested.message === 'string' && nested.message.trim())
       || payloadText.trim()
+      || (payload && typeof payload.reason === 'string' && payload.reason.trim())
       || 'Muse stream error';
-    onEvent({ type: 'error', message });
+    // Only the main run or transport can declare a fatal stream error.
+    // Failed tools, model attempts and rejected background reminders may be
+    // recovered by Muse; emitting `error` here permanently fails the OD run,
+    // even if Muse later completes and the process exits successfully.
+    const fatal = /^(?:run\.(?:terminal\.)?(?:failed|error|rejected)|stream\.error|error)$/i.test(payloadType);
+    onEvent(fatal
+      ? { type: 'error', message }
+      : { type: 'status', label: 'warning', detail: message });
     return true;
   }
   if (

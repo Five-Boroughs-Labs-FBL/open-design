@@ -9,13 +9,14 @@ import type { ChatMessage } from '../../src/types';
 afterEach(() => cleanup());
 
 describe('ChatPane failed user sends', () => {
-  it('routes the persistent retry action back to the host with the failed user row', () => {
+  it.each(['Build the landing page', ''])('shows sanitized detail and retries the failed row (content: %s)', (content) => {
     const failedUser: ChatMessage = {
       id: 'user-pre-run-failure',
       role: 'user',
-      content: 'Build the landing page',
+      content,
       createdAt: 1,
       sendFailed: true,
+      sendFailureDetail: 'daemon 503 unavailable token=hidden-secret',
     };
     const onResendUserMessage = vi.fn();
 
@@ -37,6 +38,8 @@ describe('ChatPane failed user sends', () => {
       />,
     );
 
+    expect(screen.getByTestId('user-send-failure-detail').textContent).toContain('daemon 503 unavailable');
+    expect(screen.getByTestId('user-send-failure-detail').textContent).not.toContain('hidden-secret');
     fireEvent.click(screen.getByTestId('user-send-failed'));
 
     expect(onResendUserMessage).toHaveBeenCalledTimes(1);
