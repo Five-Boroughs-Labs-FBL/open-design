@@ -1,3 +1,4 @@
+import { SendFailureDetail } from './chat/SendFailureDetail';
 import { conversationMetaLabel } from '../runtime/chat/conversation-time';
 export { conversationMetaLabel } from '../runtime/chat/conversation-time';
 import { QuoteBar } from './chat/QuoteBar';
@@ -6704,7 +6705,8 @@ const UserMessage = memo(UserMessageImpl);
             ))}
           </div>
         ) : null}
-        {message.content ? (
+        {message.sendFailed ? <SendFailureDetail detail={message.sendFailureDetail} /> : null}
+        {message.content || message.sendFailed ? (
           <div className="user-text-wrap">
             {isDesignSystemWorkspaceRequest ? (
               <UserStatusCard

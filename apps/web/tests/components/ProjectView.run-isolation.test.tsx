@@ -510,6 +510,9 @@ vi.mock('../../src/components/ChatPane', () => ({
             )
             .join('\n')}
         </output>
+        <output data-testid="user-send-failure-details">
+          {(messages ?? []).filter((message) => message.role === 'user').map((message) => message.sendFailureDetail ?? '').join('\n')}
+        </output>
         <output data-testid="attached-comment-count">{attached.length}</output>
         {retryTarget && onRetry ? (
           <button type="button" data-testid="chat-retry" onClick={() => onRetry(retryTarget)}>
@@ -3482,6 +3485,7 @@ describe('ProjectView conversation run isolation', () => {
         role: 'user',
         clientRequestId: firstCall.clientRequestId,
         sendFailed: true,
+        sendFailureDetail: 'daemon 503: unavailable',
       }),
     );
     expect(persistedMessages.some((message) => message.role === 'assistant')).toBe(false);
@@ -3506,6 +3510,7 @@ describe('ProjectView conversation run isolation', () => {
       `${firstCall.userMessageId}|sent|hello from b`,
     );
     expect(screen.queryByTestId('user-send-failed')).toBeNull();
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('');
   });
 
   /**
@@ -3527,7 +3532,7 @@ describe('ProjectView conversation run isolation', () => {
       }) => {
         // POST /api/runs 5xx: no run id ever came back, on every attempt.
         options.onRunStatus?.('failed');
-        await options.handlers.onError(new Error('daemon 503: unavailable'));
+        await options.handlers.onError(new Error(`daemon 503: unavailable attempt ${streamViaDaemon.mock.calls.length}`));
       },
     );
 
@@ -3539,6 +3544,7 @@ describe('ProjectView conversation run isolation', () => {
     fireEvent.click(screen.getByTestId('send-message'));
 
     await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('daemon 503: unavailable attempt 1');
     const firstCall = streamViaDaemon.mock.calls[0]?.[0] as {
       clientRequestId: string;
       userMessageId: string;
@@ -3555,6 +3561,7 @@ describe('ProjectView conversation run isolation', () => {
       ),
     );
     expect(screen.getByTestId('user-send-failed')).toBeTruthy();
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('daemon 503: unavailable attempt 2');
 
     const secondCall = streamViaDaemon.mock.calls[1]?.[0] as {
       clientRequestId: string;

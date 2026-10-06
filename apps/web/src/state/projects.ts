@@ -1502,7 +1502,33 @@ export interface SaveMessageOptions {
   keepalive?: boolean;
 }
 
-export async function saveMessage(
+const pendingUserMessageSaves = new Map<string, Promise<ChatMessage | null>>();
+
+export function saveMessage(
+  projectId: string,
+  conversationId: string,
+  message: ChatMessage,
+  options: SaveMessageOptions = {},
+): Promise<ChatMessage | null> {
+  if (message.role !== 'user') return saveMessageNow(projectId, conversationId, message, options);
+  // Initial sends, retry clears and subsequent failures write the same row.
+  // Preserve invocation order even when their HTTP responses arrive slowly.
+  const key = JSON.stringify([
+    options.workspaceContext?.workspaceId ?? null,
+    options.workspaceContext?.workspaceMemberId ?? null,
+    projectId, conversationId, message.id,
+  ]);
+  const previous = pendingUserMessageSaves.get(key);
+  const write = () => saveMessageNow(projectId, conversationId, message, options);
+  const pending = previous ? previous.then(write, write) : write();
+  pendingUserMessageSaves.set(key, pending);
+  void pending.finally(() => {
+    if (pendingUserMessageSaves.get(key) === pending) pendingUserMessageSaves.delete(key);
+  });
+  return pending;
+}
+
+async function saveMessageNow(
   projectId: string,
   conversationId: string,
   message: ChatMessage,

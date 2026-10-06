@@ -1,3 +1,4 @@
+import { sanitizeSendFailureDetail } from '@open-design/contracts';
 import { readRetriedErrorSurface, retriedErrorSurfaceKey, writeRetriedErrorSurface } from '../runtime/chat/retried-error-surface';
 import {
   startTransition,
@@ -10153,7 +10154,7 @@ export function ProjectView({
                 const next = current.flatMap((message) => {
                   if (message.id === assistantId) return [];
                   if (message.id !== userMsg.id) return [message];
-                  failedUser = { ...message, sendFailed: true };
+                  failedUser = { ...message, sendFailed: true, sendFailureDetail: sanitizeSendFailureDetail(err.message) };
                   return [failedUser];
                 });
                 if (failedUser) persistMessage(failedUser);
@@ -10949,11 +10950,12 @@ export function ProjectView({
       const currentMessage = currentMessages.find((message) => message.id === failedMessage.id);
       if (currentMessage?.role !== 'user' || !currentMessage.sendFailed) return;
 
-      const retryMessage: ChatMessage = { ...currentMessage, sendFailed: undefined };
+      const retryMessage: ChatMessage = { ...currentMessage, sendFailed: undefined, sendFailureDetail: undefined };
+      const previousFailureDetail = currentMessage.sendFailureDetail;
       function restoreFailedState() {
         updateMessageById(
           retryMessage.id,
-          (message) => ({ ...message, sendFailed: true }),
+          (message) => ({ ...message, sendFailed: true, sendFailureDetail: previousFailureDetail }),
           true,
         );
       }

@@ -1,0 +1,8 @@
+.detail {
+  margin: 0;
+  max-width: 380px;
+  color: var(--chat-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

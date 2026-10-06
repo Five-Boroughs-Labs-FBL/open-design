@@ -1,5 +1,23 @@
 import type { JsonValue } from './common.js';
 
+/** Bounded display-only detail for a user send that failed before a run existed. */
+export function sanitizeSendFailureDetail(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  // Redact before truncating, so a cut cannot expose the start of a credential.
+  const detail = value
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\b(?:set-cookie|cookie)\s*:[^\r\n]*/gi, 'Cookie: [REDACTED]')
+    .replace(/\b(Bearer|Token|Basic)\s+[^\s,;"']+/gi, '$1 [REDACTED]')
+    .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[REDACTED]@')
+    .replace(/([?&#])[^=\s&#]+=[^\s&#"']*/g, '$1[REDACTED]')
+    .replace(/(["']?(?:[\w-]*(?:token|password|secret|api[_-]?key|authorization|cookie)[\w-]*)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[REDACTED]')
+    .replace(/\b(?:sk-[\w-]+|gh[pousr]_[\w]+|eyJ[\w-]+\.[\w-]+\.[\w-]+)\b/g, '[REDACTED]')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return detail ? detail.slice(0, 500) : undefined;
+}
+
 export const API_ERROR_CODES = [
   // Generic HTTP/API failures.
   'BAD_REQUEST',
