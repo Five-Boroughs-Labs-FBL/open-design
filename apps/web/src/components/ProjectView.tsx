@@ -9246,14 +9246,14 @@ export function ProjectView({
             }),
           ).catch(() => null).then((stored) => {
             if (!stored) return null;
-            claimedUserMsg = { ...userMsg, ...stored };
+            claimedUserMsg = stored;
             if (stored.content === userMsg.content) return stored;
             anotherWriterOwnsUser = true;
             setMessages((current) => {
               if (messagesConversationIdRef.current !== runConversationId
                 || projectRunAuthorityKeyRef.current !== projectRunAuthorityKey) return current;
               return current.map((message) =>
-                message.id === userMsg.id ? { ...message, content: stored.content } : message,
+                message.id === userMsg.id ? stored : message,
               );
             });
             return stored;
@@ -10216,10 +10216,11 @@ export function ProjectView({
                 const next = current.flatMap((message) => {
                   if (message.id === assistantId) return [];
                   if (message.id !== userMsg.id) return [message];
-                  return [{ ...message, ...(anotherWriterOwnsUser ? claimedUserMsg : failedUser) }];
+                  return [anotherWriterOwnsUser ? claimedUserMsg : { ...message, ...failedUser }];
                 });
                 return next;
               });
+              if (anotherWriterOwnsUser) scheduleConversationMessageRefresh(runConversationId);
               if (runCommentAttachments.length > 0) {
                 void patchAttachedStatuses(runCommentAttachments, 'failed');
               }

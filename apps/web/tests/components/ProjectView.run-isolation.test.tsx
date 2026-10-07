@@ -3731,10 +3731,13 @@ describe('ProjectView conversation run isolation', () => {
     await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
     fireEvent.click(screen.getByTestId('submit-question-form'));
     await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
-    await act(async () => finishClaim({ ...claimed, content: 'winning answer X' }));
+    const winningUser: ChatMessage = { id: claimed.id, role: 'user', content: 'winning answer X' };
+    conversationAMessages = [winningUser, { id: 'winning-reply', role: 'assistant', content: 'winning assistant reply', runStatus: 'succeeded', runId: 'winning-run' }];
+    await act(async () => finishClaim(winningUser));
     await waitFor(() => expect(screen.getByTestId('user-messages').textContent).toContain('winning answer X'));
     expect(screen.queryByTestId('user-send-failed')).toBeNull();
     expect(saveMessage.mock.calls.some((call) => (call[2] as ChatMessage).sendFailed)).toBe(false);
+    await waitFor(() => expect(screen.getByTestId('assistant-summary').textContent).toContain('winning assistant reply'));
   });
 
   it('queues a retry behind a composer send that starts while the accepted-run lookup is pending', async () => {
