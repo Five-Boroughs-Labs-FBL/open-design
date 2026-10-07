@@ -1503,6 +1503,7 @@ export interface SaveMessageOptions {
 }
 
 const pendingUserMessageSaves = new Map<string, Promise<ChatMessage | null>>();
+export const USER_MESSAGE_SAVE_TIMEOUT_MS = 15_000;
 
 export function saveMessage(
   projectId: string,
@@ -1511,6 +1512,26 @@ export function saveMessage(
   options: SaveMessageOptions = {},
 ): Promise<ChatMessage | null> {
   if (message.role !== 'user') return saveMessageNow(projectId, conversationId, message, options);
+  // Capture the payload before queuing: callers may replace or mutate a retry
+  // snapshot while an earlier write is still awaiting its response.
+  let body: string;
+  try {
+    body = JSON.stringify({
+      ...message,
+      ...(options.telemetryFinalized ? { telemetryFinalized: true } : {}),
+      ...(options.createOnly ? { createOnly: true } : {}),
+    });
+  } catch {
+    return Promise.resolve(null);
+  }
+  const capturedMessage = { ...message };
+  const capturedOptions = {
+    ...options,
+    ...(options.workspaceContext ? { workspaceContext: {
+      ...options.workspaceContext,
+      permissions: { ...options.workspaceContext.permissions },
+    } } : {}),
+  };
   // Initial sends, retry clears and subsequent failures write the same row.
   // Preserve invocation order even when their HTTP responses arrive slowly.
   const key = JSON.stringify([
@@ -1519,13 +1540,41 @@ export function saveMessage(
     projectId, conversationId, message.id,
   ]);
   const previous = pendingUserMessageSaves.get(key);
-  const write = () => saveMessageNow(projectId, conversationId, message, options);
+  const write = () => saveUserMessageBounded(projectId, conversationId, capturedMessage, body, capturedOptions);
   const pending = previous ? previous.then(write, write) : write();
   pendingUserMessageSaves.set(key, pending);
-  void pending.finally(() => {
+  const cleanup = () => {
     if (pendingUserMessageSaves.get(key) === pending) pendingUserMessageSaves.delete(key);
-  });
+  };
+  void pending.then(cleanup, cleanup);
   return pending;
+}
+
+async function saveUserMessageBounded(
+  projectId: string,
+  conversationId: string,
+  message: ChatMessage,
+  body: string,
+  options: SaveMessageOptions,
+): Promise<ChatMessage | null> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      // Aborting bounds the client wait; it cannot undo a server write that
+      // already committed. Persistence remains best effort on unknown outcomes.
+      controller.abort();
+      resolve(null);
+    }, USER_MESSAGE_SAVE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      saveMessageNow(projectId, conversationId, message, options, body, controller.signal),
+      expired,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function saveMessageNow(
@@ -1533,6 +1582,8 @@ async function saveMessageNow(
   conversationId: string,
   message: ChatMessage,
   options: SaveMessageOptions = {},
+  serializedBody?: string,
+  signal?: AbortSignal,
 ): Promise<ChatMessage | null> {
   try {
     const body = {
@@ -1550,7 +1601,8 @@ async function saveMessageNow(
             ? workspaceProjectHeaders(options.workspaceContext)
             : {}),
         },
-        body: JSON.stringify(body),
+        body: serializedBody ?? JSON.stringify(body),
+        ...(signal ? { signal } : {}),
         ...(options.keepalive ? { keepalive: true } : {}),
       },
     );

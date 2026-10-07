@@ -65,6 +65,17 @@ describe('muse Open Design agent', () => {
   it('refuses to embed the prompt when the daemon omitted the file', () => {
     expect(() => buildMuseHeadlessArgs({ promptFilePath: '' })).toThrow(/promptFilePath/);
   });
+
+  it('forwards every reference image as a separate CLI argument on new and resumed turns', () => {
+    const images = ['/project/uploads/map reference.png', 'C:\\design files\\second.png'];
+    for (const resumeSessionId of [undefined, 'existing-session']) {
+      const args = museAgentDef.buildArgs('Edit this map', images, [], {}, {
+        promptFilePath: '/project/prompt.md',
+        ...(resumeSessionId ? { resumeSessionId } : {}),
+      });
+      expect(args.slice(-4)).toEqual(['--image', images[0], '--image', images[1]]);
+    }
+  });
 });
 
 describe('muse AMC credential', () => {
@@ -117,6 +128,7 @@ describe('muse JSONL stream', () => {
     'keeps %s fatal even when completion or useful output follows',
     (payload_type) => {
       const events = replay([
+        { payload_type: 'run.output.delta', payload: { text: 'Partial output before failure' } },
         { payload_type, payload: { error: { message: 'Provider quota exhausted' } } },
         { payload_type: 'run.terminal.completed', payload: { text: 'Partial result' } },
       ]);

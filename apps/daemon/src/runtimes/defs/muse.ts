@@ -6,6 +6,7 @@ const SAFE_SESSION_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export function buildMuseHeadlessArgs(input: {
   promptFilePath: string;
+  imagePaths?: readonly string[];
   resumeSessionId?: string | null;
   model?: string | null;
   reasoning?: string | null;
@@ -45,6 +46,9 @@ export function buildMuseHeadlessArgs(input: {
   if (resumeSessionId && SAFE_SESSION_RE.test(resumeSessionId)) {
     args.push('--session-id', resumeSessionId);
   }
+  for (const imagePath of input.imagePaths ?? []) {
+    args.push('--image', imagePath);
+  }
   return args;
 }
 
@@ -80,13 +84,14 @@ export const museAgentDef = {
   ],
   buildArgs: (
     _prompt,
-    _imagePaths,
+    imagePaths,
     _extra = [],
     options = {},
     runtimeContext = {},
   ) => {
     return buildMuseHeadlessArgs({
       promptFilePath: runtimeContext.promptFilePath || '',
+      imagePaths,
       resumeSessionId: runtimeContext.resumeSessionId ?? null,
       model: options.model ?? null,
       reasoning: options.reasoning ?? null,
