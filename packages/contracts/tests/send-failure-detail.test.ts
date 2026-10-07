@@ -47,4 +47,14 @@ describe('send failure display detail', () => {
     expect(sanitized).toContain('quota exhausted');
     expect(sanitized).toContain('[REDACTED]');
   });
+
+  it.each([
+    String.raw`{\"access_token\":\"sensitive-truncated`,
+    String.raw`{\"access_token\":\"sensitive-truncated\"`,
+  ])('redacts escaped JSON credentials when the error payload is truncated: %s', (payload) => {
+    const sanitized = sanitizeSendFailureDetail(`quota exhausted: ${payload}`);
+    expect(sanitized).not.toContain('sensitive-truncated');
+    expect(sanitized).toContain('quota exhausted');
+    expect(sanitized).toContain('[REDACTED]');
+  });
 });

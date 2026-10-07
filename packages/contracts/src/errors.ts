@@ -10,8 +10,8 @@ export function sanitizeSendFailureDetail(value: unknown): string | undefined {
     .replace(/\b(Bearer|Token|Basic)\s+[^\s,;"']+/gi, '$1 [REDACTED]')
     .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[REDACTED]@')
     .replace(/([?&#])[^=\s&#]+=[^\s&#"']*/g, '$1[REDACTED]')
-    // Error messages can contain a JSON object serialized inside another string.
-    .replace(/(\\+"[\w-]*(?:token|password|secret|api[_-]?key|authorization|cookie)[\w-]*\\+"\s*:\s*)\\+"[^\r\n]*?\\+"(?=\s*[,}])/gi, '$1[REDACTED]')
+    // Error messages can contain serialized JSON, including truncated values.
+    .replace(/(\\+"[\w-]*(?:token|password|secret|api[_-]?key|authorization|cookie)[\w-]*\\+"\s*:\s*)\\+"[\s\S]*?(?:\\+"(?=\s*[,}]|\s*$)|$)/gi, '$1[REDACTED]')
     .replace(/(["']?(?:[\w-]*(?:token|password|secret|api[_-]?key|authorization|cookie)[\w-]*)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[REDACTED]')
     .replace(/\b(?:sk-[\w-]+|gh[pousr]_[\w]+|github_pat_[\w]+|AKIA[0-9A-Z]{16}|AIza[\w-]{35}|AQ\.[\w-]{20,}|nvapi-[\w-]{20,}|xox[abprs]-[0-9A-Za-z-]{10,}|(?:sk|pk|rk)_(?:live|test)_[0-9A-Za-z]{16,}|pk-lf-[\w-]{16,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)\b/g, '[REDACTED]')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')

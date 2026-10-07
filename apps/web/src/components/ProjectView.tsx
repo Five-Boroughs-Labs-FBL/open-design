@@ -8738,7 +8738,7 @@ export function ProjectView({
         // after this acknowledgement; preflight rejection remains `false`.
         return true;
       }
-      if (currentConversationBusy) {
+      if (currentConversationBusy || streamingConversationIdRef.current === activeConversationId) {
         queueChatSendForCurrentConversation({
           conversationId: activeConversationId,
           prompt,
@@ -8824,6 +8824,9 @@ export function ProjectView({
         attachments: effectiveAttachments.length > 0 ? effectiveAttachments : undefined,
         commentAttachments: commentAttachments.length > 0 ? commentAttachments : undefined,
       };
+      let claimedUserMsg = userMsg;
+      let userClaim: Promise<ChatMessage | null> | undefined;
+      let anotherWriterOwnsUser = false;
       const runCommentAttachments = userMsg.commentAttachments ?? [];
       const runAttachments = mergeChatAttachments(
         userMsg.attachments ?? [],
@@ -8881,6 +8884,9 @@ export function ProjectView({
       // that just failed in the current session (the daemon status fetch is only
       // needed on reload, not for runs that are already known to have failed).
       let currentRunId: string | undefined = undefined;
+      let adoptedCanonicalAssistant = false;
+      let canonicalReplayInProgress = false;
+      let canonicalReplaySnapshot: ChatMessage | undefined;
       let currentClaimedSurface: { surfaceId: string; file: string } | undefined;
       let daemonArtifactCount: number | undefined;
       const updateConversationLatestRun = (
@@ -9233,18 +9239,24 @@ export function ProjectView({
         // answer landed first and hands it back, and this view adopts it so
         // the transcript shows the answer the surviving run actually read.
         if (meta?.userMessageId) {
-          void Promise.resolve(
+          userClaim = Promise.resolve(
             saveMessage(project.id, runConversationId, userMsg, {
               createOnly: true,
               workspaceContext: projectRunWorkspaceContext,
             }),
-          ).then((stored) => {
-            if (!stored || stored.content === userMsg.content) return;
-            setMessages((current) =>
-              current.map((message) =>
+          ).catch(() => null).then((stored) => {
+            if (!stored) return null;
+            claimedUserMsg = { ...userMsg, ...stored };
+            if (stored.content === userMsg.content) return stored;
+            anotherWriterOwnsUser = true;
+            setMessages((current) => {
+              if (messagesConversationIdRef.current !== runConversationId
+                || projectRunAuthorityKeyRef.current !== projectRunAuthorityKey) return current;
+              return current.map((message) =>
                 message.id === userMsg.id ? { ...message, content: stored.content } : message,
-              ),
-            );
+              );
+            });
+            return stored;
           });
         } else {
           persistMessage(userMsg);
@@ -9445,6 +9457,7 @@ export function ProjectView({
       };
       let persistTimer: ReturnType<typeof setTimeout> | null = null;
       const persistAssistantSoon = () => {
+        if (canonicalReplayInProgress) return;
         if (persistTimer) return;
         persistTimer = scheduleProjectTimeout(() => {
           persistTimer = null;
@@ -9456,7 +9469,9 @@ export function ProjectView({
           clearProjectTimeout(persistTimer);
           persistTimer = null;
         }
-        persistMessageById(assistantId, { keepalive: true });
+        if (!canonicalReplayInProgress) {
+          persistMessageById(assistantId, { keepalive: true });
+        }
       };
       const pushedEventDeduper = createAdjacentAgentEventDeduper();
       const pushEvent = (ev: AgentEvent) => {
@@ -9794,6 +9809,7 @@ export function ProjectView({
             clearTraceTouchedFilePaths();
             return;
           }
+          canonicalReplayInProgress = false;
           textBuffer.flush();
           textBuffer.cancel();
           cancelSendTextBuffer();
@@ -10102,6 +10118,21 @@ export function ProjectView({
         },
         onError: async (err: Error) => {
           liveFocusClosed = true;
+          if (canonicalReplayInProgress) {
+            // A partial replay is not an authoritative replacement transcript.
+            // Re-read the daemon row without writing the temporary replay buffer.
+            if (canonicalReplaySnapshot) {
+              const snapshot = canonicalReplaySnapshot;
+              updateAssistant(() => snapshot);
+            }
+            canonicalReplayInProgress = false;
+            textBuffer.cancel();
+            cancelSendTextBuffer();
+            clearCurrentRunStreamingMarker(runConversationId, controller, cancelController);
+            if (currentRunId) completedReattachRunsRef.current.delete(currentRunId);
+            scheduleConversationMessageRefresh(runConversationId);
+            return;
+          }
           // Disconnect-time stamp, used as-is for non-generic-disconnect
           // failures. When the generic-disconnect retry-cap probe below
           // resolves a terminal daemon status, this is advanced to that
@@ -10142,17 +10173,23 @@ export function ProjectView({
           // existed, so keeping the optimistic placeholder would fabricate a
           // run and route the user to the wrong recovery action.
           if (config.mode === 'daemon' && !currentRunId) {
-            if (cancelController.signal.aborted) return;
+            await userClaim;
+            if (cancelController.signal.aborted) {
+              if (runCommentAttachments.length > 0) void patchAttachedStatuses(runCommentAttachments, 'open');
+              return;
+            }
             if (runMayFinalize) {
               const failedUser: ChatMessage = {
-                ...userMsg, clientRequestId, sendFailed: true,
+                ...claimedUserMsg, clientRequestId, sendFailed: true,
                 sendFailureDetail: sanitizeSendFailureDetail(err.message),
               };
               // Persistence belongs to the attempted conversation, even after
               // navigation removes its user row from the currently shown view.
-              void saveMessage(project.id, runConversationId, failedUser, {
-                workspaceContext: projectRunWorkspaceContext,
-              });
+              if (!anotherWriterOwnsUser) {
+                void saveMessage(project.id, runConversationId, failedUser, {
+                  workspaceContext: projectRunWorkspaceContext,
+                });
+              }
               if (activeConversationIdRef.current === runConversationId
                 && projectRunAuthorityKeyRef.current === projectRunAuthorityKey) setError(null);
               activeCompletionNotificationRunsRef.current.delete(assistantId);
@@ -10179,7 +10216,7 @@ export function ProjectView({
                 const next = current.flatMap((message) => {
                   if (message.id === assistantId) return [];
                   if (message.id !== userMsg.id) return [message];
-                  return [{ ...message, ...failedUser }];
+                  return [{ ...message, ...(anotherWriterOwnsUser ? claimedUserMsg : failedUser) }];
                 });
                 return next;
               });
@@ -10571,12 +10608,15 @@ export function ProjectView({
           },
           onRunCreated: (runId, strategyTask, created) => {
             if (!currentRunId && created?.assistantMessageId && created.assistantMessageId !== assistantId) {
+              adoptedCanonicalAssistant = true;
+              canonicalReplayInProgress = true;
               const optimisticId = assistantId;
               assistantId = created.assistantMessageId;
               const existing = messagesConversationIdRef.current === runConversationId
                 && projectRunAuthorityKeyRef.current === projectRunAuthorityKey
                 ? messagesRef.current.find((message) => message.id === assistantId && message.role === 'assistant')
                 : undefined;
+              canonicalReplaySnapshot = existing;
               // The accepted Run is replayed from event zero below; a loaded
               // partial/complete transcript must not become a second prefix.
               latestAssistantMsg = { ...latestAssistantMsg, ...existing, id: assistantId, content: '', events: [], producedFiles: undefined };
@@ -10631,9 +10671,11 @@ export function ProjectView({
             manualFileWriteRegistration.bindRun(runId);
             // The view may already be on a different project/conversation;
             // pin the daemon run to the original row so returning can reattach.
-            void saveMessage(project.id, runConversationId, pinnedAssistant, {
-              workspaceContext: projectRunWorkspaceContext,
-            });
+            if (!adoptedCanonicalAssistant || pinnedAssistant.content || pinnedAssistant.events?.length) {
+              void saveMessage(project.id, runConversationId, pinnedAssistant, {
+                workspaceContext: projectRunWorkspaceContext,
+              });
+            }
             updateMessageById(assistantId, (prev) => ({
               ...prev,
               runId,
@@ -10676,7 +10718,7 @@ export function ProjectView({
                 runStatus,
                 endedAt: endedAt === undefined ? prev.endedAt : prev.endedAt ?? endedAt,
               }),
-              true,
+              !canonicalReplayInProgress,
               runStatus === 'canceled' ? { telemetryFinalized: true } : undefined,
             );
             if (!runMayFinalize) return;
@@ -10989,6 +11031,9 @@ export function ProjectView({
     ],
   );
 
+  const latestHandleSendRef = useRef(handleSend);
+  latestHandleSendRef.current = handleSend;
+
   const handleResendUserMessage = useCallback(
     async (failedMessage: ChatMessage) => {
       if (failedMessage.role !== 'user' || !failedMessage.sendFailed) return;
@@ -11040,7 +11085,7 @@ export function ProjectView({
                 agentId: acceptedRun.agentId ?? message.agentId,
                 runId: acceptedRun.id,
                 ...(!message.runId || (!message.content && !message.events?.length)
-                  ? { runStatus: 'running' as const }
+                  ? { runStatus: 'running' as const, content: '', events: [], producedFiles: undefined }
                   : {}),
               });
             }
@@ -11080,7 +11125,7 @@ export function ProjectView({
         // its preflight checks. A rejected preflight restores the retry action.
         updateMessageById(currentMessage.id, () => retryMessage, true);
 
-        await handleSend(
+        await latestHandleSendRef.current(
           retryMessage.content,
           retryMessage.attachments ?? [],
           retryMessage.commentAttachments ?? [],
@@ -11211,7 +11256,9 @@ export function ProjectView({
     setMessages((curr) => {
       const { messages: next, finalized } = finalizeActiveAssistantMessagesOnStop(curr, stoppedAt);
       for (const message of finalized) {
-        if (config.mode === 'daemon' && !message.runId) continue;
+        if (!message.runId && (config.mode === 'daemon'
+          || (currentProject.metadata as Record<string, unknown> | undefined)?.amcFeatureRunId
+          || (!message.content && !message.events?.length))) continue;
         persistMessage(message, { telemetryFinalized: true });
       }
       return next;
