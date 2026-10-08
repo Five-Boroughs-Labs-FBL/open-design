@@ -93,6 +93,8 @@ function renderOnboarding() {
         onConfigPersist={vi.fn()}
         onRefreshAgents={vi.fn()}
         onCreateProject={vi.fn()}
+        onBeginProjectCreation={vi.fn()}
+        onAmrBalanceGateBlockChange={vi.fn()}
         onCreatePluginShareProject={vi.fn()}
         onImportClaudeDesign={vi.fn()}
         onOpenProject={vi.fn()}
@@ -116,14 +118,14 @@ describe('ACP SSO login pane', () => {
       expect(container.querySelector('.onboarding-view--acp')).not.toBeNull();
     });
     expect(screen.getByText('Sign in')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: /Open Design/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Welcome to ACP Design/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Continue with ACP/i })).toBeTruthy();
     expect(container.querySelector('.onboarding-cloud__art')).toBeNull();
     expect(container.querySelector('.onboarding-cloud__alts')).toBeNull();
     expect(container.querySelector('.acp-sso-header')).not.toBeNull();
     expect(screen.getByTestId('acp-studio-theme-toggle')).toBeTruthy();
     expect(screen.getByTestId('acp-open-design-brand')).toBeTruthy();
-    expect(screen.getByTestId('acp-open-design-brand').textContent).toMatch(/Open Design/);
+    expect(screen.getByTestId('acp-open-design-brand').textContent).toBe('ACP Design');
     expect(container.querySelector('.acp-mark.is-spinning')).not.toBeNull();
   });
 

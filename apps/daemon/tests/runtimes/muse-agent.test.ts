@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyAmcCredential, parseAmcCredentialBlock } from '../../src/runtimes/amc-credential.ts';
-import { museAgentDef, buildMuseHeadlessArgs } from '../../src/runtimes/defs/muse.ts';
-import { createJsonEventStreamHandler } from '../../src/runtimes/json-event-stream.ts';
-import { getAgentDef } from '../../src/runtimes/registry.ts';
+import { applyAmcCredential, parseAmcCredentialBlock } from '../../src/runtimes/amc-credential.js';
+import { museAgentDef, buildMuseHeadlessArgs } from '../../src/runtimes/defs/muse.js';
+import { createJsonEventStreamHandler } from '../../src/runtimes/json-event-stream.js';
+import { getAgentDef } from '../../src/runtimes/registry.js';
 
 const MUSE = { family: 'muse', env: { META_API_KEY: 'meta-key-abcdefghijklmnopqrst' } };
 
@@ -65,6 +65,17 @@ describe('muse Open Design agent', () => {
   it('refuses to embed the prompt when the daemon omitted the file', () => {
     expect(() => buildMuseHeadlessArgs({ promptFilePath: '' })).toThrow(/promptFilePath/);
   });
+
+  it('forwards every reference image as a separate CLI argument on new and resumed turns', () => {
+    const images = ['/project/uploads/map reference.png', 'C:\\design files\\second.png'];
+    for (const resumeSessionId of [undefined, 'existing-session']) {
+      const args = museAgentDef.buildArgs('Edit this map', images, [], {}, {
+        promptFilePath: '/project/prompt.md',
+        ...(resumeSessionId ? { resumeSessionId } : {}),
+      });
+      expect(args.slice(-4)).toEqual(['--image', images[0], '--image', images[1]]);
+    }
+  });
 });
 
 describe('muse AMC credential', () => {
@@ -83,6 +94,57 @@ describe('muse AMC credential', () => {
 });
 
 describe('muse JSONL stream', () => {
+  function replay(frames: Array<{ payload_type: string; payload: Record<string, unknown> }>) {
+    const events: Array<Record<string, unknown>> = [];
+    const handler = createJsonEventStreamHandler('muse', (event) => events.push(event));
+    const wire = frames.map((frame) => JSON.stringify({
+      stream: { kind: 'session', id: 'sess-muse' }, ...frame,
+    })).join('\n');
+    // Exercise chunk framing and a final record without a trailing newline.
+    for (let offset = 0; offset < wire.length; offset += 17) handler.feed(wire.slice(offset, offset + 17));
+    handler.flush();
+    return events;
+  }
+
+  it.each(['task.rejected', 'task.failed', 'tool.error', 'run.model.error', 'agent.message.rejected'])(
+    'does not turn a recoverable %s event into a fatal run error',
+    (payload_type) => {
+      // Synthetic wire replay: the incident's native trace recorded a skipped
+      // reminder and successful completion, but did not retain exec stdout.
+      const events = replay([
+        { payload_type, payload: { reason: 'skip_if_running' } },
+        { payload_type: 'run.output.delta', payload: { text: 'Created the requested screens.' } },
+        { payload_type: 'run.terminal.completed', payload: { text: 'Design complete.' } },
+      ]);
+      expect(events.filter((event) => event.type === 'error')).toEqual([]);
+      expect(events).toContainEqual({ type: 'status', label: 'warning', detail: 'skip_if_running' });
+      expect(events).toContainEqual({ type: 'text_delta', delta: 'Design complete.' });
+      expect(events.filter((event) => event.label === 'session')).toHaveLength(1);
+      expect(events).toContainEqual({ type: 'status', label: 'complete', sessionId: 'sess-muse' });
+    },
+  );
+
+  it.each(['run.terminal.failed', 'run.terminal.error', 'run.terminal.rejected', 'run.failed', 'run.error', 'run.rejected', 'error', 'stream.error'])(
+    'keeps %s fatal even when completion or useful output follows',
+    (payload_type) => {
+      const events = replay([
+        { payload_type: 'run.output.delta', payload: { text: 'Partial output before failure' } },
+        { payload_type, payload: { error: { message: 'Provider quota exhausted' } } },
+        { payload_type: 'run.terminal.completed', payload: { text: 'Partial result' } },
+      ]);
+      expect(events.filter((event) => event.type === 'error')).toEqual([
+        { type: 'error', message: 'Provider quota exhausted' },
+      ]);
+    },
+  );
+
+  it('retains a terminal failure after output and uses a useful fallback', () => {
+    expect(replay([
+      { payload_type: 'run.terminal.completed', payload: { text: 'Partial result' } },
+      { payload_type: 'run.terminal.failed', payload: {} },
+    ])).toContainEqual({ type: 'error', message: 'Muse stream error' });
+  });
+
   it('emits session + text from live Muse payload_types', () => {
     const events: Array<Record<string, unknown>> = [];
     const handler = createJsonEventStreamHandler('muse', (event) => events.push(event));

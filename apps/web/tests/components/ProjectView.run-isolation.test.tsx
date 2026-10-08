@@ -36,6 +36,7 @@ const getTemplate = vi.fn();
 const fetchChatRunStatus = vi.fn();
 const listActiveChatRuns = vi.fn();
 const listProjectRuns = vi.fn();
+const listRunsForProject = vi.fn();
 const reattachDaemonRun = vi.fn();
 const publishDaemonRunFinishedEvent = vi.fn();
 const fetchVelaLoginStatus = vi.fn();
@@ -53,6 +54,7 @@ const showCompletionNotification = vi.fn();
 const analyticsTrackMock = vi.fn();
 /** What the inline question form was told about each answer it handed over. */
 const questionFormSubmitOutcomes: Array<boolean | void> = [];
+const composerSendOutcomes: unknown[] = [];
 const useProjectFileEvents = vi.fn();
 const workspaceScopeMocks = vi.hoisted(() => {
   const personalContext = (): WorkspaceCollabContext & {
@@ -234,6 +236,7 @@ vi.mock('../../src/providers/daemon', () => ({
   launchAntigravityOauth: (...args: unknown[]) => launchAntigravityOauth(...args),
   listActiveChatRuns: (...args: unknown[]) => listActiveChatRuns(...args),
   listProjectRuns: (...args: unknown[]) => listProjectRuns(...args),
+  listRunsForProject: (...args: unknown[]) => listRunsForProject(...args),
   publishDaemonRunFinishedEvent: (...args: unknown[]) => publishDaemonRunFinishedEvent(...args),
   reattachDaemonRun: (...args: unknown[]) => reattachDaemonRun(...args),
   streamViaDaemon: (...args: unknown[]) => streamViaDaemon(...args),
@@ -415,6 +418,7 @@ vi.mock('../../src/components/ChatPane', () => ({
     error,
     onRetry,
     onResendUserMessage,
+    onStop,
     onSubmitQuestionForm,
   }: {
     activeConversationId: string | null;
@@ -433,6 +437,7 @@ vi.mock('../../src/components/ChatPane', () => ({
     error: string | null;
     onAttachComment?: (comment: PreviewComment) => void;
     onSelectConversation: (id: string) => void;
+    onStop?: () => void;
     onSend: (
       prompt: string,
       attachments: unknown[],
@@ -510,6 +515,9 @@ vi.mock('../../src/components/ChatPane', () => ({
             )
             .join('\n')}
         </output>
+        <output data-testid="user-send-failure-details">
+          {(messages ?? []).filter((message) => message.role === 'user').map((message) => message.sendFailureDetail ?? '').join('\n')}
+        </output>
         <output data-testid="attached-comment-count">{attached.length}</output>
         {retryTarget && onRetry ? (
           <button type="button" data-testid="chat-retry" onClick={() => onRetry(retryTarget)}>
@@ -578,8 +586,8 @@ vi.mock('../../src/components/ChatPane', () => ({
         <button
           type="button"
           data-testid="send-message"
-          onClick={() =>
-            onSend(
+          onClick={async () =>
+            composerSendOutcomes.push(await onSend(
               'hello from b',
               [],
               attached.map((comment, index) => ({
@@ -596,12 +604,13 @@ vi.mock('../../src/components/ChatPane', () => ({
                 selectionKind: comment.selectionKind ?? 'element',
                 source: 'saved-comment',
               })),
-            )
+            ))
           }
           disabled={sendDisabled}
         >
           send
         </button>
+        <button type="button" data-testid="stop-message" onClick={onStop}>stop</button>
         <button
           type="button"
           data-testid="send-message-alt"
@@ -909,6 +918,7 @@ describe('ProjectView conversation run isolation', () => {
     resolveConversationBMessages = null;
     conversationAMessages = [runningAssistant];
     questionFormSubmitOutcomes.length = 0;
+    composerSendOutcomes.length = 0;
     listConversations.mockResolvedValue(conversations);
     listMessages.mockImplementation(async (_projectId: string, conversationId: string) => {
       if (conversationId === 'conv-a') return conversationAMessages;
@@ -929,6 +939,7 @@ describe('ProjectView conversation run isolation', () => {
     getTemplate.mockResolvedValue(null);
     listActiveChatRuns.mockResolvedValue([]);
     listProjectRuns.mockResolvedValue([]);
+    listRunsForProject.mockResolvedValue({ runs: [], awaitingInputProjectIds: [] });
     fetchChatRunStatus.mockResolvedValue({
       id: 'run-a',
       status: 'running',
@@ -958,6 +969,7 @@ describe('ProjectView conversation run isolation', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     window.localStorage.clear();
     vi.unstubAllGlobals();
@@ -3482,6 +3494,7 @@ describe('ProjectView conversation run isolation', () => {
         role: 'user',
         clientRequestId: firstCall.clientRequestId,
         sendFailed: true,
+        sendFailureDetail: 'daemon 503: unavailable',
       }),
     );
     expect(persistedMessages.some((message) => message.role === 'assistant')).toBe(false);
@@ -3506,6 +3519,7 @@ describe('ProjectView conversation run isolation', () => {
       `${firstCall.userMessageId}|sent|hello from b`,
     );
     expect(screen.queryByTestId('user-send-failed')).toBeNull();
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('');
   });
 
   /**
@@ -3527,7 +3541,7 @@ describe('ProjectView conversation run isolation', () => {
       }) => {
         // POST /api/runs 5xx: no run id ever came back, on every attempt.
         options.onRunStatus?.('failed');
-        await options.handlers.onError(new Error('daemon 503: unavailable'));
+        await options.handlers.onError(new Error(`daemon 503: unavailable attempt ${streamViaDaemon.mock.calls.length}`));
       },
     );
 
@@ -3539,6 +3553,7 @@ describe('ProjectView conversation run isolation', () => {
     fireEvent.click(screen.getByTestId('send-message'));
 
     await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('daemon 503: unavailable attempt 1');
     const firstCall = streamViaDaemon.mock.calls[0]?.[0] as {
       clientRequestId: string;
       userMessageId: string;
@@ -3555,6 +3570,7 @@ describe('ProjectView conversation run isolation', () => {
       ),
     );
     expect(screen.getByTestId('user-send-failed')).toBeTruthy();
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('daemon 503: unavailable attempt 2');
 
     const secondCall = streamViaDaemon.mock.calls[1]?.[0] as {
       clientRequestId: string;
@@ -3572,6 +3588,402 @@ describe('ProjectView conversation run isolation', () => {
       ),
     );
     expect(screen.getByTestId('assistant-summary').textContent).toBe('');
+  });
+
+  it('persists the actual assistant retry request ID and resends the original user history position', async () => {
+    const user: ChatMessage = { id: 'retry-u', role: 'user', content: 'retry me', clientRequestId: 'original-request', createdAt: 1 };
+    const failedAssistant: ChatMessage = {
+      id: 'retry-a', role: 'assistant', content: 'old failed attempt', runStatus: 'failed',
+      events: [{ kind: 'text', text: 'old failed attempt' }], createdAt: 2,
+    };
+    conversationAMessages = [user, failedAssistant];
+    streamViaDaemon.mockImplementation(async (options: { handlers: { onError: (error: Error) => void } }) => {
+      if (streamViaDaemon.mock.calls.length === 1) options.handlers.onError(new Error('daemon 503: unavailable'));
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('chat-retry')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('chat-retry'));
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    const first = streamViaDaemon.mock.calls[0]![0];
+    expect(first.clientRequestId).not.toBe(user.clientRequestId);
+    expect(saveMessage).toHaveBeenCalledWith(project.id, 'conv-a', expect.objectContaining({
+      id: user.id, clientRequestId: first.clientRequestId, sendFailed: true,
+    }), expect.anything());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(2));
+    const second = streamViaDaemon.mock.calls[1]![0];
+    expect(second.clientRequestId).toBe(first.clientRequestId);
+    expect(second.history.map((message: ChatMessage) => message.id)).toEqual([user.id]);
+    expect(screen.getByTestId('assistant-summary').textContent).toContain(failedAssistant.id);
+  });
+
+  it('persists a pre-run failure to its original conversation after navigation', async () => {
+    conversationAMessages = [];
+    let rejectSend!: (error: Error) => void;
+    streamViaDaemon.mockImplementation(async (options: { handlers: { onError: (error: Error) => void } }) => {
+      rejectSend = options.handlers.onError;
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    const first = streamViaDaemon.mock.calls[0]![0];
+    fireEvent.click(screen.getByTestId('conversation-select-conv-b'));
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-b'));
+    await act(async () => rejectSend(new Error('daemon 503: original failed')));
+    expect(saveMessage).toHaveBeenCalledWith(project.id, 'conv-a', expect.objectContaining({
+      id: first.userMessageId, clientRequestId: first.clientRequestId, sendFailed: true,
+      sendFailureDetail: 'daemon 503: original failed',
+    }), expect.anything());
+    expect(screen.getByTestId('user-messages').textContent).not.toContain(first.userMessageId);
+  });
+
+  it('adopts the canonical assistant row when the daemon reuses a request after the recovery lookup', async () => {
+    conversationAMessages = [{
+      id: 'reused-user', role: 'user', content: 'same send', clientRequestId: 'reused-request', sendFailed: true,
+    }];
+    streamViaDaemon.mockImplementation(async (options: {
+      onRunCreated?: (id: string, task: undefined, created: { reused: boolean; assistantMessageId: string }) => void;
+    }) => options.onRunCreated?.('reused-run', undefined, { reused: true, assistantMessageId: 'canonical-assistant' }));
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(screen.getByTestId('assistant-summary').textContent).toBe('canonical-assistant|queued|'));
+    const assistants = saveMessage.mock.calls.map((call) => call[2] as ChatMessage).filter((message) => message.role === 'assistant');
+    expect(assistants).toEqual([]);
+    expect(screen.getByTestId('assistant-summary').textContent).toBe('canonical-assistant|queued|');
+  });
+
+  it('replays a canonical assistant from event zero without duplicating its loaded text', async () => {
+    conversationAMessages = [{
+      id: 'replay-user', role: 'user', content: 'same send', clientRequestId: 'replay-request', sendFailed: true,
+    }, {
+      id: 'replay-assistant', role: 'assistant', content: 'retained reply', runStatus: 'failed',
+      events: [{ kind: 'text', text: 'retained reply' }],
+    }];
+    streamViaDaemon.mockImplementation(async (options: {
+      onRunCreated?: (id: string, task: undefined, created: { assistantMessageId: string }) => void;
+      handlers: { onDelta: (text: string) => void; onDone: () => void };
+    }) => {
+      options.onRunCreated?.('replay-run', undefined, { assistantMessageId: 'replay-assistant' });
+      options.handlers.onDelta('retained reply');
+      await options.handlers.onDone();
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(screen.getByTestId('assistant-summary').textContent).toContain('|retained reply'));
+    const summaries = screen.getByTestId('assistant-summary').textContent ?? '';
+    expect(summaries.match(/replay-assistant/g)).toHaveLength(1);
+    expect(summaries).not.toContain('retained replyretained reply');
+    const assistants = saveMessage.mock.calls.map((call) => call[2] as ChatMessage).filter((message) => message.role === 'assistant');
+    expect(assistants.every((message) => message.id === 'replay-assistant')).toBe(true);
+    expect(assistants.some((message) => message.content === 'retained reply')).toBe(true);
+  });
+
+  it('does not mark a stopped pending POST as a failed send or persist its phantom canceled assistant', async () => {
+    conversationAMessages = [];
+    let options!: { cancelSignal: AbortSignal; handlers: { onError: (error: Error) => void } };
+    streamViaDaemon.mockImplementation(async (input: typeof options) => { options = input; });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('stop-message'));
+    expect(options.cancelSignal.aborted).toBe(true);
+    await act(async () => options.handlers.onError(new Error('connection closed after stop')));
+    expect(screen.queryByTestId('user-send-failed')).toBeNull();
+    const saved = saveMessage.mock.calls.map((call) => call[2] as ChatMessage);
+    expect(saved.some((message) => message.sendFailed)).toBe(false);
+    expect(saved.some((message) => message.role === 'assistant' && !message.runId)).toBe(false);
+  });
+
+  it('restores the composer draft after an ACP design preflight refuses before painting a message', async () => {
+    conversationAMessages = [];
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    renderProjectView(config, {
+      ...project,
+      metadata: { amcFeatureRunId: 'feature-1' } as NonNullable<Project['metadata']> & { amcFeatureRunId: string },
+    });
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(composerSendOutcomes).toEqual(['restore-draft']));
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(screen.getByTestId('user-messages').textContent).toBe('');
+    expect(screen.getByTestId('chat-error').textContent).toContain('Could not read the current ACP Design setting');
+  });
+
+  it('keeps the winning create-only answer when a losing submitter fails before receiving a run', async () => {
+    conversationAMessages = [];
+    let finishClaim!: (message: ChatMessage) => void;
+    let claimed!: ChatMessage;
+    saveMessage.mockImplementation(async (_p: string, _c: string, message: ChatMessage, options?: { createOnly?: boolean }) => {
+      if (options?.createOnly) {
+        claimed = message;
+        return new Promise<ChatMessage>((resolve) => { finishClaim = resolve; });
+      }
+      return message;
+    });
+    streamViaDaemon.mockImplementation(async (options: { handlers: { onError: (error: Error) => Promise<void> } }) => {
+      await options.handlers.onError(new Error('daemon 409: idempotency conflict'));
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('submit-question-form'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    const winningUser: ChatMessage = { id: claimed.id, role: 'user', content: 'winning answer X' };
+    conversationAMessages = [winningUser, { id: 'winning-reply', role: 'assistant', content: 'winning assistant reply', runStatus: 'succeeded', runId: 'winning-run' }];
+    await act(async () => finishClaim(winningUser));
+    await waitFor(() => expect(screen.getByTestId('user-messages').textContent).toContain('winning answer X'));
+    expect(screen.queryByTestId('user-send-failed')).toBeNull();
+    expect(saveMessage.mock.calls.some((call) => (call[2] as ChatMessage).sendFailed)).toBe(false);
+    await waitFor(() => expect(screen.getByTestId('assistant-summary').textContent).toContain('winning assistant reply'));
+  });
+
+  it('queues a retry behind a composer send that starts while the accepted-run lookup is pending', async () => {
+    const failed: ChatMessage = {
+      id: 'racing-retry-user', role: 'user', content: 'retry older send', sendFailed: true, clientRequestId: 'racing-retry-request',
+    };
+    conversationAMessages = [failed];
+    let finish!: (value: { runs: never[]; awaitingInputProjectIds: never[] }) => void;
+    listRunsForProject.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    const composerUserId = streamViaDaemon.mock.calls[0]![0].userMessageId;
+    await act(async () => finish({ runs: [], awaitingInputProjectIds: [] }));
+    await waitFor(() => expect(screen.getByTestId('send-queued-0').textContent).toBe(failed.content));
+    expect(streamViaDaemon).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('user-messages').textContent).toContain(composerUserId);
+    expect(screen.getByTestId('user-messages').textContent).toContain('hello from b');
+  });
+
+  it('releases applying comments when a stopped pending POST fails', async () => {
+    conversationAMessages = [];
+    fetchPreviewComments.mockResolvedValue([previewComment]);
+    let fail!: (error: Error) => Promise<void>;
+    streamViaDaemon.mockImplementation(async (options: { handlers: { onError: (error: Error) => Promise<void> } }) => { fail = options.handlers.onError; });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('attach-first-comment'));
+    await waitFor(() => expect(screen.getByTestId('attached-comment-count').textContent).toBe('1'));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('stop-message'));
+    await act(async () => fail(new Error('late stopped POST failure')));
+    expect(patchPreviewCommentStatus).toHaveBeenCalledWith(project.id, 'conv-a', previewComment.id, 'open', expect.anything());
+  });
+
+  it('does not persist an AMC phantom on Stop when the studio mode is API', async () => {
+    conversationAMessages = [];
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ agentId: 'muse', model: 'muse-model', reasoning: null }))));
+    renderProjectView({ ...config, mode: 'api', apiProtocol: 'openai', model: 'api-model' }, {
+      ...project, metadata: { amcFeatureRunId: 'feature-1' } as NonNullable<Project['metadata']> & { amcFeatureRunId: string },
+    });
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('stop-message'));
+    expect(saveMessage.mock.calls.some((call) => {
+      const message = call[2] as ChatMessage;
+      return message.role === 'assistant' && !message.runId;
+    })).toBe(false);
+  });
+
+  it.each(['failed', 'canceled'] as const)('replays an accepted %s assistant identity without appending onto its loaded text', async (status) => {
+    const user: ChatMessage = { id: 'failed-replay-user', role: 'user', content: 'same request', sendFailed: true, clientRequestId: 'failed-replay-request' };
+    conversationAMessages = [user, { id: 'failed-replay-assistant', role: 'assistant', content: 'retained reply', runStatus: 'failed', events: [{ kind: 'text', text: 'retained reply' }] }];
+    const run = { id: 'failed-replay-run', projectId: project.id, conversationId: 'conv-a', assistantMessageId: 'failed-replay-assistant', clientRequestId: user.clientRequestId, agentId: 'muse', status, createdAt: 1, updatedAt: 2 };
+    listRunsForProject.mockResolvedValue({ runs: [run], awaitingInputProjectIds: [] });
+    fetchChatRunStatus.mockResolvedValue(run);
+    reattachDaemonRun.mockImplementation(async (options: { handlers: { onDelta: (text: string) => void; onDone: () => void } }) => {
+      options.handlers.onDelta('retained reply');
+      await options.handlers.onDone();
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(reattachDaemonRun).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId('assistant-summary').textContent).toContain('|retained reply'));
+    expect(screen.getByTestId('assistant-summary').textContent).not.toContain('retained replyretained reply');
+  });
+
+  it.each([false, true])('leaves a canonical stored reply intact while reused POST replay is incomplete (transport failure: %s)', async (transportFailure) => {
+    const canonical: ChatMessage = { id: 'stored-canonical', role: 'assistant', content: 'stored complete reply', runId: 'stored-run', runStatus: 'succeeded', events: [{ kind: 'text', text: 'stored complete reply' }] };
+    conversationAMessages = [{ id: 'stored-user', role: 'user', content: 'same request', sendFailed: true, clientRequestId: 'stored-request' }, canonical];
+    let stored = canonical;
+    saveMessage.mockImplementation(async (_p: string, _c: string, message: ChatMessage) => {
+      if (message.id === canonical.id) stored = message;
+      return message;
+    });
+    streamViaDaemon.mockImplementation(async (options: {
+      onRunCreated?: (id: string, task: undefined, created: { assistantMessageId: string }) => void;
+      onRunStatus?: (status: 'queued') => void;
+      handlers: { onError: (error: Error) => Promise<void> };
+    }) => {
+      options.onRunCreated?.('stored-run', undefined, { assistantMessageId: canonical.id });
+      options.onRunStatus?.('queued');
+      if (transportFailure) await options.handlers.onError(new Error('lost canonical replay'));
+    });
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('conversation-select-conv-b'));
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-b'));
+    expect(stored.content).toBe('stored complete reply');
+    expect(stored.runStatus).toBe('succeeded');
+    expect(saveMessage.mock.calls.some((call) => (call[2] as ChatMessage).id === canonical.id)).toBe(false);
+  });
+
+  it('restores a failed retry durably when its preflight refuses after switching conversation', async () => {
+    const failedUser: ChatMessage = {
+      id: 'retry-preflight-user', role: 'user', content: 'keep this failure', sendFailed: true,
+      sendFailureDetail: 'original refusal', clientRequestId: 'retry-preflight-request',
+    };
+    conversationAMessages = [failedUser];
+    let finish!: (response: Response) => void;
+    const fetch = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetch);
+    renderProjectView(config, {
+      ...project,
+      metadata: { amcFeatureRunId: 'feature-1' } as NonNullable<Project['metadata']> & { amcFeatureRunId: string },
+    });
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/acp-design-execution'), expect.anything()));
+    fireEvent.click(screen.getByTestId('conversation-select-conv-b'));
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-b'));
+    await act(async () => finish(new Response('{}', { status: 503 })));
+    await waitFor(() => expect(saveMessage).toHaveBeenCalledWith(project.id, 'conv-a', expect.objectContaining({
+      id: failedUser.id, sendFailed: true, sendFailureDetail: 'original refusal', clientRequestId: failedUser.clientRequestId,
+    }), expect.anything()));
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(screen.getByTestId('user-messages').textContent).not.toContain(failedUser.id);
+  });
+
+  it.each(['running', 'succeeded', 'failed', 'canceled'] as const)('reattaches an accepted %s send after a lost POST response instead of posting current settings', async (status) => {
+    const failedUser: ChatMessage = {
+      id: 'lost-response-user', role: 'user', content: 'accepted elsewhere',
+      clientRequestId: 'lost-response-request', sendFailed: true,
+      sendFailureDetail: 'Failed to fetch', createdAt: 1,
+    };
+    conversationAMessages = [failedUser];
+    const accepted = {
+      id: 'accepted-run', projectId: project.id, conversationId: 'conv-a',
+      assistantMessageId: 'authoritative-assistant', clientRequestId: failedUser.clientRequestId,
+      agentId: 'muse', status, createdAt: 10, updatedAt: 20, exitCode: status === 'succeeded' ? 0 : null,
+    };
+    listRunsForProject.mockResolvedValue({
+      runs: [
+        { ...accepted, id: 'foreign-run', projectId: 'other-project' },
+        { ...accepted, id: 'sibling-run', conversationId: 'conv-b' },
+        accepted,
+      ], awaitingInputProjectIds: [],
+    });
+    fetchChatRunStatus.mockResolvedValue(accepted);
+    // The current provider differs from the request accepted by the daemon.
+    renderProjectView({ ...config, agentId: 'codex' });
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(reattachDaemonRun).toHaveBeenCalledWith(expect.objectContaining({
+      runId: 'accepted-run', agentId: 'muse', conversationId: 'conv-a',
+    })));
+    expect(listRunsForProject).toHaveBeenCalledWith(project.id, expect.objectContaining({ workspaceId: 'workspace-personal' }));
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('user-send-failed')).toBeNull();
+    expect(screen.getByTestId('assistant-summary').textContent).toContain('authoritative-assistant');
+  });
+
+  it('claims one failed-send lookup across double clicks and preserves failure on unknown outcomes', async () => {
+    const failedUser: ChatMessage = {
+      id: 'unknown-user', role: 'user', content: 'do not duplicate',
+      clientRequestId: 'unknown-request', sendFailed: true, sendFailureDetail: 'offline',
+    };
+    conversationAMessages = [failedUser];
+    let finish!: (value: null) => void;
+    listRunsForProject.mockReturnValueOnce(new Promise<null>((resolve) => { finish = resolve; }));
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    const button = screen.getByTestId('user-send-failed');
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(listRunsForProject).toHaveBeenCalledTimes(1);
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    await act(async () => finish(null));
+    expect(screen.getByTestId('user-send-failure-details').textContent).toBe('offline');
+    expect(screen.getByTestId('user-send-failed')).toBeTruthy();
+    listRunsForProject.mockResolvedValueOnce({ runs: [], awaitingInputProjectIds: [] });
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+  });
+
+  it('bounds a stalled failed-send lookup and permits another retry without starting a duplicate run', async () => {
+    conversationAMessages = [{
+      id: 'stalled-lookup-user', role: 'user', content: 'keep retry reachable', sendFailed: true,
+    }];
+    listRunsForProject.mockReturnValueOnce(new Promise(() => {}));
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(14_999); });
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    expect(listRunsForProject).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(screen.getByTestId('user-send-failed')).toBeTruthy();
+    listRunsForProject.mockResolvedValueOnce({ runs: [], awaitingInputProjectIds: [] });
+    await act(async () => { fireEvent.click(screen.getByTestId('user-send-failed')); });
+    vi.useRealTimers();
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+  });
+
+  it('merges an accepted run identity into an existing assistant without duplicating the row', async () => {
+    const user: ChatMessage = {
+      id: 'existing-user', role: 'user', content: 'original', clientRequestId: 'existing-request', sendFailed: true,
+    };
+    conversationAMessages = [user, {
+      id: 'existing-assistant', role: 'assistant', content: 'retained reply', runStatus: 'failed',
+      events: [{ kind: 'text', text: 'retained reply' }],
+    }];
+    const accepted = {
+      id: 'existing-run', projectId: project.id, conversationId: 'conv-a', assistantMessageId: 'existing-assistant',
+      clientRequestId: user.clientRequestId, agentId: 'muse', status: 'running', createdAt: 1, updatedAt: 2,
+    };
+    listRunsForProject.mockResolvedValue({ runs: [accepted], awaitingInputProjectIds: [] });
+    fetchChatRunStatus.mockResolvedValue(accepted);
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    await waitFor(() => expect(reattachDaemonRun).toHaveBeenCalledWith(expect.objectContaining({ runId: 'existing-run' })));
+    expect(screen.getByTestId('assistant-summary').textContent?.match(/existing-assistant/g)).toHaveLength(1);
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+  });
+
+  it('ignores a failed-send lookup after switching conversation', async () => {
+    const failedUser: ChatMessage = {
+      id: 'switch-user', role: 'user', content: 'belongs to a',
+      clientRequestId: 'switch-request', sendFailed: true,
+    };
+    conversationAMessages = [failedUser];
+    let finish!: (value: { runs: unknown[]; awaitingInputProjectIds: string[] }) => void;
+    listRunsForProject.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    renderProjectView();
+    await waitFor(() => expect(screen.getByTestId('user-send-failed')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('user-send-failed'));
+    fireEvent.click(screen.getByTestId('conversation-select-conv-b'));
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-b'));
+    await act(async () => finish({ runs: [{
+      id: 'late-accepted', projectId: project.id, conversationId: 'conv-a',
+      assistantMessageId: 'late-assistant', clientRequestId: failedUser.clientRequestId,
+      agentId: 'muse', status: 'running', createdAt: 1, updatedAt: 1,
+    }], awaitingInputProjectIds: [] }));
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+    expect(reattachDaemonRun).not.toHaveBeenCalled();
+    expect(screen.getByTestId('assistant-summary').textContent).not.toContain('late-assistant');
   });
 
   it('durably queues one retry when the conversation becomes busy', async () => {
@@ -3689,7 +4101,7 @@ describe('ProjectView conversation run isolation', () => {
     };
     expect(retryCall.assistantMessageId).toBeTruthy();
     expect(retryCall.assistantMessageId).not.toBe('assistant-failed');
-    expect(retryCall.history).toEqual([userMessage]);
+    expect(retryCall.history).toEqual([{ ...userMessage, clientRequestId: expect.any(String) }]);
 
     await waitFor(() => {
       const summary = screen.getByTestId('assistant-summary').textContent ?? '';
@@ -3742,7 +4154,7 @@ describe('ProjectView conversation run isolation', () => {
       };
       expect(retryCall.assistantMessageId).toBeTruthy();
       expect(retryCall.assistantMessageId).not.toBe(deliveryFailure.id);
-      expect(retryCall.history).toEqual([userMessage]);
+      expect(retryCall.history).toEqual([{ ...userMessage, clientRequestId: expect.any(String) }]);
     },
   );
 

@@ -1466,6 +1466,8 @@ export interface ChatMessage {
    * 只对 `role === 'user'` 有意义;助手侧的失败仍然看 `runStatus`。
    */
   sendFailed?: boolean;
+  /** Sanitized, bounded reason for a pre-run send failure; cleared on retry. */
+  sendFailureDetail?: string;
   /**
    * 这条消息之后**原地分叉**过一次(点了「新开会话」)。
    *
