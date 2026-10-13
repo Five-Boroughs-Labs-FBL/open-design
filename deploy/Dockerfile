@@ -182,6 +182,11 @@ ENV HOME=/home/open-design
 ENV OD_BIND_HOST=0.0.0.0
 ENV OD_PORT=7456
 ENV OD_DATA_DIR=/app/.od
+# Unprivileged containers cannot create Codex's bubblewrap workspace-write
+# sandbox, so every Codex command fails ("bwrap: No permissions to create a
+# new namespace") and design turns write nothing. Hosted images default to
+# full access; set OD_CODEX_SANDBOX=workspace-write where namespaces work.
+ENV OD_CODEX_SANDBOX=danger-full-access
 
 EXPOSE 7456
 

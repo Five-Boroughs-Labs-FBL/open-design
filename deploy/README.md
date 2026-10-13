@@ -191,12 +191,14 @@ ANTHROPIC_API_KEY=sk-ant-…
 OPENAI_API_KEY=sk-…
 ```
 
-If you install Codex inside an unprivileged Linux container and it fails while
-creating its `workspace-write` sandbox, opt into Codex's full-access mode for
-all Codex runs in that deployment:
+The deploy image and `docker-compose.yml` default to
+`OD_CODEX_SANDBOX=danger-full-access`. Unprivileged Linux containers (Coolify,
+Railway, most Docker hosts) cannot create Codex's `workspace-write` sandbox, so
+without it every Codex command fails. On a host that allows unprivileged user
+namespaces you can keep the sandbox:
 
 ```bash
-OD_CODEX_SANDBOX=danger-full-access docker compose up -d --no-build
+OD_CODEX_SANDBOX=workspace-write docker compose up -d --no-build
 ```
 
 On Railway, the same failure may appear in a design chat as a successful Codex
@@ -207,8 +209,9 @@ affected environment and redeploy that service; changing the agent choice in
 the calling app does not change Codex's sandbox inside Open Design. Retry the
 design turn after the new deployment is healthy.
 
-Only the exact value `danger-full-access` is supported; unknown values are
-ignored. Use this only for trusted, single-user deployments. It lets Codex run
+Only the exact value `danger-full-access` enables full access; any other value
+(for example `workspace-write`) keeps the sandbox. Running the daemon outside
+this image is unchanged: the sandbox stays on unless you set the variable. Use this only for trusted, single-user deployments. It lets Codex run
 without the workspace-write sandbox, which is useful when the container host
 blocks unprivileged user namespaces, but it gives the Codex process broader
 filesystem access inside the container.
