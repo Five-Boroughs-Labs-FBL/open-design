@@ -848,3 +848,25 @@ describe('Codex parent/child event isolation', () => {
     expect(child.stdinEnded).toBe(1);
   });
 });
+
+it('keeps child work alive without counting stale turns or post-terminal frames as activity', () => {
+  const activity = vi.fn();
+  const { child, session, agentEvents } = harness({ onForeignActivity: activity });
+  completeHandshake(child, 'lead');
+  child.say({ method: 'turn/started', params: { threadId: 'lead', turn: { id: 'current' } } });
+  child.say({ id: child.sent('turn/start')?.id, result: { turn: { id: 'current' } } });
+  const before = [...agentEvents];
+  child.say({ method: 'item/agentMessage/delta', params: { threadId: 'child', turnId: 'child-turn', itemId: 'child-text', delta: 'working' } });
+  child.say({ method: 'turn/completed', params: { threadId: 'child', turn: { id: 'child-turn', status: 'completed' } } });
+  expect(activity).toHaveBeenCalledTimes(2);
+  expect(session.stats().foreignThreadNotifications).toBe(2);
+  expect(agentEvents).toEqual(before);
+  child.say({ method: 'item/agentMessage/delta', params: { threadId: 'lead', turnId: 'old', itemId: 'old', delta: 'stale' } });
+  expect(activity).toHaveBeenCalledTimes(2);
+  child.say({ method: 'warning', params: { threadId: null, message: 'global warning' } });
+  expect(JSON.stringify(agentEvents)).toContain('global warning');
+  child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { id: 'current', status: 'completed' } } });
+  child.say({ method: 'item/agentMessage/delta', params: { threadId: 'child', delta: 'late' } });
+  expect(activity).toHaveBeenCalledTimes(2);
+  expect(session.completedSuccessfully()).toBe(true);
+});

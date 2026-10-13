@@ -78,6 +78,8 @@ export interface CodexAppServerSessionOptions {
   imagePaths?: string[];
   clientVersion?: string;
   onAgentEvent: (event: JsonObject) => void;
+  /** Child work keeps the transport alive without becoming lead output. */
+  onForeignActivity?: () => void;
   onCliReady?: () => void;
   onSessionReady?: () => void;
   onPromptSendStart?: () => void;
@@ -97,7 +99,7 @@ export interface CodexAppServerSession {
   getLastSessionPath(): string | null;
   /** Once-only cleanup authority, unavailable until this exact child has closed. */
   takeClosedThreadCleanup(): CodexClosedThreadCleanup | null;
-  stats(): { unknownNotifications: number; unknownItems: number };
+  stats(): { unknownNotifications: number; unknownItems: number; foreignThreadNotifications: number };
 }
 
 /**
@@ -165,6 +167,7 @@ export function attachCodexAppServerSession(
   let buffer = '';
   let threadId: string | null = null;
   let activeTurnId: string | null = null;
+  let foreignThreadNotifications = 0;
   let rolloutPath: string | null = null;
   let cliReadySeen = false;
   let promptSent = false;
@@ -351,7 +354,11 @@ export function attachCodexAppServerSession(
    * foreign identities never enter the parent normalizer or lifecycle.
    */
   function ownsNotification(method: string, params: JsonObject): boolean {
-    if (typeof params.threadId === 'string' && params.threadId !== threadId) return false;
+    if (typeof params.threadId === 'string' && params.threadId !== threadId) {
+      foreignThreadNotifications += 1;
+      if (!aborted && !fatalReported) opts.onForeignActivity?.();
+      return false;
+    }
     const turn = isRecord(params.turn) ? params.turn : null;
     const notificationTurnId = typeof params.turnId === 'string' ? params.turnId
       : typeof turn?.id === 'string' ? turn.id : null;
@@ -524,7 +531,7 @@ export function attachCodexAppServerSession(
       return receipt;
     },
     stats() {
-      return normalizer.stats();
+      return { ...normalizer.stats(), foreignThreadNotifications };
     },
   };
 }
