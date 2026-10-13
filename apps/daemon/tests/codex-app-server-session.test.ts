@@ -341,11 +341,13 @@ describe('codex app-server session', () => {
       expect(agentEvents).toContainEqual({ type: 'text_delta', delta: 'hi' });
     });
 
-    it('reports the thread id on the session-capture status channel', () => {
+    it('takes the session identity from the thread response, not child announcements', () => {
       const { child, agentEvents } = harness();
       const init = child.sent('initialize');
       child.say({ jsonrpc: '2.0', id: init?.id, result: {} });
       child.say({ method: 'thread/started', params: { thread: { id: 'th-9' } } });
+      expect(agentEvents).toEqual([]);
+      child.say({ id: child.sent('thread/start')?.id, result: { thread: { id: 'th-9' } } });
       expect(agentEvents).toContainEqual({
         type: 'status',
         label: 'initializing',
@@ -773,5 +775,76 @@ describe('OD-owned Codex thread visibility', () => {
     const h = ready({}, version); opened(h); completed(h.child);
     expect(h.child.sent('thread/archive')).toBeUndefined();
     expect(h.session.completedSuccessfully()).toBe(true);
+  });
+});
+
+describe('Codex parent/child event isolation', () => {
+  it.each([false, true])('waits for the lead with archive policy %s', (manageThreadVisibility) => {
+    const { child, marks, session, agentEvents } = harness({ manageThreadVisibility });
+    child.say({ id: child.sent('initialize')?.id, result: { userAgent: 'codex/0.153.4' } });
+    child.say({ id: child.sent('thread/start')?.id, result: { thread: { id: 'lead', path: '/lead.jsonl' } } });
+    child.say({ id: child.sent('turn/start')?.id, result: { turn: { id: 'lead-turn' } } });
+    const before = [...agentEvents];
+    child.say({ method: 'thread/started', params: { thread: { id: 'child', parentThreadId: 'lead', path: '/child.jsonl' } } });
+    for (const [method, data] of [
+      ['turn/started', { turn: { id: 'child-turn' } }],
+      ['item/agentMessage/delta', { itemId: 'child-text', delta: 'child finished' }],
+      ['item/completed', { item: { id: 'child-text', type: 'agentMessage', text: 'child finished' } }],
+      ['thread/tokenUsage/updated', { tokenUsage: { total: { inputTokens: 25, outputTokens: 3, totalTokens: 28 } } }],
+      ['turn/plan/updated', { plan: [{ step: 'child page', status: 'completed' }] }],
+      ['error', { error: { message: 'child failure' }, willRetry: false }],
+      ['turn/completed', { turn: { id: 'child-turn', status: 'completed' } }],
+    ] as const) {
+      child.say({ method, params: { threadId: 'child', ...data } });
+    }
+    expect(agentEvents).toEqual(before);
+    expect(session.getLastSessionPath()).toBe('/lead.jsonl');
+    expect(session.getDurableSessionId()).toBe('lead');
+    expect(child.stdinEnded).toBe(0);
+    expect(child.sent('thread/archive')).toBeUndefined();
+    expect(marks).not.toContain('turn-complete');
+    expect(session.completedSuccessfully()).toBe(false);
+    child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { id: 'lead-turn', status: 'completed' } } });
+    if (manageThreadVisibility) {
+      expect(child.sent('thread/archive')?.params).toEqual({ threadId: 'lead' });
+      const terminalEvents = [...agentEvents];
+      child.say({ method: 'item/agentMessage/delta', params: { threadId: 'lead', turnId: 'lead-turn', itemId: 'late', delta: 'late' } });
+      child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { id: 'lead-turn', status: 'failed' } } });
+      expect(agentEvents).toEqual(terminalEvents);
+      child.say({ id: child.sent('thread/archive')?.id, result: {} });
+    }
+    expect(child.stdinEnded).toBe(1);
+    expect(marks.filter(mark => mark === 'turn-complete')).toHaveLength(1);
+    expect(session.completedSuccessfully()).toBe(true);
+  });
+
+  it.each(['response', 'notification'])('ignores stale turns after binding via %s', (binding) => {
+    const { child, marks, agentEvents } = harness({ resumeSessionId: 'lead' });
+    completeHandshake(child, 'lead');
+    if (binding === 'response') {
+      child.say({ id: child.sent('turn/start')?.id, result: { turn: { id: 'current' } } });
+    } else {
+      child.say({ method: 'turn/started', params: { threadId: 'lead', turn: { id: 'current' } } });
+    }
+    const before = [...agentEvents];
+    child.say({ method: 'turn/started', params: { threadId: 'lead', turn: { id: 'stale' } } });
+    child.say({ method: 'item/agentMessage/delta', params: { threadId: 'lead', turnId: 'stale', delta: 'old', itemId: 'old' } });
+    child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { id: 'stale', status: 'completed' } } });
+    expect(agentEvents).toEqual(before);
+    expect(child.stdinEnded).toBe(0);
+    expect(marks).not.toContain('turn-complete');
+    child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { id: 'current', status: 'completed' } } });
+    expect(child.stdinEnded).toBe(1);
+  });
+
+  it('ignores child completion during cancellation but accepts the lead interruption', () => {
+    const { child, session, marks } = harness();
+    completeHandshake(child, 'lead');
+    session.abort();
+    child.say({ method: 'turn/completed', params: { threadId: 'child', turn: { status: 'completed' } } });
+    expect(child.stdinEnded).toBe(0);
+    expect(marks).not.toContain('turn-complete');
+    child.say({ method: 'turn/completed', params: { threadId: 'lead', turn: { status: 'interrupted' } } });
+    expect(child.stdinEnded).toBe(1);
   });
 });
