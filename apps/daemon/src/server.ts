@@ -16386,6 +16386,7 @@ export async function startServer({
             ? agentResumeCtx.resumeSessionId
             : null,
         onAgentEvent: (event) => sendAgentEvent(event),
+        onForeignActivity: () => noteAgentActivity(),
         onCliReady: () => noteCliReadyAt(),
         onSessionReady: () => noteSessionInitDoneAt(),
         // The prompt boundary for this transport is the `turn/start` write, not

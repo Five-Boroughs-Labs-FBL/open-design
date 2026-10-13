@@ -78,6 +78,8 @@ export interface CodexAppServerSessionOptions {
   imagePaths?: string[];
   clientVersion?: string;
   onAgentEvent: (event: JsonObject) => void;
+  /** Child work keeps the transport alive without becoming lead output. */
+  onForeignActivity?: () => void;
   onCliReady?: () => void;
   onSessionReady?: () => void;
   onPromptSendStart?: () => void;
@@ -97,7 +99,7 @@ export interface CodexAppServerSession {
   getLastSessionPath(): string | null;
   /** Once-only cleanup authority, unavailable until this exact child has closed. */
   takeClosedThreadCleanup(): CodexClosedThreadCleanup | null;
-  stats(): { unknownNotifications: number; unknownItems: number };
+  stats(): { unknownNotifications: number; unknownItems: number; foreignThreadNotifications: number };
 }
 
 /**
@@ -164,6 +166,8 @@ export function attachCodexAppServerSession(
   let nextId = 1;
   let buffer = '';
   let threadId: string | null = null;
+  let activeTurnId: string | null = null;
+  let foreignThreadNotifications = 0;
   let rolloutPath: string | null = null;
   let cliReadySeen = false;
   let promptSent = false;
@@ -261,9 +265,11 @@ export function attachCodexAppServerSession(
     request(
       'turn/start',
       params,
-      () => {
+      (result) => {
         // `turn/start` resolves when the turn is accepted; completion arrives
         // as the `turn/completed` notification.
+        const turn = isRecord(result.turn) ? result.turn : null;
+        if (typeof turn?.id === 'string') activeTurnId = turn.id;
       },
       () => onPromptSendEnd?.(),
     );
@@ -343,6 +349,26 @@ export function attachCodexAppServerSession(
     onAgentEvent({ type: 'status', label: 'initializing', sessionId: id });
   }
 
+  /** Only the owning thread/turn may contribute output or end this run.
+   * Missing identities retain compatibility with older notifications; explicit
+   * foreign identities never enter the parent normalizer or lifecycle.
+   */
+  function ownsNotification(method: string, params: JsonObject): boolean {
+    if (typeof params.threadId === 'string' && params.threadId !== threadId) {
+      foreignThreadNotifications += 1;
+      if (!aborted && !fatalReported) opts.onForeignActivity?.();
+      return false;
+    }
+    const turn = isRecord(params.turn) ? params.turn : null;
+    const notificationTurnId = typeof params.turnId === 'string' ? params.turnId
+      : typeof turn?.id === 'string' ? turn.id : null;
+    if (activeTurnId && notificationTurnId && notificationTurnId !== activeTurnId) return false;
+    if (method === 'turn/started' && params.threadId === threadId && notificationTurnId) {
+      activeTurnId ??= notificationTurnId;
+    }
+    return true;
+  }
+
   function handleFrame(frame: JsonObject): void {
     // Preserve archive replies after a terminal event, but never reopen a canceled turn.
     if (turnEnded || childClosed) return;
@@ -358,6 +384,9 @@ export function attachCodexAppServerSession(
       resolver?.(frame);
       return;
     }
+    // Archive replies still resolve above, but no late stream can reopen or
+    // contaminate an already completed turn while archive is in flight.
+    if (terminalReceived) return;
     if (typeof frame.method !== 'string') return;
     if (id !== null) {
       // A server-to-client REQUEST. Nothing in this build answers one — the
@@ -374,14 +403,14 @@ export function attachCodexAppServerSession(
     if (frame.method === 'thread/started') {
       const params = isRecord(frame.params) ? frame.params : {};
       const thread = isRecord(params.thread) ? params.thread : null;
+      // The request response establishes ownership, including on resume.
+      // Child thread announcements must never replace the owner's rollout path.
+      if (!threadId || thread?.id !== threadId) return;
       const path = typeof thread?.path === 'string' ? thread.path : '';
       if (path) rolloutPath = path;
-      const startedId = typeof thread?.id === 'string' ? thread.id : '';
-      if (startedId && !threadId) threadId = startedId;
-      reportSessionHandle(startedId);
       return;
     }
-    if (frame.method === 'turn/completed' && terminalReceived) return;
+    if (!ownsNotification(frame.method, isRecord(frame.params) ? frame.params : {})) return;
     normalizer.handleNotification(frame.method, frame.params);
     if (frame.method === 'turn/completed') {
       terminalReceived = true;
@@ -502,7 +531,7 @@ export function attachCodexAppServerSession(
       return receipt;
     },
     stats() {
-      return normalizer.stats();
+      return { ...normalizer.stats(), foreignThreadNotifications };
     },
   };
 }
